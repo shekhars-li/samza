@@ -25,7 +25,6 @@ import org.apache.samza.util.{ LexicographicComparator, Logging }
 import org.apache.samza.config.Config
 import org.apache.samza.container.SamzaContainerContext
 import org.rocksdb._
-import org.rocksdb.TtlDB;
 
 object RocksDbKeyValueStore extends Logging {
   def options(storeConfig: Config, containerContext: SamzaContainerContext) = {
@@ -109,8 +108,9 @@ object RocksDbKeyValueStore extends Logging {
     {
       if (useTTL)
       {
-        info("Opening RocksDB store with TTL value: %s" format ttl)
-        TtlDB.open(options, dir.toString, ttl.toInt, false)
+        throw new UnsupportedOperationException("RocksDB TTL is not supported in this version")
+//        info("Opening RocksDB store with TTL value: %s" format ttl)
+//        TtlDB.open(options, dir.toString, ttl.toInt, false)
       }
       else
       {

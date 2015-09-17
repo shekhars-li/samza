@@ -34,35 +34,36 @@ import org.rocksdb.{RocksDBException, Options}
 
 class TestRocksDbKeyValueStore
 {
-  @Test
-  def testTTL() {
-    val map = new java.util.HashMap[String, String]();
-    map.put("rocksdb.ttl.ms", "1000")
-    val config = new MapConfig(map)
-    val options = new Options()
-    options.setCreateIfMissing(true)
-    val rocksDB = RocksDbKeyValueStore.openDB(new File(System.getProperty("java.io.tmpdir")),
-                                              options,
-                                              config,
-                                              false,
-                                              "someStore")
-    val key = "test".getBytes("UTF-8")
-    rocksDB.put(key, "val".getBytes("UTF-8"))
-    Assert.assertNotNull(rocksDB.get(key))
-    val retryBackoff: ExponentialSleepStrategy = new ExponentialSleepStrategy
-    retryBackoff.run(loop => {
-      if(rocksDB.get(key) == null) {
-        loop.done
-      }
-      rocksDB.compactRange()
-    }, (exception, loop) => {
-      exception match {
-        case e: Exception =>
-          loop.done
-          throw e
-      }
-    })
-    Assert.assertNull(rocksDB.get(key))
-    rocksDB.close()
-  }
+  // TODO: re-enable once we're using rocksDB v3.10 or higher
+//  @Test
+//  def testTTL() {
+//    val map = new java.util.HashMap[String, String]();
+//    map.put("rocksdb.ttl.ms", "1000")
+//    val config = new MapConfig(map)
+//    val options = new Options()
+//    options.setCreateIfMissing(true)
+//    val rocksDB = RocksDbKeyValueStore.openDB(new File(System.getProperty("java.io.tmpdir")),
+//                                              options,
+//                                              config,
+//                                              false,
+//                                              "someStore")
+//    val key = "test".getBytes("UTF-8")
+//    rocksDB.put(key, "val".getBytes("UTF-8"))
+//    Assert.assertNotNull(rocksDB.get(key))
+//    val retryBackoff: ExponentialSleepStrategy = new ExponentialSleepStrategy
+//    retryBackoff.run(loop => {
+//      if(rocksDB.get(key) == null) {
+//        loop.done
+//      }
+//      rocksDB.compactRange()
+//    }, (exception, loop) => {
+//      exception match {
+//        case e: Exception =>
+//          loop.done
+//          throw e
+//      }
+//    })
+//    Assert.assertNull(rocksDB.get(key))
+//    rocksDB.close()
+//  }
 }
