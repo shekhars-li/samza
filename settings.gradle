@@ -44,4 +44,6 @@ rootProject.children.each {
   }
 }
 
-apply from: '../adaptSettings.gradle'
+if (file('../adaptSettings.gradle').exists()) {
+  apply from: '../adaptSettings.gradle'
+}
