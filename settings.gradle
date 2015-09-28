@@ -44,6 +44,8 @@ rootProject.children.each {
   }
 }
 
+// NOTE: the following settings is for LinkedIn only. 
+// Do not merge back to master branch
 if (file('../adaptSettings.gradle').exists()) {
   apply from: '../adaptSettings.gradle'
 }
