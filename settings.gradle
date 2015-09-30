@@ -28,7 +28,6 @@ def scalaModules = [
         'samza-kv',
         'samza-kv-inmemory',
         'samza-kv-rocksdb',
-        'samza-hdfs',
         'samza-yarn',
         'samza-test',
         'samza-autoscaling'
