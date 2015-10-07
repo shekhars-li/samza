@@ -233,6 +233,7 @@ public class TestHostAwareContainerAllocator {
         requestState.getContainersOnAHost(ANY_HOST).get(0).getId());
   }
 
+
   @Test
   public void testRequestContainers() throws Exception {
     Map<Integer, String> containersToHostMapping = new HashMap<Integer, String>() {
