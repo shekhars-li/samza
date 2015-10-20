@@ -33,7 +33,7 @@ import org.apache.samza.util.Logging
 import org.apache.samza.metrics.MetricsRegistryMap
 import org.apache.samza.util.Util
 import scala.collection.JavaConversions._
-import org.apache.samza.config.JobConfig.Config2Job
+import org.apache.samza.config.JobConfig._
 import org.apache.samza.config.TaskConfig.Config2Task
 import org.apache.samza.Partition
 import org.apache.samza.system.StreamMetadataCache
@@ -50,6 +50,8 @@ import org.apache.samza.coordinator.stream.CoordinatorStreamSystemFactory
  * given a Config object.
  */
 object JobCoordinator extends Logging {
+
+  private var latestJobModel: JobModel = null
 
   /**
    * @param coordinatorSystemConfig A config object that contains job.name,
@@ -215,6 +217,17 @@ object JobCoordinator extends Logging {
                               localityManager: LocalityManager): JobModel = {
     this.synchronized
     {
+      if (latestJobModel != null) {
+        try {
+          val interval = config.getJobModelRefreshIntervalMs.toInt
+          if (interval > 0 && latestJobModel.getCreateTimeMs + interval < System.currentTimeMillis()) {
+            // Return the latest job model immediately if the job model refresh interval is configured and we are still within the refresh window
+            return latestJobModel
+          }
+        } catch {
+          case _ => info("Failed to get job model refresh interval from config. Continue refresh job model.")
+        }
+      }
       // If no mappings are present(first time the job is running) we return -1, this will allow 0 to be the first change
       // mapping.
       var maxChangelogPartitionId = previousChangelogMapping.values.map(_.toInt).toList.sorted.lastOption.getOrElse(-1)
@@ -257,7 +270,8 @@ object JobCoordinator extends Logging {
       val containerModels = asScalaSet(containerGrouper.group(setAsJavaSet(taskModels))).map
               { case (containerModel) => Integer.valueOf(containerModel.getContainerId) -> containerModel }.toMap
 
-      new JobModel(config, containerModels, localityManager)
+      latestJobModel = new JobModel(config, containerModels, localityManager)
+      latestJobModel
     }
   }
 

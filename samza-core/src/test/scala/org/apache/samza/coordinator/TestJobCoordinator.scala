@@ -227,7 +227,7 @@ class TestJobCoordinator {
   }
 
   def extractOffsetsFromJobCoordinator(url : String) = {
-    val jobModel = SamzaContainer.readJobModel(url.toString)
+    val jobModel = SamzaContainer.readJobModel(url.toString, 0)
     val taskModels = jobModel.getContainers.values().flatMap(_.getTasks.values())
     val offsets = taskModels.flatMap(_.getCheckpointedOffsets).toMap
     offsets.filter(_._2 != null)

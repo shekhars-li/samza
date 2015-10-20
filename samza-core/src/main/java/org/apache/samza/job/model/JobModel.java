@@ -45,6 +45,7 @@ public class JobModel {
 
   private final LocalityManager localityManager;
   private Map<Integer, String> localityMappings = new HashMap<Integer, String>();
+  private final long createTimeMs;
 
   public int maxChangeLogStreamPartitions;
 
@@ -76,7 +77,12 @@ public class JobModel {
           this.maxChangeLogStreamPartitions = task.getChangelogPartition().getPartitionId() + 1;
       }
     }
+
+    // Now, mark the creation time of this JobModel
+    this.createTimeMs = System.currentTimeMillis();
   }
+
+  public long getCreateTimeMs() { return this.createTimeMs; }
 
   public Config getConfig() {
     return config;

@@ -22,7 +22,6 @@ package org.apache.samza.container
 import java.io.File
 import org.apache.samza.SamzaException
 import org.apache.samza.checkpoint.{ CheckpointManager, OffsetManager }
-import org.apache.samza.config.Config
 import org.apache.samza.config.MetricsConfig.Config2Metrics
 import org.apache.samza.config.SerializerConfig.Config2Serializer
 import org.apache.samza.config.ShellCommandConfig
@@ -65,6 +64,8 @@ import org.apache.samza.serializers._
 import org.apache.samza.checkpoint.OffsetManagerMetrics
 
 object SamzaContainer extends Logging {
+  val MAX_READ_JOB_MODEL_RETRIES = 10
+
   def main(args: Array[String]) {
     safeMain(() => new JmxServer, new SamzaContainerExceptionHandler(() => System.exit(1)))
   }
@@ -105,11 +106,11 @@ object SamzaContainer extends Logging {
    * assignments, and returns objects to be used for SamzaContainer's
    * constructor.
    */
-  def readJobModel(url: String) = {
+  def readJobModel(url: String, retries: Int = MAX_READ_JOB_MODEL_RETRIES) = {
     info("Fetching configuration from: %s" format url)
     SamzaObjectMapper
       .getObjectMapper
-      .readValue(Util.read(new URL(url)), classOf[JobModel])
+      .readValue(Util.read(url = new URL(url), numRetries = retries), classOf[JobModel])
   }
 
   /**

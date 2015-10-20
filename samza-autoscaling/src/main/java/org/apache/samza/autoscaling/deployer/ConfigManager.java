@@ -323,7 +323,7 @@ public class ConfigManager {
    */
   public int getCurrentNumTasks() {
     int currentNumTasks = 0;
-    for (ContainerModel containerModel : SamzaContainer.readJobModel(coordinatorServerURL).getContainers().values()) {
+    for (ContainerModel containerModel : SamzaContainer.readJobModel(coordinatorServerURL, SamzaContainer.MAX_READ_JOB_MODEL_RETRIES()).getContainers().values()) {
       currentNumTasks += containerModel.getTasks().size();
     }
     return currentNumTasks;
@@ -336,7 +336,7 @@ public class ConfigManager {
    * @return current number of containers in the job
    */
   public int getCurrentNumContainers() {
-    return SamzaContainer.readJobModel(coordinatorServerURL).getContainers().values().size();
+    return SamzaContainer.readJobModel(coordinatorServerURL, SamzaContainer.MAX_READ_JOB_MODEL_RETRIES()).getContainers().values().size();
   }
 
 

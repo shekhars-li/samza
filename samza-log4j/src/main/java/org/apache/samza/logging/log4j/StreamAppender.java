@@ -183,7 +183,7 @@ public class StreamAppender extends AppenderSkeleton {
         config = JobCoordinator.apply(coordinatorSystemConfig).jobModel().getConfig();
       } else {
         String url = System.getenv(ShellCommandConfig.ENV_COORDINATOR_URL());
-        config = SamzaObjectMapper.getObjectMapper().readValue(Util.read(new URL(url), 30000), JobModel.class).getConfig();
+        config = SamzaObjectMapper.getObjectMapper().readValue(Util.read(new URL(url), 30000, 10), JobModel.class).getConfig();
       }
     } catch (IOException e) {
       throw new SamzaException("can not read the config", e);
