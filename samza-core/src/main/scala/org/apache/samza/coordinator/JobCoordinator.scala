@@ -233,11 +233,12 @@ object JobCoordinator extends Logging {
       var maxChangelogPartitionId = previousChangelogMapping.values.map(_.toInt).toList.sorted.lastOption.getOrElse(-1)
 
       // Assign all SystemStreamPartitions to TaskNames.
+      val taskNameToOffsets = checkpointManager.readAllCheckpoints()
       val taskModels =
       {
         groups.map
                 { case (taskName, systemStreamPartitions) =>
-                  val checkpoint = Option(checkpointManager.readLastCheckpoint(taskName)).getOrElse(new Checkpoint(new util.HashMap[SystemStreamPartition, String]()))
+                  val checkpoint = Option(taskNameToOffsets.get(taskName)).getOrElse(new Checkpoint(new util.HashMap[SystemStreamPartition, String]()))
                   // Find the system partitions which don't have a checkpoint and set null for the values for offsets
                   val taskOffsets = checkpoint.getOffsets
                   val offsetMap = new util.HashMap[SystemStreamPartition, String]()

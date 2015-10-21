@@ -72,7 +72,23 @@ public class CheckpointManager extends AbstractCoordinatorStreamManager {
   }
 
   /**
+   * Returns the last recorded checkpoint for all the tasks
+   * @return A Checkpoint map with the recorded offset data for all partitions
+   */
+  public Map<TaskName, Checkpoint> readAllCheckpoints() {
+    for (CoordinatorStreamMessage coordinatorStreamMessage : getBootstrappedStream(SetCheckpoint.TYPE)) {
+      SetCheckpoint setCheckpoint = new SetCheckpoint(coordinatorStreamMessage);
+      TaskName taskNameInCheckpoint = new TaskName(setCheckpoint.getKey());
+      if (taskNames.contains(taskNameInCheckpoint)) {
+        taskNamesToOffsets.put(taskNameInCheckpoint, setCheckpoint.getCheckpoint());
+     }
+    }
+    return new HashMap<>(taskNamesToOffsets);
+  }
+
+  /**
    * Returns the last recorded checkpoint for a specified taskName.
+   * Please call readAllCheckpoints before readLastCheckpoint() is called
    * @param taskName Specific Samza taskName for which to get the last checkpoint of.
    * @return A Checkpoint object with the recorded offset data of the specified partition.
    */
@@ -84,10 +100,8 @@ public class CheckpointManager extends AbstractCoordinatorStreamManager {
       TaskName taskNameInCheckpoint = new TaskName(setCheckpoint.getKey());
       if (taskNames.contains(taskNameInCheckpoint)) {
         taskNamesToOffsets.put(taskNameInCheckpoint, setCheckpoint.getCheckpoint());
-        log.debug("Adding checkpoint {} for taskName {}", taskNameInCheckpoint, taskName);
       }
     }
     return taskNamesToOffsets.get(taskName);
   }
-
 }

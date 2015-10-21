@@ -179,9 +179,7 @@ public class CoordinatorStreamSystemConsumer {
 
   public Set<CoordinatorStreamMessage> getBootstrappedStream(String type) {
     log.debug("Bootstrapping coordinator stream for messages of type {}", type);
-    if (!isBootstrapped) {
-      bootstrap();
-    }
+    bootstrap();
     LinkedHashSet<CoordinatorStreamMessage> bootstrappedStream = new LinkedHashSet<CoordinatorStreamMessage>();
     for (CoordinatorStreamMessage coordinatorStreamMessage : bootstrappedStreamSet) {
       if (type.equalsIgnoreCase(coordinatorStreamMessage.getType())) {
