@@ -20,7 +20,6 @@
 package org.apache.samza.checkpoint.kafka
 
 import java.util.Properties
-
 import kafka.utils.ZKStringSerializer
 import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.KafkaProducer
@@ -31,6 +30,7 @@ import org.apache.samza.config.KafkaConfig.Config2Kafka
 import org.apache.samza.config.{Config, KafkaConfig}
 import org.apache.samza.metrics.MetricsRegistry
 import org.apache.samza.util.{ClientUtilTopicMetadataStore, KafkaUtil, Logging}
+import kafka.utils.ZkUtils
 
 object KafkaCheckpointManagerFactory {
   val INJECTED_PRODUCER_PROPERTIES = Map(
@@ -79,7 +79,7 @@ class KafkaCheckpointManagerFactory extends CheckpointManagerFactory with Loggin
     val zkConnect = Option(consumerConfig.zkConnect)
       .getOrElse(throw new SamzaException("no zookeeper.connect defined in config"))
     val connectZk = () => {
-      new ZkClient(zkConnect, 6000, 6000, ZKStringSerializer)
+      ZkUtils.createZkClient(zkConnect, 6000, 6000)
     }
     val socketTimeout = consumerConfig.socketTimeoutMs
 

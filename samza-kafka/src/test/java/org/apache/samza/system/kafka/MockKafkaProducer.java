@@ -81,6 +81,16 @@ public class MockKafkaProducer implements Producer<byte[], byte[]> {
     return this.msgsSent.get();
   }
 
+  @Override
+  public void close(long arg0, TimeUnit arg1) {
+
+  }
+
+  @Override
+  public void flush() {
+  }
+
+
   public Thread startDelayedSendThread(final int sleepTime) {
     Thread t = new Thread(new Runnable() {
       @Override
@@ -243,4 +253,5 @@ public class MockKafkaProducer implements Producer<byte[], byte[]> {
       return true;
     }
   }
+
 }

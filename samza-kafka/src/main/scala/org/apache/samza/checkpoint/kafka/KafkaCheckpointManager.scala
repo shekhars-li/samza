@@ -27,7 +27,7 @@ import kafka.api._
 import kafka.common.{ErrorMapping, InvalidMessageSizeException, TopicAndPartition, UnknownTopicOrPartitionException}
 import kafka.consumer.SimpleConsumer
 import kafka.message.InvalidMessageException
-import kafka.utils.Utils
+import org.apache.kafka.common.utils.Utils
 import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.{Producer, ProducerRecord}
 import org.apache.samza.SamzaException

@@ -34,6 +34,7 @@ import kafka.utils.ZKStringSerializer
 import org.apache.samza.system.SystemProducer
 import org.apache.samza.system.SystemAdmin
 import org.apache.samza.system.SystemConsumer
+import kafka.utils.ZkUtils
 
 object KafkaSystemFactory extends Logging {
   def getInjectedProducerProperties(systemName: String, config: Config) = if (config.isChangelogSystem(systemName)) {
@@ -87,8 +88,8 @@ class KafkaSystemFactory extends SystemFactory with Logging {
     val getProducer = () => { new KafkaProducer[Array[Byte], Array[Byte]](producerConfig.getProducerProperties) }
     val metrics = new KafkaSystemProducerMetrics(systemName, registry)
 
-    // Unlike consumer, no need to use encoders here, since they come for free 
-    // inside the producer configs. Kafka's producer will handle all of this 
+    // Unlike consumer, no need to use encoders here, since they come for free
+    // inside the producer configs. Kafka's producer will handle all of this
     // for us.
 
     new KafkaSystemProducer(
@@ -108,7 +109,7 @@ class KafkaSystemFactory extends SystemFactory with Logging {
     val zkConnect = Option(consumerConfig.zkConnect)
       .getOrElse(throw new SamzaException("no zookeeper.connect defined in config"))
     val connectZk = () => {
-      new ZkClient(zkConnect, 6000, 6000, ZKStringSerializer)
+       ZkUtils.createZkClient(zkConnect, 6000, 6000)
     }
     val coordinatorStreamProperties = getCoordinatorTopicProperties(config)
     val coordinatorStreamReplicationFactor = config.getCoordinatorReplicationFactor.toInt

@@ -102,7 +102,7 @@ class RegExTopicGenerator extends ConfigRewriter with Logging {
     val consumerConfig = config.getKafkaSystemConsumerConfig(systemName)
     val zkConnect = Option(consumerConfig.zkConnect)
       .getOrElse(throw new SamzaException("No zookeeper.connect for system %s defined in config." format systemName))
-    val zkClient = new ZkClient(zkConnect, 6000, 6000, ZKStringSerializer)
+    val zkClient = ZkUtils.createZkClient(zkConnect, 6000, 6000)
 
     try {
       ZkUtils.getAllTopics(zkClient)

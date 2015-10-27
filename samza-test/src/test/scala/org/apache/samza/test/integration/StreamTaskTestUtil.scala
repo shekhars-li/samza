@@ -22,12 +22,11 @@ package org.apache.samza.test.integration
 import java.util
 import java.util.Properties
 import java.util.concurrent.{CountDownLatch, TimeUnit}
-
 import kafka.admin.AdminUtils
 import kafka.consumer.{Consumer, ConsumerConfig}
 import kafka.message.MessageAndMetadata
 import kafka.server.{KafkaConfig, KafkaServer}
-import kafka.utils.{TestUtils, TestZKUtils, Utils, ZKStringSerializer}
+import kafka.utils.TestUtils
 import kafka.zk.EmbeddedZookeeper
 import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerConfig, ProducerRecord}
@@ -42,9 +41,11 @@ import org.apache.samza.system.{IncomingMessageEnvelope, SystemStreamPartition}
 import org.apache.samza.task._
 import org.apache.samza.util.{ClientUtilTopicMetadataStore, KafkaUtil, TopicMetadataStore}
 import org.junit.Assert._
-
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ArrayBuffer, HashMap, SynchronizedMap}
+import kafka.api.FixedPortTestUtils
+import kafka.utils.ZkUtils
+import kafka.utils.CoreUtils
 
 /*
  * This creates an singleton instance of TestBaseStreamTask and implement the helper functions to
@@ -58,7 +59,8 @@ object StreamTaskTestUtil {
   val TOTAL_TASK_NAMES = 1
   val REPLICATION_FACTOR = 3
 
-  val zkConnect: String = TestZKUtils.zookeeperConnect
+  var zookeeper: EmbeddedZookeeper = new EmbeddedZookeeper()
+  var zkConnect: String = "127.0.0.1:"+zookeeper.port
   var zkClient: ZkClient = null
   val zkConnectionTimeout = 6000
   val zkSessionTimeout = 6000
@@ -66,12 +68,12 @@ object StreamTaskTestUtil {
   val brokerId1 = 0
   val brokerId2 = 1
   val brokerId3 = 2
-  val ports = TestUtils.choosePorts(3)
+  val ports = FixedPortTestUtils.choosePorts(3)
   val (port1, port2, port3) = (ports(0), ports(1), ports(2))
 
-  val props1 = TestUtils.createBrokerConfig(brokerId1, port1)
-  val props2 = TestUtils.createBrokerConfig(brokerId2, port2)
-  val props3 = TestUtils.createBrokerConfig(brokerId3, port3)
+  val props1 = TestUtils.createBrokerConfig(brokerId1, zkConnect, port=port1)
+  val props2 = TestUtils.createBrokerConfig(brokerId2, zkConnect, port=port2)
+  val props3 = TestUtils.createBrokerConfig(brokerId3, zkConnect, port=port3)
   props1.setProperty("auto.create.topics.enable","false")
   props2.setProperty("auto.create.topics.enable","false")
   props3.setProperty("auto.create.topics.enable","false")
@@ -87,7 +89,6 @@ object StreamTaskTestUtil {
   var producer: Producer[Array[Byte], Array[Byte]] = null
   val cp1 = new Checkpoint(Map(new SystemStreamPartition("kafka", "topic", new Partition(0)) -> "123"))
   val cp2 = new Checkpoint(Map(new SystemStreamPartition("kafka", "topic", new Partition(0)) -> "12345"))
-  var zookeeper: EmbeddedZookeeper = null
   var server1: KafkaServer = null
   var server2: KafkaServer = null
   var server3: KafkaServer = null
@@ -123,11 +124,12 @@ object StreamTaskTestUtil {
   }
 
   def beforeSetupServers {
-    zookeeper = new EmbeddedZookeeper(zkConnect)
+    zookeeper = new EmbeddedZookeeper()
+
     server1 = TestUtils.createServer(new KafkaConfig(props1))
     server2 = TestUtils.createServer(new KafkaConfig(props2))
     server3 = TestUtils.createServer(new KafkaConfig(props3))
-    zkClient = new ZkClient(zkConnect + "/", 6000, 6000, ZKStringSerializer)
+    zkClient = ZkUtils.createZkClient(zkConnect, 6000, 6000)
     producer = new KafkaProducer[Array[Byte], Array[Byte]](producerConfig.getProducerProperties)
     metadataStore = new ClientUtilTopicMetadataStore(brokers, "some-job-name")
 
@@ -181,9 +183,9 @@ object StreamTaskTestUtil {
     server2.awaitShutdown()
     server3.shutdown
     server3.awaitShutdown()
-    Utils.rm(server1.config.logDirs)
-    Utils.rm(server2.config.logDirs)
-    Utils.rm(server3.config.logDirs)
+    CoreUtils.rm(server1.config.logDirs)
+    CoreUtils.rm(server2.config.logDirs)
+    CoreUtils.rm(server3.config.logDirs)
     zkClient.close
     zookeeper.shutdown
   }
