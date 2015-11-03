@@ -62,8 +62,6 @@ import org.apache.samza.config.JobConfig.Config2Job
 import java.lang.Thread.UncaughtExceptionHandler
 
 object SamzaContainer extends Logging {
-  val MAX_READ_JOB_MODEL_RETRIES = 10
-
   def main(args: Array[String]) {
     safeMain(() => new JmxServer, new SamzaContainerExceptionHandler(() => System.exit(1)))
   }
@@ -104,11 +102,11 @@ object SamzaContainer extends Logging {
    * assignments, and returns objects to be used for SamzaContainer's
    * constructor.
    */
-  def readJobModel(url: String, retries: Int = MAX_READ_JOB_MODEL_RETRIES) = {
+  def readJobModel(url: String) = {
     info("Fetching configuration from: %s" format url)
     SamzaObjectMapper
       .getObjectMapper
-      .readValue(Util.read(url = new URL(url), numRetries = retries), classOf[JobModel])
+      .readValue(Util.read(new URL(url)), classOf[JobModel])
   }
 
   def apply(containerModel: ContainerModel, jobModel: JobModel, jmxServer: JmxServer) = {

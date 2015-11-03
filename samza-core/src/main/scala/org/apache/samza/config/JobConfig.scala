@@ -39,7 +39,6 @@ object JobConfig {
   val JOB_NAME = "job.name" // streaming.job_name
   val JOB_ID = "job.id" // streaming.job_id
   val JOB_COORDINATOR_SYSTEM = "job.coordinator.system"
-  val JOB_MODEL_REFRESH_INTERVAL_MS = "job.model.refresh.interval.ms"
   val JOB_CONTAINER_COUNT = "job.container.count"
   val JOB_REPLICATION_FACTOR = "job.coordinator.replication.factor"
   val JOB_SEGMENT_BYTES = "job.coordinator.segment.bytes"
@@ -88,6 +87,8 @@ class JobConfig(config: Config) extends ScalaMapConfig(config) with Logging {
 
   def getSystemStreamPartitionGrouperFactory = getOption(JobConfig.SSP_GROUPER_FACTORY).getOrElse(classOf[GroupByPartitionFactory].getCanonicalName)
 
+  val CHECKPOINT_SEGMENT_BYTES = "task.checkpoint.segment.bytes"
+
   def getCoordinatorReplicationFactor = getOption(JobConfig.JOB_REPLICATION_FACTOR) match {
     case Some(rplFactor) => rplFactor
     case _ =>
@@ -110,12 +111,5 @@ class JobConfig(config: Config) extends ScalaMapConfig(config) with Logging {
           segBytes
         case _ => "26214400"
       }
-  }
-
-  val DEFAULT_JOB_MODEL_REFRESH_INTERVAL_MS = "-1"
-
-  def getJobModelRefreshIntervalMs = getOption(JobConfig.JOB_MODEL_REFRESH_INTERVAL_MS) match {
-    case Some(intervalMs) => intervalMs
-    case _ => DEFAULT_JOB_MODEL_REFRESH_INTERVAL_MS
   }
 }

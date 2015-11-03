@@ -123,11 +123,9 @@ object Util extends Logging {
    *
    * @param url HTTP URL to read from.
    * @param timeout How long to wait before timing out when connecting to or reading from the HTTP server.
-   * @param numRetries How many retries we should execute before failing the whole request
    * @return String payload of the body of the HTTP response.
    */
-  def read(url: URL, timeout: Int = 60000, numRetries: Int = 0): String = {
-    var retries = 0;
+  def read(url: URL, timeout: Int = 60000): String = {
     var httpConn = getHttpConnection(url, timeout)
     val retryBackoff: ExponentialSleepStrategy = new ExponentialSleepStrategy
     retryBackoff.run(loop => {
@@ -145,16 +143,10 @@ object Util extends Logging {
     },
     (exception, loop) => {
       exception match {
-        case ioe: IOException if retries < numRetries => {
-          warn("Error getting response from Job coordinator server. received IOException: %s. Retrying..." format ioe.getClass)
-          httpConn = getHttpConnection(url, timeout)
-          retries += 1
-        }
-        case e: Exception => {
+        case e: Exception =>
           loop.done
-          error("Unable to get response from Job coordinator server, received exception", e)
+          error("Unable to connect to Job coordinator server, received exception", e)
           throw e
-        }
       }
     })
 
@@ -206,10 +198,7 @@ object Util extends Logging {
     val (jobName, jobId) = getJobNameAndId(config)
     // Build a map with just the system config and job.name/job.id. This is what's required to start the JobCoordinator.
     new MapConfig(config.subset(SystemConfig.SYSTEM_PREFIX format config.getCoordinatorSystemName, false) ++
-      Map[String, String](JobConfig.JOB_NAME -> jobName, JobConfig.JOB_ID -> jobId,
-        JobConfig.JOB_COORDINATOR_SYSTEM -> config.getCoordinatorSystemName,
-        JobConfig.JOB_MODEL_REFRESH_INTERVAL_MS -> config.getJobModelRefreshIntervalMs)
-    )
+      Map[String, String](JobConfig.JOB_NAME -> jobName, JobConfig.JOB_ID -> jobId, JobConfig.JOB_COORDINATOR_SYSTEM -> config.getCoordinatorSystemName))
   }
 
   /**
