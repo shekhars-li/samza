@@ -19,8 +19,9 @@
 
 package org.apache.samza.migration
 
+import kafka.api.FixedPortTestUtils
 import kafka.server.{KafkaConfig, KafkaServer}
-import kafka.utils.{TestUtils, TestZKUtils, Utils}
+import kafka.utils.{CoreUtils, TestUtils}
 import kafka.zk.EmbeddedZookeeper
 import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerConfig, ProducerRecord}
@@ -49,7 +50,7 @@ class TestKafkaCheckpointMigration {
   val checkpointTopic = "checkpoint-topic"
   val serdeCheckpointTopic = "checkpoint-topic-invalid-serde"
   val checkpointTopicConfig = KafkaCheckpointManagerFactory.getCheckpointTopicProperties(null)
-  val zkConnect: String = TestZKUtils.zookeeperConnect
+  var zkConnect: String = null
   var zkClient: ZkClient = null
   val zkConnectionTimeout = 6000
   val zkSessionTimeout = 6000
@@ -57,14 +58,14 @@ class TestKafkaCheckpointMigration {
   val brokerId1 = 0
   val brokerId2 = 1
   val brokerId3 = 2
-  val ports = TestUtils.choosePorts(3)
+  val ports = FixedPortTestUtils.choosePorts(3)
   val (port1, port2, port3) = (ports(0), ports(1), ports(2))
 
-  val props1 = TestUtils.createBrokerConfig(brokerId1, port1)
+  val props1 = TestUtils.createBrokerConfig(brokerId1, zkConnect, port=port1)
   props1.put("controlled.shutdown.enable", "true")
-  val props2 = TestUtils.createBrokerConfig(brokerId2, port2)
+  val props2 = TestUtils.createBrokerConfig(brokerId2, zkConnect, port=port2)
   props1.put("controlled.shutdown.enable", "true")
-  val props3 = TestUtils.createBrokerConfig(brokerId3, port3)
+  val props3 = TestUtils.createBrokerConfig(brokerId3, zkConnect, port=port3)
   props1.put("controlled.shutdown.enable", "true")
 
   val config = new java.util.HashMap[String, Object]()
@@ -89,7 +90,8 @@ class TestKafkaCheckpointMigration {
 
   @Before
   def beforeSetupServers {
-    zookeeper = new EmbeddedZookeeper(zkConnect)
+    zookeeper = new EmbeddedZookeeper()
+    zkConnect = "127.0.0.1" + zookeeper.port
     server1 = TestUtils.createServer(new KafkaConfig(props1))
     server2 = TestUtils.createServer(new KafkaConfig(props2))
     server3 = TestUtils.createServer(new KafkaConfig(props3))
@@ -104,9 +106,9 @@ class TestKafkaCheckpointMigration {
     server2.awaitShutdown()
     server3.shutdown
     server3.awaitShutdown()
-    Utils.rm(server1.config.logDirs)
-    Utils.rm(server2.config.logDirs)
-    Utils.rm(server3.config.logDirs)
+    CoreUtils.rm(server1.config.logDirs)
+    CoreUtils.rm(server2.config.logDirs)
+    CoreUtils.rm(server3.config.logDirs)
     zookeeper.shutdown
   }
 

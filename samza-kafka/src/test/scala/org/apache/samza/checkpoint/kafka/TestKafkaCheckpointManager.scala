@@ -20,10 +20,11 @@
 package org.apache.samza.checkpoint.kafka
 
 import kafka.admin.AdminUtils
+import kafka.api.FixedPortTestUtils
 import kafka.common.{InvalidMessageSizeException, UnknownTopicOrPartitionException}
 import kafka.message.InvalidMessageException
-import kafka.server.{KafkaConfig, KafkaServer}
-import kafka.utils.{TestUtils, TestZKUtils, Utils, ZKStringSerializer}
+import kafka.server.{ConfigType, KafkaConfig, KafkaServer}
+import kafka.utils.{ZkUtils, CoreUtils, TestUtils}
 import kafka.zk.EmbeddedZookeeper
 import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerConfig, ProducerRecord}
@@ -46,7 +47,7 @@ class TestKafkaCheckpointManager {
   val checkpointTopic = "checkpoint-topic"
   val serdeCheckpointTopic = "checkpoint-topic-invalid-serde"
   val checkpointTopicConfig = KafkaCheckpointManagerFactory.getCheckpointTopicProperties(null)
-  val zkConnect: String = TestZKUtils.zookeeperConnect
+  var zkConnect: String = null
   var zkClient: ZkClient = null
   val zkConnectionTimeout = 6000
   val zkSessionTimeout = 6000
@@ -54,14 +55,14 @@ class TestKafkaCheckpointManager {
   val brokerId1 = 0
   val brokerId2 = 1
   val brokerId3 = 2
-  val ports = TestUtils.choosePorts(3)
+  val ports = FixedPortTestUtils.choosePorts(3)
   val (port1, port2, port3) = (ports(0), ports(1), ports(2))
 
-  val props1 = TestUtils.createBrokerConfig(brokerId1, port1)
+  val props1 = TestUtils.createBrokerConfig(brokerId1, zkConnect, port=port1)
   props1.put("controlled.shutdown.enable", "true")
-  val props2 = TestUtils.createBrokerConfig(brokerId2, port2)
+  val props2 = TestUtils.createBrokerConfig(brokerId2, zkConnect, port=port2)
   props1.put("controlled.shutdown.enable", "true")
-  val props3 = TestUtils.createBrokerConfig(brokerId3, port3)
+  val props3 = TestUtils.createBrokerConfig(brokerId3, zkConnect, port=port3)
   props1.put("controlled.shutdown.enable", "true")
 
   val config = new java.util.HashMap[String, Object]()
@@ -86,7 +87,8 @@ class TestKafkaCheckpointManager {
 
   @Before
   def beforeSetupServers {
-    zookeeper = new EmbeddedZookeeper(zkConnect)
+    zookeeper = new EmbeddedZookeeper()
+    zkConnect = "127.0.0.1" + zookeeper.port
     server1 = TestUtils.createServer(new KafkaConfig(props1))
     server2 = TestUtils.createServer(new KafkaConfig(props2))
     server3 = TestUtils.createServer(new KafkaConfig(props3))
@@ -101,9 +103,9 @@ class TestKafkaCheckpointManager {
     server2.awaitShutdown()
     server3.shutdown
     server3.awaitShutdown()
-    Utils.rm(server1.config.logDirs)
-    Utils.rm(server2.config.logDirs)
-    Utils.rm(server3.config.logDirs)
+    CoreUtils.rm(server1.config.logDirs)
+    CoreUtils.rm(server2.config.logDirs)
+    CoreUtils.rm(server3.config.logDirs)
     zookeeper.shutdown
   }
 
@@ -126,7 +128,7 @@ class TestKafkaCheckpointManager {
 
 
   private def createCheckpointTopic(cpTopic: String = checkpointTopic) = {
-    val zkClient = new ZkClient(zkConnect, 6000, 6000, ZKStringSerializer)
+    val zkClient = ZkUtils.createZkClient(zkConnect, 6000, 6000)
     try {
       AdminUtils.createTopic(
         zkClient,
@@ -150,8 +152,9 @@ class TestKafkaCheckpointManager {
     kcm.kafkaUtil.validateTopicPartitionCount(checkpointTopic, "kafka", metadataStore, 1)
 
     // check that log compaction is enabled.
-    val zkClient = new ZkClient(zkConnect, 6000, 6000, ZKStringSerializer)
-    val topicConfig = AdminUtils.fetchTopicConfig(zkClient, checkpointTopic)
+    val zkClient = ZkUtils.createZkClient(zkConnect, 6000, 6000)
+    val topicConfig = AdminUtils.fetchEntityConfig(zkClient, ConfigType.Topic, checkpointTopic)
+
     zkClient.close
     assertEquals("compact", topicConfig.get("cleanup.policy"))
     assertEquals("26214400", topicConfig.get("segment.bytes"))
@@ -212,7 +215,7 @@ class TestKafkaCheckpointManager {
     fetchSize = 300 * 1024,
     metadataStore = metadataStore,
     connectProducer = () => new KafkaProducer(producerConfig.getProducerProperties),
-    connectZk = () => new ZkClient(zkConnect, 60000, 60000, ZKStringSerializer),
+    connectZk = () => ZkUtils.createZkClient(zkConnect, 6000, 6000) ,
     systemStreamPartitionGrouperFactoryString = systemStreamPartitionGrouperFactoryString,
     checkpointTopicProperties = KafkaCheckpointManagerFactory.getCheckpointTopicProperties(new MapConfig(Map[String, String]())))
 
@@ -227,7 +230,7 @@ class TestKafkaCheckpointManager {
     fetchSize = 300 * 1024,
     metadataStore = metadataStore,
     connectProducer = () => new KafkaProducer(producerConfig.getProducerProperties),
-    connectZk = () => new ZkClient(zkConnect, 6000, 6000, ZKStringSerializer),
+    connectZk = () => ZkUtils.createZkClient(zkConnect, 6000, 6000),
     systemStreamPartitionGrouperFactoryString = systemStreamPartitionGrouperFactoryString,
     serde = new InvalideSerde(exception),
     checkpointTopicProperties = KafkaCheckpointManagerFactory.getCheckpointTopicProperties(new MapConfig(Map[String, String]())))
