@@ -16,37 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-include \
-  'samza-api',
-  'samza-elasticsearch',
-  'samza-log4j',
-  'samza-shell',
-  'samza-rest'
+package org.apache.samza.rest;
 
-def scalaModules = [
-        'samza-core',
-        'samza-kafka',
-        'samza-kv',
-        'samza-kv-inmemory',
-        'samza-kv-rocksdb',
-        'samza-hdfs',
-        'samza-yarn',
-        'samza-test',
-        'samza-autoscaling'
-] as HashSet
+import org.apache.samza.rest.resources.JobsResource;
+import org.codehaus.jackson.jaxrs.JacksonJsonProvider;
+import org.glassfish.jersey.server.ResourceConfig;
 
-scalaModules.each {
-  include it
-}
 
-rootProject.children.each {
-  if (scalaModules.contains(it.name)) {
-    it.name = it.name + "_" + scalaVersion
+/**
+ * Samza REST implementation of the JAX-RS {@link javax.ws.rs.core.Application} model.
+ */
+public class SamzaRestApplication extends ResourceConfig {
+  public SamzaRestApplication(SamzaRestConfig config) {
+    this.register(new JobsResource(config));
+    this.register(JacksonJsonProvider.class);
   }
-}
-
-// NOTE: the following settings is for LinkedIn only. 
-// Do not merge back to master branch
-if (file('../adaptSettings.gradle').exists()) {
-  apply from: '../adaptSettings.gradle'
 }

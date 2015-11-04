@@ -442,7 +442,6 @@ project(":samza-kv-rocksdb_$scalaVersion") {
   }
 }
 
-
 project(":samza-hdfs_$scalaVersion") {
   apply plugin: 'scala'
 
@@ -464,6 +463,50 @@ project(":samza-hdfs_$scalaVersion") {
     testCompile "junit:junit:$junitVersion"
     testCompile "org.scalatest:scalatest_$scalaVersion:$scalaTestVersion"
     testCompile "org.apache.hadoop:hadoop-minicluster:$yarnVersion"
+  }
+}
+
+project(":samza-rest") {
+  apply plugin: 'java'
+
+  dependencies {
+    compile project(":samza-shell")
+    compile project(":samza-core_$scalaVersion")
+
+    runtime "org.slf4j:slf4j-log4j12:$slf4jVersion"
+    compile "com.google.guava:guava:$guavaVersion"
+    compile "org.glassfish.jersey.core:jersey-server:$jerseyVersion"
+    compile "org.glassfish.jersey.containers:jersey-container-servlet-core:$jerseyVersion"
+    compile "org.glassfish.jersey.containers:jersey-container-jetty-http:$jerseyVersion"
+    compile "org.glassfish.jersey.media:jersey-media-moxy:$jerseyVersion"
+    compile "org.eclipse.jetty.aggregate:jetty-all:$jettyVersion"
+    compile("org.apache.hadoop:hadoop-yarn-client:$yarnVersion") {
+      exclude module: 'slf4j-log4j12'
+      exclude module: 'servlet-api'
+      exclude group: 'com.sun.jersey'
+    }
+    compile("org.apache.hadoop:hadoop-common:$yarnVersion") {
+      exclude module: 'slf4j-log4j12'
+      exclude module: 'servlet-api'
+      exclude group: 'com.sun.jersey'
+    }
+
+    testCompile "junit:junit:$junitVersion"
+    // Jersey Test Framework — Grizzly2 container
+    testCompile "org.glassfish.jersey.test-framework.providers:jersey-test-framework-provider-grizzly2:$jerseyVersion"
+
+    tasks.create(name: "releaseRestServer", dependsOn: configurations.archives.artifacts, type: Tar) {
+      description 'Build a tarball containing the samza-rest component and its dependencies'
+      compression = Compression.GZIP
+      from(file("$projectDir/src/main/config")) { into "config/" }
+      from(file("$projectDir/src/main/resources/log4j.xml")) { into "bin/" }
+      from(file("$projectDir/src/main/bash/run-samza-rest-service.sh")) { into "bin/" }
+      from(project(':samza-shell').file("src/main/bash/run-class.sh")) { into "bin/" }
+      from '../LICENSE'
+      from '../NOTICE'
+      from(configurations.runtime) { into("lib/") }
+      from(configurations.archives.artifacts.files) { into("lib/") }
+    }
   }
 }
 
