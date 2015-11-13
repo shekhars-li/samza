@@ -20,10 +20,10 @@
 package org.apache.samza.storage.kv
 
 import java.io.File
+
 import org.apache.samza.SamzaException
-import org.apache.samza.util.{ LexicographicComparator, Logging }
 import org.apache.samza.config.Config
-import org.apache.samza.container.SamzaContainerContext
+import org.apache.samza.util.{LexicographicComparator, Logging}
 import org.rocksdb._
 
 object RocksDbKeyValueStore extends Logging {
@@ -65,9 +65,8 @@ object RocksDbKeyValueStore extends Logging {
     {
       if (useTTL)
       {
-        throw new UnsupportedOperationException("RocksDB TTL is not supported in this version")
-//        info("Opening RocksDB store with TTL value: %s" format ttl)
-//        TtlDB.open(options, dir.toString, ttl.toInt, false)
+        info("Opening RocksDB store with TTL value: %s" format ttl)
+        TtlDB.open(options, dir.toString, ttl.toInt, false)
       }
       else
       {
