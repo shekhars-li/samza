@@ -19,7 +19,7 @@
 
 package org.apache.samza.migration
 
-import kafka.utils.ZKStringSerializer
+import kafka.utils.ZkUtils
 import org.I0Itec.zkclient.ZkClient
 import org.apache.samza.SamzaException
 import org.apache.samza.checkpoint.kafka.{KafkaCheckpointManager, KafkaCheckpointManagerFactory}
@@ -80,7 +80,7 @@ class KafkaCheckpointMigration extends MigrationPlan with Logging {
     val zkConnectString = Option(consumerConfig.zkConnect)
       .getOrElse(throw new SamzaException("no zookeeper.connect defined in config"))
     () => {
-      new ZkClient(zkConnectString, 6000, 6000, ZKStringSerializer)
+       ZkUtils.createZkClient(zkConnectString, 6000, 6000)
     }
   }
 
