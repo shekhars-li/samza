@@ -80,7 +80,7 @@ class KafkaCheckpointMigration extends MigrationPlan with Logging {
     val zkConnectString = Option(consumerConfig.zkConnect)
       .getOrElse(throw new SamzaException("no zookeeper.connect defined in config"))
     () => {
-       ZkUtils.createZkClient(zkConnectString, 6000, 6000)
+      ZkUtils.createZkClient(zkConnectString, 6000, 6000)
     }
   }
 
