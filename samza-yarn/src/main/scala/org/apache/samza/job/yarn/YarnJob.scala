@@ -37,10 +37,12 @@ import org.apache.samza.config.ShellCommandConfig
 import org.apache.samza.SamzaException
 import org.apache.samza.serializers.model.SamzaObjectMapper
 import org.apache.samza.config.JobConfig.Config2Job
+import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import org.apache.samza.config.MapConfig
 import org.apache.samza.config.ConfigException
 import org.apache.samza.config.SystemConfig
+
 
 
 /**
@@ -51,16 +53,37 @@ class YarnJob(config: Config, hadoopConfig: Configuration) extends StreamJob {
   val client = new ClientHelper(hadoopConfig)
   var appId: Option[ApplicationId] = None
   val yarnConfig = new YarnConfig(config)
+  val logger = LoggerFactory.getLogger(this.getClass)
 
   def submit: YarnJob = {
-    appId = client.submitApplication(
+    // figure out if we have framework setup separately
+    val fwkPath = config.get(JobConfig.SAMZA_FWK_PATH, "");
+    logger.info("YarnJob: Config value for %s is %s. If configured - use it directly " format ( JobConfig.SAMZA_FWK_PATH, fwkPath))
+    var cmdExec = "./__package/bin/run-am.sh"; // default location
+
+    if (!fwkPath.isEmpty()) {
+    // if we have framework installed as a separate package - use it
+       cmdExec = fwkPath + "/bin/run-am.sh";
+
+       logger.info("Use FWK path: " + "export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec %s 1>logs/%s 2>logs/%s".
+         format(ApplicationConstants.LOG_DIR_EXPANSION_VAR, ApplicationConstants.LOG_DIR_EXPANSION_VAR, cmdExec,
+                    ApplicationConstants.STDOUT, ApplicationConstants.STDERR));
+
+    }
+
+      appId = client.submitApplication(
       new Path(yarnConfig.getPackagePath),
       yarnConfig.getAMContainerMaxMemoryMb,
       1,
       List(
-        "export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec ./__package/bin/run-am.sh 1>logs/%s 2>logs/%s"
-          format (ApplicationConstants.LOG_DIR_EXPANSION_VAR, ApplicationConstants.LOG_DIR_EXPANSION_VAR, ApplicationConstants.STDOUT, ApplicationConstants.STDERR)),
-      Some({
+        // we need something like this:
+       //"export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec /export/content/lid/apps/<fwk>/i001/bin/run-am.sh 1>logs/%s 2>logs/%s"
+
+        "export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec %s 1>logs/%s 2>logs/%s"
+           format (ApplicationConstants.LOG_DIR_EXPANSION_VAR, ApplicationConstants.LOG_DIR_EXPANSION_VAR,
+                   cmdExec, ApplicationConstants.STDOUT, ApplicationConstants.STDERR)),
+
+    Some({
         val coordinatorSystemConfig = Util.buildCoordinatorStreamConfig(config)
         val envMap = Map(
           ShellCommandConfig.ENV_COORDINATOR_SYSTEM_CONFIG -> Util.envVarEscape(SamzaObjectMapper.getObjectMapper.writeValueAsString(coordinatorSystemConfig)),

@@ -50,6 +50,7 @@ import java.util.*;
 
 public class ContainerUtil {
   private static final Logger log = LoggerFactory.getLogger(ContainerUtil.class);
+  public static final String SAMZA_FWK_PATH = "samza.fwk.path";
 
   private final Config config;
   private final SamzaAppState state;
@@ -87,11 +88,22 @@ public class ContainerUtil {
     } else {
       cmdBuilderClassName = ShellCommandBuilder.class.getName();
     }
+
+    // check if we have framework path specified. If yes - use it, if not use default ./__package/
+    String jobLib = ""; // in case of separate framework, this directory will point at the Job's libraries
+    String cmdPath = "./__package/";
+
+    String fwkPath = config.get(SAMZA_FWK_PATH);
+    if(fwkPath != null && (! fwkPath.isEmpty())) {
+      cmdPath = fwkPath;
+      jobLib = "export JOB_LIB_DIR=./__package/lib";
+    }
       CommandBuilder cmdBuilder = (CommandBuilder) Util.getObj(cmdBuilderClassName);
       cmdBuilder
           .setConfig(config)
           .setId(samzaContainerId)
-          .setUrl(state.coordinatorUrl);
+          .setUrl(state.coordinatorUrl)
+          .setCommandPath(cmdPath);
 
       String command = cmdBuilder.buildCommand();
       log.info("Container ID {} using command {}", samzaContainerId, command);
@@ -103,6 +115,8 @@ public class ContainerUtil {
         env.put(entry.getKey(), escapedValue);
         log.info("{}={} ", entry.getKey(), escapedValue);
       }
+      log.info("FWK path: " + command + "; env=" + env);
+      System.out.println("FWK path: " + command + "; env=" + env);
 
       Path path = new Path(yarnConfig.getPackagePath());
       log.info("Starting container ID {} using package path %s", samzaContainerId, path);
@@ -113,6 +127,7 @@ public class ContainerUtil {
           env,
           getFormattedCommand(
               ApplicationConstants.LOG_DIR_EXPANSION_VAR,
+              jobLib,
               command,
               ApplicationConstants.STDOUT,
               ApplicationConstants.STDERR)
@@ -204,10 +219,17 @@ public class ContainerUtil {
   }
 
   private String getFormattedCommand(String logDirExpansionVar,
+                                     String jobLib,
                                      String command,
                                      String stdOut,
                                      String stdErr) {
-    return "export SAMZA_LOG_DIR=" + logDirExpansionVar + " && ln -sfn " + logDirExpansionVar +
-        " logs && exec ./__package/" + command + " 1>logs/" + stdOut + " 2>logs/" + stdErr;
+
+
+    if (!jobLib.isEmpty()) {
+      jobLib = "&& " + jobLib;
+    }
+    return String
+        .format("export SAMZA_LOG_DIR=%s %s && ln -sfn %s logs && exec %s 1>logs/%s 2>logs/%s", logDirExpansionVar,
+            jobLib, logDirExpansionVar, command, stdOut, stdErr);
   }
 }

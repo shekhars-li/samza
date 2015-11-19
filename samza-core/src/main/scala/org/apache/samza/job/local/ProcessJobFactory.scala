@@ -19,7 +19,7 @@
 
 package org.apache.samza.job.local
 
-import org.apache.samza.config.Config
+import org.apache.samza.config.{JobConfig, Config}
 import org.apache.samza.config.TaskConfig._
 import org.apache.samza.coordinator.JobCoordinator
 import org.apache.samza.job.{CommandBuilder, ShellCommandBuilder, StreamJob, StreamJobFactory}
@@ -54,6 +54,7 @@ class ProcessJobFactory extends StreamJobFactory with Logging {
             .setConfig(coordinatorSystemConfig)
             .setId(0)
             .setUrl(coordinator.server.getUrl)
+            .setCommandPath(config.get(JobConfig.SAMZA_FWK_PATH, ""))
 
     new ProcessJob(commandBuilder, coordinator)
   }
