@@ -23,11 +23,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptReport;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.ContainerReport;
+import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.YarnApplicationAttemptState;
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.samza.SamzaException;
@@ -38,7 +40,9 @@ import org.apache.samza.config.MapConfig;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.apache.samza.validation.YarnJobValidationTool;
+import org.apache.samza.container.SamzaContainerMetrics;
+import org.apache.samza.metrics.JmxMetricsAccessor;
+import org.apache.samza.metrics.MetricsValidationFailureException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -61,6 +65,7 @@ public class TestYarnJobValidationTool {
       put("yarn.container.count", String.valueOf(containerCount));
     }
   });
+  private MockMetricsValidator validator = new MockMetricsValidator();
 
   @Rule
   public final ExpectedException exception = ExpectedException.none();
@@ -68,7 +73,7 @@ public class TestYarnJobValidationTool {
   @Before
   public void setup() throws Exception {
     client = mock(YarnClient.class);
-    tool = new YarnJobValidationTool(new JobConfig(config), client);
+    tool = new YarnJobValidationTool(new JobConfig(config), client, validator);
     appId = mock(ApplicationId.class);
     when(appId.getId()).thenReturn(1111);
     attemptId = mock(ApplicationAttemptId.class);
@@ -91,10 +96,13 @@ public class TestYarnJobValidationTool {
 
   @Test
   public void testValidateRunningAttemptId() throws Exception {
+    ApplicationReport appReport = mock(ApplicationReport.class);
+    when(client.getApplicationReport(appId)).thenReturn(appReport);
+    when(appReport.getCurrentApplicationAttemptId()).thenReturn(attemptId);
     ApplicationAttemptReport attemptReport = mock(ApplicationAttemptReport.class);
     when(attemptReport.getYarnApplicationAttemptState()).thenReturn(YarnApplicationAttemptState.RUNNING);
     when(attemptReport.getApplicationAttemptId()).thenReturn(attemptId);
-    when(client.getApplicationAttempts(appId)).thenReturn(Collections.singletonList(attemptReport));
+    when(client.getApplicationAttemptReport(attemptId)).thenReturn(attemptReport);
     assertTrue(tool.validateRunningAttemptId(appId).equals(attemptId));
 
     when(attemptReport.getYarnApplicationAttemptState()).thenReturn(YarnApplicationAttemptState.FAILED);
@@ -106,7 +114,9 @@ public class TestYarnJobValidationTool {
   public void testValidateContainerCount() throws Exception {
     List<ContainerReport> containerReports = new ArrayList<>();
     for (int i = 0; i <= containerCount; i++) {
-      containerReports.add(mock(ContainerReport.class));
+      ContainerReport report = mock(ContainerReport.class);
+      when(report.getContainerState()).thenReturn(ContainerState.RUNNING);
+      containerReports.add(report);
     }
     when(client.getContainers(attemptId)).thenReturn(containerReports);
     assertTrue(tool.validateContainerCount(attemptId) == (containerCount + 1));
@@ -114,5 +124,19 @@ public class TestYarnJobValidationTool {
     containerReports.remove(0);
     exception.expect(SamzaException.class);
     tool.validateContainerCount(attemptId);
+  }
+
+  @Test
+  public void testValidateJmxMetrics() throws MetricsValidationFailureException {
+    JmxMetricsAccessor jmxMetricsAccessor = mock(JmxMetricsAccessor.class);
+    Map<String, Long> values = new HashMap<>();
+    values.put("samza-container-0", 100L);
+    when(jmxMetricsAccessor.getCounterValues(SamzaContainerMetrics.class.getName(), "commit-calls")).thenReturn(values);
+    validator.validate(jmxMetricsAccessor);
+
+    values.put("samza-container-0", -1L);
+    // the mock validator will fail if the commit-calls are less than or equal to 0
+    exception.expect(MetricsValidationFailureException.class);
+    validator.validate(jmxMetricsAccessor);
   }
 }
