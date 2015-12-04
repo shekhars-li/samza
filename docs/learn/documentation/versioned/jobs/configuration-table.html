@@ -156,6 +156,32 @@
                         others' checkpoints, and perhaps interfere with each other in other ways.
                     </td>
                 </tr>
+                <tr>
+                    <td class="property" id="job-coordinator-system">job.coordinator.system</td>
+                    <td class="default"></td>
+                    <td class="description">
+                        <strong>Required:</strong> The <span class="system">system-name</span> to use for creating and maintaining the <a href="../container/coordinator-stream.html">Coordinator Stream</a>.
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="property" id="job-coordinator-replication-factor">job.coordinator.<br />replication.factor</td>
+                    <td class="default">3</td>
+                    <td class="description">
+                        If you are using Kafka for coordinator stream, this is the number of Kafka nodes to which you want the
+                        coordinator topic replicated for durability.
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="property" id="job-coordinator-segment-bytes">job.coordinator.<br />segment.bytes</td>
+                    <td class="default">26214400</td>
+                    <td class="description">
+                        If you are using a Kafka system for coordinator stream, this is the segment size to be used for the coordinator
+                        topic's log segments. Keeping this number small is useful because it increases the frequency
+                        that Kafka will garbage collect old messages.
+                    </td>
+                </tr>
 
                 <tr>
                     <td class="property" id="job-config-rewriter-class">job.config.rewriter.<br><span class="rewriter">rewriter-name</span>.class</td>
@@ -872,6 +898,31 @@
                         buffered messages falls below that threshold, Samza fetches more messages from the
                         Kafka broker to replenish the buffer. Increasing this parameter can increase a job's
                         processing throughput, but also increases the amount of memory used.
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="property" id="systems-samza-fetch-threshold-bytes">systems.<span class="system">system-name</span>.<br>samza.fetch.threshold.bytes</td>
+                    <td class="default">-1</td>
+                    <td class="description">
+                        When consuming streams from Kafka, a Samza container maintains an in-memory buffer
+                        for incoming messages in order to increase throughput (the stream task can continue
+                        processing buffered messages while new messages are fetched from Kafka). This
+                        parameter determines the total size of messages we aim to buffer across all stream
+                        partitions consumed by a container based on bytes. Defines how many bytes to use for the buffered
+                        prefetch messages for job as a whole. The bytes for a single system/stream/partition are computed based on this.
+                        This fetches the entire messages, hence this bytes limit is a soft one, and the actual usage can be the bytes
+                        limit + size of max message in the partition for a given stream. If the value of this property is > 0
+                        then this takes precedence over systems.<span class="system">system-name</span>.samza.fetch.threshold.<br>
+                        For example, if fetchThresholdBytes is set to 100000 bytes, and there are 50 SystemStreamPartitions registered,
+                        then the per-partition threshold is (100000 / 2) / 50 = 1000 bytes. As this is a soft limit, the actual usage
+                        can be 1000 bytes + size of max message. As soon as a SystemStreamPartition's buffered messages bytes drops
+                        below 1000, a fetch request will be executed to get more data for it.
+
+                        Increasing this parameter will decrease the latency between when a queue is drained of messages and when new
+                        messages are enqueued, but also leads to an increase in memory usage since more messages will be held in memory.
+
+                        The default value is -1, which means this is not used.
                     </td>
                 </tr>
 

@@ -128,7 +128,7 @@ public class ContainerUtil {
       System.out.println("FWK path: " + command + "; env=" + env);
 
       Path path = new Path(yarnConfig.getPackagePath());
-      log.info("Starting container ID {} using package path %s", samzaContainerId, path);
+      log.info("Starting container ID {} using package path {}", samzaContainerId, path);
 
       startContainer(
           path,
