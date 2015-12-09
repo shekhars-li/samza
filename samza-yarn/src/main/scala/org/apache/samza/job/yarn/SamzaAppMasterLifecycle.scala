@@ -59,8 +59,19 @@ class SamzaAppMasterLifecycle(containerMem: Int, containerCpu: Int, state: Samza
   }
 
   override def onShutdown() {
-    info("Shutting down.")
-    amClient.unregisterApplicationMaster(state.status, shutdownMessage, null)
+    info("Shutting down. Final application-state is " + state.status)
+    //The value of state.status is set to either SUCCEEDED or FAILED for errors we catch and handle - like container failures
+    //All other AM failures (errors in callbacks/connection failures after retries/token expirations) should not unregister the AM,
+    //allowing the RM to restart it (potentially on a different host)
+    if(state.status != FinalApplicationStatus.UNDEFINED) {
+      info("Unregistering AM from the RM.")
+      amClient.unregisterApplicationMaster(state.status, shutdownMessage, null)
+      info("Unregister complete.")
+    }
+    else {
+      info("Not unregistering AM from the RM. This will enable RM retries")
+    }
+
   }
 
   override def shouldShutdown = !validResourceRequest
