@@ -29,7 +29,7 @@ base_dir=`pwd`
 cd $home_dir
 
 echo home_dir=$home_dir
-echo base_dir=$base_dir
+echo "framework base (location of this script). base_dir=$base_dir"
 
 if [ ! -d "$base_dir/lib" ]; then
   echo "Unable to find $base_dir/lib, which is required to run."

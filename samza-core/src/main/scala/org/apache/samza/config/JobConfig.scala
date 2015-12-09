@@ -39,6 +39,7 @@ object JobConfig {
   val JOB_NAME = "job.name" // streaming.job_name
   val JOB_ID = "job.id" // streaming.job_id
   val SAMZA_FWK_PATH = "samza.fwk.path"
+  val SAMZA_FWK_VERSION = "samza.fwk.version"
   val JOB_COORDINATOR_SYSTEM = "job.coordinator.system"
   val JOB_CONTAINER_COUNT = "job.container.count"
   val JOB_REPLICATION_FACTOR = "job.coordinator.replication.factor"

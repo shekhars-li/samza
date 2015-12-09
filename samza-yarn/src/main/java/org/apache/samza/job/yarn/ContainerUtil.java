@@ -18,6 +18,7 @@
  */
 package org.apache.samza.job.yarn;
 
+import java.io.File;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DataOutputBuffer;
@@ -36,6 +37,7 @@ import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.TaskConfig;
 import org.apache.samza.config.YarnConfig;
 import org.apache.samza.job.CommandBuilder;
@@ -50,7 +52,6 @@ import java.util.*;
 
 public class ContainerUtil {
   private static final Logger log = LoggerFactory.getLogger(ContainerUtil.class);
-  public static final String SAMZA_FWK_PATH = "samza.fwk.path";
 
   private final Config config;
   private final SamzaAppState state;
@@ -102,12 +103,18 @@ public class ContainerUtil {
     String jobLib = ""; // in case of separate framework, this directory will point at the Job's libraries
     String cmdPath = "./__package/";
 
-    String fwkPath = config.get(SAMZA_FWK_PATH);
+    String fwkPath = config.get(JobConfig.SAMZA_FWK_PATH());
+    String fwkVersion = config.get(JobConfig.SAMZA_FWK_VERSION());
+    if(fwkVersion == null || fwkVersion.isEmpty()) {
+      fwkVersion = "STABLE";
+    }
     if(fwkPath != null && (! fwkPath.isEmpty())) {
-      cmdPath = fwkPath;
+      cmdPath = fwkPath + File.separator + fwkVersion;
       jobLib = "export JOB_LIB_DIR=./__package/lib";
     }
-      CommandBuilder cmdBuilder = (CommandBuilder) Util.getObj(cmdBuilderClassName);
+    log.info("In runContainer in util: fwkPath= " + fwkPath + ";fwk_version=" + fwkVersion + ";cmdPath=" + cmdPath + ";jobLib=" + jobLib);
+
+    CommandBuilder cmdBuilder = (CommandBuilder) Util.getObj(cmdBuilderClassName);
       cmdBuilder
           .setConfig(config)
           .setId(samzaContainerId)

@@ -1,1 +1,2 @@
 REPOSITORY = "apache samza"
+TRACKING_BRANCH='origin/li_trunk'

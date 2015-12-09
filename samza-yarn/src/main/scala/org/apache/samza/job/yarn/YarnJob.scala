@@ -56,34 +56,22 @@ class YarnJob(config: Config, hadoopConfig: Configuration) extends StreamJob {
   val logger = LoggerFactory.getLogger(this.getClass)
 
   def submit: YarnJob = {
-    // figure out if we have framework setup separately
-    val fwkPath = config.get(JobConfig.SAMZA_FWK_PATH, "");
-    logger.info("YarnJob: Config value for %s is %s. If configured - use it directly " format ( JobConfig.SAMZA_FWK_PATH, fwkPath))
-    var cmdExec = "./__package/bin/run-am.sh"; // default location
 
-    if (!fwkPath.isEmpty()) {
-    // if we have framework installed as a separate package - use it
-       cmdExec = fwkPath + "/bin/run-am.sh";
+    val cmdExec = buildAmCmd()
 
-       logger.info("Use FWK path: " + "export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec %s 1>logs/%s 2>logs/%s".
-         format(ApplicationConstants.LOG_DIR_EXPANSION_VAR, ApplicationConstants.LOG_DIR_EXPANSION_VAR, cmdExec,
-                    ApplicationConstants.STDOUT, ApplicationConstants.STDERR));
-
-    }
-
-      appId = client.submitApplication(
+    appId = client.submitApplication(
       new Path(yarnConfig.getPackagePath),
       yarnConfig.getAMContainerMaxMemoryMb,
       1,
       List(
-        // we need something like this:
-       //"export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec /export/content/lid/apps/<fwk>/i001/bin/run-am.sh 1>logs/%s 2>logs/%s"
+       // we need something like this:
+       //"export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec <fwk_path>/bin/run-am.sh 1>logs/%s 2>logs/%s"
 
         "export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec %s 1>logs/%s 2>logs/%s"
            format (ApplicationConstants.LOG_DIR_EXPANSION_VAR, ApplicationConstants.LOG_DIR_EXPANSION_VAR,
                    cmdExec, ApplicationConstants.STDOUT, ApplicationConstants.STDERR)),
 
-    Some({
+      Some({
         val coordinatorSystemConfig = Util.buildCoordinatorStreamConfig(config)
         val envMap = Map(
           ShellCommandConfig.ENV_COORDINATOR_SYSTEM_CONFIG -> Util.envVarEscape(SamzaObjectMapper.getObjectMapper.writeValueAsString(coordinatorSystemConfig)),
@@ -100,6 +88,30 @@ class YarnJob(config: Config, hadoopConfig: Configuration) extends StreamJob {
       Option(yarnConfig.getQueueName))
     this
   }
+
+  def buildAmCmd() =  {
+    // figure out if we have framework is deployed into a separate location
+    val fwkPath = config.get(JobConfig.SAMZA_FWK_PATH, "")
+    var fwkVersion = config.get(JobConfig.SAMZA_FWK_VERSION)
+    if (fwkVersion == null || fwkVersion.isEmpty()) {
+      fwkVersion = "STABLE"
+    }
+    logger.info("Inside YarnJob: fwk_path is %s, ver is %s use it directly " format(fwkPath, fwkVersion))
+
+    var cmdExec = "./__package/bin/run-am.sh" // default location
+
+    if (!fwkPath.isEmpty()) {
+      // if we have framework installed as a separate package - use it
+      cmdExec = fwkPath + "/" + fwkVersion + "/bin/run-am.sh"
+
+      logger.info("Using FWK path: " + "export SAMZA_LOG_DIR=%s && ln -sfn %s logs && exec %s 1>logs/%s 2>logs/%s".
+             format(ApplicationConstants.LOG_DIR_EXPANSION_VAR, ApplicationConstants.LOG_DIR_EXPANSION_VAR, cmdExec,
+                    ApplicationConstants.STDOUT, ApplicationConstants.STDERR))
+
+    }
+    cmdExec
+  }
+
 
   def waitForFinish(timeoutMs: Long): ApplicationStatus = {
     val startTimeMs = System.currentTimeMillis()

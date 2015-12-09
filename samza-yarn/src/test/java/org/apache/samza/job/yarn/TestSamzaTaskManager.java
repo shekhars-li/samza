@@ -28,6 +28,7 @@ import org.apache.hadoop.yarn.client.api.async.impl.AMRMClientAsyncImpl;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.YarnConfig;
 import org.apache.samza.container.LocalityManager;
@@ -474,7 +475,7 @@ public class TestSamzaTaskManager {
     taskManager.onContainerAllocated(TestUtil.getContainer(container2, "", 12345));
 
 
-    configVals.put(ContainerUtil.SAMZA_FWK_PATH, "/export/content/whatever");
+    configVals.put(JobConfig.SAMZA_FWK_PATH(), "/export/content/whatever");
     Config config1 = new MapConfig(configVals);
 
     SamzaTaskManager taskManager1 = new SamzaTaskManager(
