@@ -19,6 +19,7 @@
 package org.apache.samza.rest.resources;
 
 import java.util.Collections;
+import javax.inject.Singleton;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
@@ -42,6 +43,7 @@ import org.slf4j.LoggerFactory;
  * The REST resource for jobs. Handles all requests for the jobs collection
  * or individual job instances.
  */
+@Singleton
 @Path("/v1/jobs")
 public class JobsResource {
   private static final Logger log = LoggerFactory.getLogger(JobsResource.class);

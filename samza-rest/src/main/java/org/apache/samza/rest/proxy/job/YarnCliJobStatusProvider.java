@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import javax.validation.constraints.NotNull;
 import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.samza.SamzaException;
 import org.apache.samza.rest.model.Job;
@@ -68,9 +67,9 @@ public class YarnCliJobStatusProvider implements JobStatusProvider {
   }
 
   @Override
-  public void getJobStatuses(@NotNull Collection<Job> jobs)
+  public void getJobStatuses(Collection<Job> jobs)
       throws IOException, InterruptedException {
-    if (jobs.isEmpty()) {
+    if (jobs == null || jobs.isEmpty()) {
       return;
     }
 

@@ -19,9 +19,7 @@
 package org.apache.samza.rest.proxy.installation;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +28,8 @@ import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigFactory;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.rest.proxy.job.JobInstance;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -40,6 +40,8 @@ import org.apache.samza.rest.proxy.job.JobInstance;
  * more job config files.
  */
 public class SimpleInstallationMapper implements InstallationMapper {
+  private static final Logger log = LoggerFactory.getLogger(SimpleInstallationMapper.class);
+
   protected static final String BIN_SUBPATH = "bin";
   protected static final String CFG_SUBPATH = "config";
 
@@ -86,6 +88,11 @@ public class SimpleInstallationMapper implements InstallationMapper {
     try {
       String jobInstallCanonPath = jobInstallPath.getCanonicalPath();
       File configPath = Paths.get(jobInstallCanonPath, CFG_SUBPATH).toFile();
+      if (!(configPath.exists() && configPath.isDirectory())) {
+        log.warn("Config path not found: " + configPath);
+        return;
+      }
+
       for (File configFile : configPath.listFiles()) {
 
         if (configFile.isFile()) {
@@ -109,8 +116,8 @@ public class SimpleInstallationMapper implements InstallationMapper {
           }
         }
       }
-    } catch (IOException | URISyntaxException e) {
-      throw new SamzaException("Exception listing config files", e);
+    } catch (Exception e) {
+      throw new SamzaException("Exception finding job instance in path: " + jobInstallPath, e);
     }
   }
 
