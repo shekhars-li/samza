@@ -495,7 +495,7 @@ project(":samza-rest") {
     testCompile "org.glassfish.jersey.test-framework.providers:jersey-test-framework-provider-grizzly2:$jerseyVersion"
   }
 
-  tasks.create(name: "restTarGz", type: Tar) {
+  tasks.create(name: "releaseRestServiceTar", type: Tar) {
     description 'Build a tarball containing the samza-rest component and its dependencies'
     compression = Compression.GZIP
     from(file("$projectDir/src/main/config")) { into "config/" }
@@ -508,9 +508,17 @@ project(":samza-rest") {
     from(jar) { into("lib/") }
   }
 
+  tasks.create(name: "restTarGz", type: Tar) {
+    description 'Build a tarball containing the samza-rest supplementary files'
+    compression = Compression.GZIP
+    from 'src/main/bash'
+    from 'src/main/resources'
+    from(project(':samza-shell').file("src/main/bash/run-class.sh"))
+  }
+
   artifacts {
     archives(restTarGz) {
-      name 'samza-rest'
+      name 'samza-rest-scripts'
       classifier 'dist'
     }
   }
