@@ -33,14 +33,14 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * A simple default implementation of {@link InstallationMapper}.
+ * A simple default implementation of {@link InstallationFinder}.
  *
  * Assumes that one or more Samza jobs are contained in each sub directory of the provided installationsPath.
  * Each sub directory is also expected to contian a bin directory and a config directory containing one or
  * more job config files.
  */
-public class SimpleInstallationMapper implements InstallationMapper {
-  private static final Logger log = LoggerFactory.getLogger(SimpleInstallationMapper.class);
+public class SimpleInstallationFinder implements InstallationFinder {
+  private static final Logger log = LoggerFactory.getLogger(SimpleInstallationFinder.class);
 
   protected static final String BIN_SUBPATH = "bin";
   protected static final String CFG_SUBPATH = "config";
@@ -54,7 +54,7 @@ public class SimpleInstallationMapper implements InstallationMapper {
    * @param installationsPath the root path where all Samza jobs are installed.
    * @param jobConfigFactory  the {@link ConfigFactory} to use to read the job configs.
    */
-  public SimpleInstallationMapper(String installationsPath, ConfigFactory jobConfigFactory) {
+  public SimpleInstallationFinder(String installationsPath, ConfigFactory jobConfigFactory) {
     this.installationsPath = installationsPath;
     this.jobConfigFactory = jobConfigFactory;
   }

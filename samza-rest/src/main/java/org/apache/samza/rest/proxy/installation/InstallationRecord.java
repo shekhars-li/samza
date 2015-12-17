@@ -26,7 +26,7 @@ import org.apache.samza.rest.proxy.job.JobInstance;
  *
  * This class does not hard code any knowledge about the structure of a Samza job installation. Rather, it
  * just points to the relevant paths within the installation. The structure is resolved by an implementation
- * of the {@link InstallationMapper} interface.
+ * of the {@link InstallationFinder} interface.
  */
 public class InstallationRecord extends JobInstance {
 

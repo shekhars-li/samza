@@ -74,7 +74,7 @@ public class JobsResource {
       return Response.ok(jobProxy.getAllJobStatuses()).build();
     } catch (Exception e) {
       log.error("Error in getInstalledJobs.", e);
-      return Response.serverError().entity(e).build();
+      return errorResponse(e.getMessage());
     }
   }
 
@@ -105,7 +105,7 @@ public class JobsResource {
       return Response.ok(job).build();
     } catch (Exception e) {
       log.error("Error in getJob.", e);
-      return Response.serverError().entity(e).build();
+      return errorResponse(e.getMessage());
     }
   }
 
@@ -157,7 +157,17 @@ public class JobsResource {
           Collections.singletonMap("message", e.getMessage())).build();
     } catch (Exception e) {
       log.error("Error in updateJobStatus.", e);
-      return Response.serverError().entity(Collections.singletonMap("message", String.format("Error type: %s message: %s", e.toString(), e.getMessage()))).build();
+      return errorResponse(String.format("Error type: %s message: %s", e.toString(), e.getMessage()));
     }
+  }
+
+  /**
+   * Constructs a consistent format for error responses. This method should be used for every error case.
+   *
+   * @param message the error message to report.
+   * @return        the {@link Response} containing the error message.
+   */
+  private Response errorResponse(String message) {
+    return Response.serverError().entity(Collections.singletonMap("message", message)).build();
   }
 }

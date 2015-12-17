@@ -22,9 +22,9 @@ import java.util.Set;
 import org.apache.samza.SamzaException;
 import org.apache.samza.rest.SamzaRestConfig;
 import org.apache.samza.rest.model.JobStatus;
-import org.apache.samza.rest.proxy.installation.InstallationMapper;
+import org.apache.samza.rest.proxy.installation.InstallationFinder;
 import org.apache.samza.rest.proxy.installation.InstallationRecord;
-import org.apache.samza.rest.proxy.installation.SimpleInstallationMapper;
+import org.apache.samza.rest.proxy.installation.SimpleInstallationFinder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,12 +43,12 @@ public class SimpleYarnJobProxy extends ScriptJobProxy {
 
   private final JobStatusProvider statusProvider = new YarnCliJobStatusProvider(this);
 
-  private final InstallationMapper installMap;
+  private final InstallationFinder installFinder;
 
   public SimpleYarnJobProxy(SamzaRestConfig config) {
     super(config);
 
-    installMap = new SimpleInstallationMapper(config.getInstallationsPath(), getJobConfigFactory());
+    installFinder = new SimpleInstallationFinder(config.getInstallationsPath(), getJobConfigFactory());
   }
 
   @Override
@@ -91,7 +91,7 @@ public class SimpleYarnJobProxy extends ScriptJobProxy {
    * @return            the --config-path command line argument.
    */
   private String generateConfigPathParameter(JobInstance jobInstance) {
-    InstallationRecord record = installMap.getAllInstalledJobs().get(jobInstance);
+    InstallationRecord record = installFinder.getAllInstalledJobs().get(jobInstance);
     return String.format(CONFIG_PATH_PARAM_FORMAT, record.getConfigFilePath());
   }
 
@@ -104,11 +104,11 @@ public class SimpleYarnJobProxy extends ScriptJobProxy {
 
   @Override
   protected Set<JobInstance> getAllJobInstances() {
-    return installMap.getAllInstalledJobs().keySet();
+    return installFinder.getAllInstalledJobs().keySet();
   }
 
   @Override
-  protected InstallationMapper getInstallationMapper() {
-    return installMap;
+  protected InstallationFinder getInstallationFinder() {
+    return installFinder;
   }
 }

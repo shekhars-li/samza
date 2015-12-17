@@ -29,6 +29,8 @@ import org.apache.samza.config.factories.PropertiesConfigFactory;
 import org.apache.samza.rest.SamzaRestConfig;
 import org.apache.samza.rest.model.Job;
 import org.apache.samza.rest.model.JobStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -36,6 +38,7 @@ import org.apache.samza.rest.model.JobStatus;
  * implementations. Subclasses are expected to override these default methods where necessary.
  */
 public abstract class AbstractJobProxy implements JobProxy {
+  private static final Logger log = LoggerFactory.getLogger(AbstractJobProxy.class);
 
   protected final SamzaRestConfig config;
 
@@ -110,8 +113,12 @@ public abstract class AbstractJobProxy implements JobProxy {
    * @return the {@link ConfigFactory} to use to read job configuration files.
    */
   protected ConfigFactory getJobConfigFactory() {
-    String configFactoryClassName =
-        config.get(SamzaRestConfig.CONFIG_JOB_CONFIG_FACTORY, PropertiesConfigFactory.class.getCanonicalName());
+    String configFactoryClassName = config.get(SamzaRestConfig.CONFIG_JOB_CONFIG_FACTORY);
+    if (configFactoryClassName == null) {
+      configFactoryClassName = PropertiesConfigFactory.class.getCanonicalName();
+      log.warn("{} not specified. Defaulting to {}", SamzaRestConfig.CONFIG_JOB_CONFIG_FACTORY, configFactoryClassName);
+    }
+
     try {
       Class factoryCls = Class.forName(configFactoryClassName);
       return (ConfigFactory) factoryCls.newInstance();

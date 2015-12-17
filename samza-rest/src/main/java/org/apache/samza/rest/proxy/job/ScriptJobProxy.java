@@ -22,7 +22,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.nio.file.Paths;
 import org.apache.samza.rest.SamzaRestConfig;
-import org.apache.samza.rest.proxy.installation.InstallationMapper;
+import org.apache.samza.rest.proxy.installation.InstallationFinder;
 import org.apache.samza.rest.proxy.installation.InstallationRecord;
 import org.apache.samza.rest.script.ScriptPathProvider;
 import org.apache.samza.rest.script.ScriptRunner;
@@ -54,7 +54,7 @@ public abstract class ScriptJobProxy extends AbstractJobProxy implements ScriptP
   public String getScriptPath(JobInstance jobInstance, String scriptName)
       throws FileNotFoundException {
     String scriptPath;
-    InstallationRecord jobInstallation = getInstallationMapper().getAllInstalledJobs().get(jobInstance);
+    InstallationRecord jobInstallation = getInstallationFinder().getAllInstalledJobs().get(jobInstance);
     scriptPath = Paths.get(jobInstallation.getScriptFilePath(), scriptName).toString();
 
     File scriptFile = new File(scriptPath);
@@ -65,7 +65,7 @@ public abstract class ScriptJobProxy extends AbstractJobProxy implements ScriptP
   }
 
   /**
-   * @return the {@link InstallationMapper} which will be used to find jobs installed on this machine.
+   * @return the {@link InstallationFinder} which will be used to find jobs installed on this machine.
    */
-  protected abstract InstallationMapper getInstallationMapper();
+  protected abstract InstallationFinder getInstallationFinder();
 }

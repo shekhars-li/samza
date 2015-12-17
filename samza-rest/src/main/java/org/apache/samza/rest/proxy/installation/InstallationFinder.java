@@ -23,12 +23,15 @@ import org.apache.samza.rest.proxy.job.JobInstance;
 
 
 /**
- * Maps a {@link JobInstance} to its {@link InstallationRecord} based on the structure within the
+ * Finds all the installed jobs. For example, one implementation may take an installation root directory
+ * and scan all subdirectories for job installations.
+ *
+ * Provides a map from a {@link JobInstance} to its {@link InstallationRecord} based on the structure within the
  * installation directory. Implementations of this interface should encapsulate any custom installation
  * structure such that the resulting {@link InstallationRecord} simply contains the locations of the files
  * needed to control the job.
  */
-public interface InstallationMapper {
+public interface InstallationFinder {
 
   /**
    * @param jobInstance the job to check.
