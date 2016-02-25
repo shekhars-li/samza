@@ -18,9 +18,10 @@
  */
 package org.apache.samza.rest;
 
-import javax.servlet.Servlet;
 import joptsimple.OptionSet;
 import org.apache.samza.config.MapConfig;
+import org.apache.samza.monitor.SamzaMonitorService;
+import org.apache.samza.monitor.ScheduledExecutorSchedulingProvider;
 import org.apache.samza.util.CommandLine;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -28,6 +29,10 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.glassfish.jersey.servlet.ServletContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.servlet.Servlet;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 
 /**
@@ -46,6 +51,7 @@ public class SamzaRestService {
 
   private final Server server;
   private final ServletContextHandler context;
+
 
   public SamzaRestService(SamzaRestConfig config) {
     log.info("Creating new SamzaRestService with config: {}", config);
@@ -66,14 +72,22 @@ public class SamzaRestService {
   public static void main(String[] args)
       throws Exception {
     SamzaRestConfig config = parseConfig(args);
-    SamzaRestService service = new SamzaRestService(config);
+    SamzaRestService restService = new SamzaRestService(config);
 
     // Add applications
     SamzaRestApplication samzaRestApplication = new SamzaRestApplication(config);
     ServletContainer container = new ServletContainer(samzaRestApplication);
-    service.addServlet(container, "/*");
+    restService.addServlet(container, "/*");
 
-    service.runBlocking();
+    // Schedule monitors to run
+    ScheduledExecutorService schedulingService = Executors.newScheduledThreadPool(1);
+    ScheduledExecutorSchedulingProvider schedulingProvider =
+            new ScheduledExecutorSchedulingProvider(schedulingService);
+    SamzaMonitorService monitorService = new SamzaMonitorService(config, schedulingProvider);
+    monitorService.start();
+
+    restService.runBlocking();
+    monitorService.stop();
   }
 
   /**
