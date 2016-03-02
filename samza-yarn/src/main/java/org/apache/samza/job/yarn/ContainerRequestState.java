@@ -106,12 +106,13 @@ public class ContainerRequestState {
    * @param container Container resource that was returned by the RM
    */
   public synchronized void addContainer(Container container) {
+    log.info("Got a new container: {}", container);
     if(hostAffinityEnabled) {
       String hostName = container.getNodeHttpAddress().split(":")[0];
       AtomicInteger requestCount = requestsToCountMap.get(hostName);
       // Check if this host was requested for any of the containers
       if (requestCount == null || requestCount.get() == 0) {
-        log.debug(
+        log.info(
             "Request count for the allocatedContainer on {} is null or 0. This means that the host was not requested " +
                 "for running containers.Hence, saving the container {} in the buffer for ANY_HOST",
             hostName,
@@ -123,11 +124,11 @@ public class ContainerRequestState {
         List<Container> allocatedContainersOnThisHost = allocatedContainers.get(hostName);
         if (requestCountOnThisHost > 0) {
           if (allocatedContainersOnThisHost == null) {
-            log.debug("Saving the container {} in the buffer for {}", container.getId(), hostName);
+            log.info("Saving the container {} in the buffer for {}", container.getId(), hostName);
             addToAllocatedContainerList(hostName, container);
           } else {
             if (allocatedContainersOnThisHost.size() < requestCountOnThisHost) {
-              log.debug("Saving the container {} in the buffer for {}", container.getId(), hostName);
+              log.info("Saving the container {} in the buffer for {}", container.getId(), hostName);
               addToAllocatedContainerList(hostName, container);
             } else {
               /**
@@ -135,7 +136,7 @@ public class ContainerRequestState {
                * requestCount != 0, it will be greater than the total request count for that host. Hence, it should be
                * assigned to ANY_HOST
                */
-              log.debug(
+              log.info(
                   "The number of containers already allocated on {} is greater than what was " +
                       "requested, which is {}. Hence, saving the container {} in the buffer for ANY_HOST",
                   new Object[]{
@@ -148,7 +149,7 @@ public class ContainerRequestState {
             }
           }
         } else {
-          log.debug(
+          log.info(
               "This host was never requested. Hence, saving the container {} in the buffer for ANY_HOST",
               new Object[]{
                   hostName,
@@ -160,7 +161,7 @@ public class ContainerRequestState {
         }
       }
     } else {
-      log.debug("Saving the container {} in the buffer for ANY_HOST", container.getId());
+      log.info("Saving the container {} in the buffer for ANY_HOST", container.getId());
       addToAllocatedContainerList(ANY_HOST, container);
     }
   }

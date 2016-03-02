@@ -42,6 +42,7 @@ import org.apache.samza.config.TaskConfig;
 import org.apache.samza.config.YarnConfig;
 import org.apache.samza.job.CommandBuilder;
 import org.apache.samza.job.ShellCommandBuilder;
+import org.apache.samza.job.model.ContainerModel;
 import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,6 +92,9 @@ public class ContainerUtil {
   public void runContainer(int samzaContainerId, Container container) {
     String containerIdStr = ConverterUtils.toString(container.getId());
     log.info("Got available container ID ({}) for container: {}", samzaContainerId, container);
+
+    ContainerModel cm = JobCoordinator.jobModelRef().get().getContainers().get(samzaContainerId);
+    log.info("Container ID {} using model {}", samzaContainerId, cm);
 
     String cmdBuilderClassName;
     if (taskConfig.getCommandClass().isDefined()) {
