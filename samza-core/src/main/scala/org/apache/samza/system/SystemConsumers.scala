@@ -96,13 +96,9 @@ class SystemConsumers(
    * with no remaining unprocessed messages, the SystemConsumers will poll for
    * it within 50ms of its availability in the stream system.</p>
    */
-  pollIntervalMs: Int = SystemConsumers.DEFAULT_POLL_INTERVAL_MS,
+  pollIntervalMs: Int = SystemConsumers.DEFAULT_POLL_INTERVAL_MS) extends Logging {
 
-  /**
-   * Clock can be used to inject a custom clock when mocking this class in
-   * tests. The default implementation returns the current system clock time.
-   */
-  clock: () => Long = () => System.currentTimeMillis) extends Logging {
+  def clock: () => Long = () => System.currentTimeMillis
 
   /**
    * A buffer of incoming messages grouped by SystemStreamPartition. These

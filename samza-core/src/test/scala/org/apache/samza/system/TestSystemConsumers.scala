@@ -39,7 +39,7 @@ class TestSystemConsumers {
     val envelope = new IncomingMessageEnvelope(systemStreamPartition0, "1", "k", "v")
     val consumer = new CustomPollResponseSystemConsumer(envelope)
     var now = 0L
-    val consumers = new SystemConsumers(new MockMessageChooser, Map(system -> consumer), clock = () => now)
+    val consumers = new SystemConsumers(new MockMessageChooser, Map(system -> consumer))
 
     consumers.register(systemStreamPartition0, "0")
     consumers.register(systemStreamPartition1, "1234")
@@ -97,7 +97,7 @@ class TestSystemConsumers {
     val envelope = new IncomingMessageEnvelope(systemStreamPartition, "1", "k", "v")
     val consumer = new CustomPollResponseSystemConsumer(envelope)
     var now = 0
-    val consumers = new SystemConsumers(new MockMessageChooser, Map(system -> consumer), clock = () => now)
+    val consumers = new SystemConsumers(new MockMessageChooser, Map(system -> consumer))
 
     consumers.register(systemStreamPartition, "0")
     consumers.start
