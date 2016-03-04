@@ -40,6 +40,7 @@ import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.TaskConfig;
 import org.apache.samza.config.YarnConfig;
+import org.apache.samza.coordinator.JobCoordinator;
 import org.apache.samza.job.CommandBuilder;
 import org.apache.samza.job.ShellCommandBuilder;
 import org.apache.samza.job.model.ContainerModel;

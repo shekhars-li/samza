@@ -87,6 +87,7 @@ public class TestContainerAllocator {
       containers.put(i, container);
     }
     JobModel jobModel = new JobModel(config, containers);
+    JobCoordinator.jobModelRef().set(jobModel);
     return new JobCoordinator(jobModel, server);
   }
 
@@ -200,7 +201,7 @@ public class TestContainerAllocator {
    * @throws Exception
    */
   @Test
-  public void testAllocatorReleasesExtraContainers() throws Exception {
+    public void testAllocatorReleasesExtraContainers() throws Exception {
     final Container container = TestUtil.getContainer(ConverterUtils.toContainerId("container_1350670447861_0003_01_000001"), "abc", 123);
     final Container container1 = TestUtil.getContainer(ConverterUtils.toContainerId("container_1350670447861_0003_01_000002"), "abc", 123);
     final Container container2 = TestUtil.getContainer(ConverterUtils.toContainerId("container_1350670447861_0003_01_000003"), "def", 123);
