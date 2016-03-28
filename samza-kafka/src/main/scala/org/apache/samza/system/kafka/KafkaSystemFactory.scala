@@ -37,12 +37,23 @@ import org.apache.samza.system.SystemConsumer
 import kafka.utils.ZkUtils
 
 object KafkaSystemFactory extends Logging {
+
   def getInjectedProducerProperties(systemName: String, config: Config) = if (config.isChangelogSystem(systemName)) {
-    warn("System name '%s' is being used as a changelog. Disabling compression since Kafka does not support compression for log compacted topics." format systemName)
-    Map[String, String]("compression.type" -> "none")
-  } else {
-    Map[String, String]()
+    info("System name '%s' is being used as a changelog. " format systemName)
+    /*
+    There was a Kafka bug that would cause the log cleaner thread on the broker to crash when it was compacting compressed topics.
+    Since, changelog topics are log-compacted, we have enabled the override to explicitly disable compaction if a k-v store topic
+    is compressed. This kafka bug https://issues.apache.org/jira/browse/KAFKA-1374 is fixed as of kafka 0.9.0.2.
+
+    Enabling compression has the following benefit:
+    1. When sending large messages (the limit of a kafka message is typically 1M), with compression and batching, the message sizes
+    get reduced significantly. This helps Samza customers to write larger data to their K-V stores (because the size of the write
+    you can do to a kafka-changelog backed store is dependent on the size of the Kafka message)
+
+    THIS CHANGE IS MADE INTERNAL TO LINKEDIN and MUST BE PORTED TO OPEN SOURCE. (SAMZA-918)
+     */
   }
+    Map[String, String]()
 }
 
 class KafkaSystemFactory extends SystemFactory with Logging {
