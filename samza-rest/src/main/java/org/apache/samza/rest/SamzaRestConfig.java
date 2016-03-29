@@ -103,7 +103,8 @@ public class SamzaRestConfig extends MapConfig {
    * @return a list of class names as Strings corresponding to Monitors that Samza REST should schedule.
    */
   public List<String> getConfigMonitorClassList() {
-    return Arrays.asList(CONFIG_MONITOR_CLASS_LIST.split("\\s*,\\s*"));
+    String classList = get(CONFIG_MONITOR_CLASS_LIST);
+    return Arrays.asList(classList.split("\\s*,\\s*"));
   }
 
   /**

@@ -67,7 +67,7 @@ public class TestMonitorService {
 
         // Initialize with a monitor that immediately throws an exception when run.
         Map<String, String> map = new HashMap<>();
-        map.put(SamzaRestConfig.CONFIG_MONITOR_CLASS_LIST, "org.apache.samza.monitor.mock.ExceptinoThrowingMonitor");
+        map.put(SamzaRestConfig.CONFIG_MONITOR_CLASS_LIST, "org.apache.samza.monitor.mock.ExceptionThrowingMonitor");
         map.put(SamzaRestConfig.CONFIG_MONITOR_INTERVAL_MS, "1");
         SamzaRestConfig config = new SamzaRestConfig(new MapConfig(map));
         SamzaMonitorService monitorService = new SamzaMonitorService(config, provider);
