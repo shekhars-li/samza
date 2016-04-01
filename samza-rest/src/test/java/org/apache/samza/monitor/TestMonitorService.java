@@ -85,9 +85,9 @@ public class TestMonitorService {
                 new ScheduledExecutorSchedulingProvider(executorService);
 
         // notifyingMonitor.monitor() should be called repeatedly.
-        CountDownLatch wasCalledLatch = new CountDownLatch(3);
+        final CountDownLatch wasCalledLatch = new CountDownLatch(3);
 
-        Monitor notifyingMonitor = new Monitor() {
+        final Monitor notifyingMonitor = new Monitor() {
             @Override
             public void monitor() {
                 wasCalledLatch.countDown();
@@ -98,7 +98,7 @@ public class TestMonitorService {
             public void run() {
                 try {
                     notifyingMonitor.monitor();
-                } catch (InterruptedException|IOException e) {
+                } catch (Exception e) {
                     // Must be caught because they are checked in monitor()
                     fail();
                 }

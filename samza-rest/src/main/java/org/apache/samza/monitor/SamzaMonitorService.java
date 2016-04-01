@@ -57,7 +57,7 @@ public class SamzaMonitorService {
         this.scheduler.stop();
     }
 
-    private Runnable getRunnable(Monitor monitor) {
+    private Runnable getRunnable(final Monitor monitor) {
         return new Runnable() {
             public void run() {
                 try {

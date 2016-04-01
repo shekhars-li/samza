@@ -19,6 +19,7 @@
 package org.apache.samza.rest;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.samza.config.Config;
@@ -54,6 +55,17 @@ public class SamzaRestConfig extends MapConfig {
   public static final String CONFIG_JOB_CONFIG_FACTORY = "job.config.factory.class";
 
   /**
+   * Specifies a comma-delimited list of class names that implement ResourceFactory.
+   * These factories will be used to create specific instances of resources, passing the server config.
+   */
+  public static final String CONFIG_REST_RESOURCE_FACTORIES = "rest.resource.factory.classes";
+
+  /**
+   * Specifies a comma-delimited list of class names of resources to register with the server.
+   */
+  public static final String CONFIG_REST_RESOURCE_CLASSES = "rest.resource.classes";
+
+  /**
    * Specifies a comma-delimited list of class names corresponding to Monitor implementations.
    * These will be instantiated and scheduled to run periodically at runtime.
    * Note that you must include the ENTIRE package name (org.apache.samza...).
@@ -64,6 +76,11 @@ public class SamzaRestConfig extends MapConfig {
    * Specifies the interval at which each registered Monitor's monitor method will be called.
    */
   public static final String CONFIG_MONITOR_INTERVAL_MS = "monitor.run.interval.ms";
+
+  /**
+   * Monitors run every 60s by default
+   */
+  private static final int DEFAULT_MONITOR_INTERVAL = 60000;
 
   /**
    * The port number to use for the HTTP server or 0 to dynamically choose a port.
@@ -99,12 +116,34 @@ public class SamzaRestConfig extends MapConfig {
   }
 
   /**
+   * @see SamzaRestConfig#CONFIG_REST_RESOURCE_FACTORIES;
+   * @return a list of class names as Strings corresponding to factories
+   *          that Samza REST should use to instantiate and register resources
+   *          or an empty list if none were configured.
+   */
+  public List<String> getResourceFactoryClassNames() {
+    String classList = get(CONFIG_REST_RESOURCE_FACTORIES);
+    return classList == null ? Collections.<String>emptyList() : Arrays.asList(classList.split("\\s*,\\s*"));
+  }
+
+  /**
+   * @see SamzaRestConfig#CONFIG_REST_RESOURCE_CLASSES;
+   * @return a list of class names as Strings corresponding to resource classes
+   *          that Samza REST should register or an empty list if none were configured.
+   */
+  public List<String> getResourceClassNames() {
+    String classList = get(CONFIG_REST_RESOURCE_CLASSES);
+    return classList == null ? Collections.<String>emptyList() : Arrays.asList(classList.split("\\s*,\\s*"));
+  }
+
+  /**
    * @see SamzaRestConfig#CONFIG_MONITOR_CLASS_LIST;
-   * @return a list of class names as Strings corresponding to Monitors that Samza REST should schedule.
+   * @return a list of class names as Strings corresponding to Monitors that
+   *          Samza REST should schedule or an empty list if none were configured.
    */
   public List<String> getConfigMonitorClassList() {
     String classList = get(CONFIG_MONITOR_CLASS_LIST);
-    return Arrays.asList(classList.split("\\s*,\\s*"));
+    return classList == null ? Collections.<String>emptyList() : Arrays.asList(classList.split("\\s*,\\s*"));
   }
 
   /**
@@ -112,7 +151,7 @@ public class SamzaRestConfig extends MapConfig {
    * @return an integer number of milliseconds, the period at which to schedule monitor runs.
    */
   public int getConfigMonitorIntervalMs() {
-    return getInt(CONFIG_MONITOR_INTERVAL_MS);
+    return getInt(CONFIG_MONITOR_INTERVAL_MS, DEFAULT_MONITOR_INTERVAL);
   }
 
   /**

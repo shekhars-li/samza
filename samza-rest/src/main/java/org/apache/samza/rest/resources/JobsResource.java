@@ -20,12 +20,12 @@ package org.apache.samza.rest.resources;
 
 import java.util.Collections;
 import javax.inject.Singleton;
-import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import org.apache.samza.rest.SamzaRestConfig;
@@ -92,7 +92,8 @@ public class JobsResource {
   @GET
   @Path("/{jobName}/{jobId}")
   @Produces(MediaType.APPLICATION_JSON)
-  public Response getJob(@PathParam("jobName") final String jobName,
+  public Response getJob(
+      @PathParam("jobName") final String jobName,
       @PathParam("jobId") final String jobId) {
     JobInstance jobInstance = new JobInstance(jobName, jobId);
     try {
@@ -123,8 +124,10 @@ public class JobsResource {
   @PUT
   @Path("/{jobName}/{jobId}")
   @Produces(MediaType.APPLICATION_JSON)
-  public Response updateJobStatus(@PathParam("jobName") final String jobName, @PathParam("jobId") final String jobId,
-      @FormParam("status") String status) {
+  public Response updateJobStatus(
+      @PathParam("jobName") final String jobName,
+      @PathParam("jobId") final String jobId,
+      @QueryParam("status") String status) {
     JobInstance jobInstance = new JobInstance(jobName, jobId);
     try {
       if (!jobProxy.jobExists(jobInstance)) {

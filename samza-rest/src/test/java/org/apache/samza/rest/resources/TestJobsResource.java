@@ -150,8 +150,8 @@ public class TestJobsResource extends JerseyTest {
   @Test
   public void testStartJob()
       throws IOException {
-    Response resp = target(String.format("v1/jobs/%s/%s", MockJobProxy.JOB_INSTANCE_2_NAME, MockJobProxy.JOB_INSTANCE_2_ID)).request()
-        .put(Entity.form(new Form().param("status", "started")));
+    Response resp = target(String.format("v1/jobs/%s/%s", MockJobProxy.JOB_INSTANCE_2_NAME, MockJobProxy.JOB_INSTANCE_2_ID))
+        .queryParam("status", "started").request().put(Entity.form(new Form()));
     assertEquals(202, resp.getStatus());
 
     final Job job2 = objectMapper.readValue(resp.readEntity(String.class), Job.class);
@@ -164,8 +164,8 @@ public class TestJobsResource extends JerseyTest {
   @Test
   public void testStopJob()
       throws IOException {
-    Response resp = target(String.format("v1/jobs/%s/%s", MockJobProxy.JOB_INSTANCE_2_NAME, MockJobProxy.JOB_INSTANCE_2_ID)).request()
-        .put(Entity.form(new Form().param("status", "stopped")));
+    Response resp = target(String.format("v1/jobs/%s/%s", MockJobProxy.JOB_INSTANCE_2_NAME, MockJobProxy.JOB_INSTANCE_2_ID))
+        .queryParam("status", "stopped").request().put(Entity.form(new Form()));
     assertEquals(202, resp.getStatus());
 
     final Job job2 = objectMapper.readValue(resp.readEntity(String.class), Job.class);
@@ -178,8 +178,8 @@ public class TestJobsResource extends JerseyTest {
   @Test
   public void testPutBadJobStatus()
       throws IOException {
-    Response resp = target(String.format("v1/jobs/%s/%s", MockJobProxy.JOB_INSTANCE_2_NAME, MockJobProxy.JOB_INSTANCE_2_ID)).request()
-        .put(Entity.form(new Form().param("status", "BADSTATUS")));
+    Response resp = target(String.format("v1/jobs/%s/%s", MockJobProxy.JOB_INSTANCE_2_NAME, MockJobProxy.JOB_INSTANCE_2_ID))
+        .queryParam("status", "BADSTATUS").request().put(Entity.form(new Form()));
     assertEquals(400, resp.getStatus());
 
     final Map<String, String> errorMessage = objectMapper.readValue(resp.readEntity(String.class), new TypeReference<Map<String, String>>() {});

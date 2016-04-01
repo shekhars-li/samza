@@ -71,23 +71,26 @@ public class SamzaRestService {
    */
   public static void main(String[] args)
       throws Exception {
-    SamzaRestConfig config = parseConfig(args);
-    SamzaRestService restService = new SamzaRestService(config);
+    try {
+      SamzaRestConfig config = parseConfig(args);
+      SamzaRestService restService = new SamzaRestService(config);
 
-    // Add applications
-    SamzaRestApplication samzaRestApplication = new SamzaRestApplication(config);
-    ServletContainer container = new ServletContainer(samzaRestApplication);
-    restService.addServlet(container, "/*");
+      // Add applications
+      SamzaRestApplication samzaRestApplication = new SamzaRestApplication(config);
+      ServletContainer container = new ServletContainer(samzaRestApplication);
+      restService.addServlet(container, "/*");
 
-    // Schedule monitors to run
-    ScheduledExecutorService schedulingService = Executors.newScheduledThreadPool(1);
-    ScheduledExecutorSchedulingProvider schedulingProvider =
-            new ScheduledExecutorSchedulingProvider(schedulingService);
-    SamzaMonitorService monitorService = new SamzaMonitorService(config, schedulingProvider);
-    monitorService.start();
+      // Schedule monitors to run
+      ScheduledExecutorService schedulingService = Executors.newScheduledThreadPool(1);
+      ScheduledExecutorSchedulingProvider schedulingProvider = new ScheduledExecutorSchedulingProvider(schedulingService);
+      SamzaMonitorService monitorService = new SamzaMonitorService(config, schedulingProvider);
+      monitorService.start();
 
-    restService.runBlocking();
-    monitorService.stop();
+      restService.runBlocking();
+      monitorService.stop();
+    } catch (Throwable t) {
+      log.error("Exception in main.", t);
+    }
   }
 
   /**
