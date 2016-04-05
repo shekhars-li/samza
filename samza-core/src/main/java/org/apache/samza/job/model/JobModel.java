@@ -108,7 +108,7 @@ public class JobModel {
       return Collections.EMPTY_MAP;
     }
     Map<Integer, String> allValues = new HashMap<>();
-    for(Map.Entry<Integer, Map<String, String>> entry : localityManager.readContainerLocality().entrySet()) {
+    for (Map.Entry<Integer, Map<String, String>> entry : localityManager.readContainerLocality().entrySet()) {
       String value = entry.getValue().get(key);
       if (value != null) {
         allValues.put(entry.getKey(), value);

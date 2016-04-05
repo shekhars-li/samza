@@ -17,16 +17,12 @@
  * under the License.
  */
 
-package org.apache.samza.metrics;
+package org.apache.samza.storage.kv;
 
-/**
- * Thrown when the metrics validation fails. See {@link org.apache.samza.metrics.MetricsValidator}.
- */
-public class MetricsValidationFailureException extends Exception {
-  public MetricsValidationFailureException(String message) {
-    super(message);
-  }
-  public MetricsValidationFailureException(String message, Throwable cause) {
-    super(message, cause);
-  }
+import java.util.Iterator;
+
+public interface KeyValueIterator<K, V> extends Iterator<Entry<K, V>> {
+  public void close();
+  public void seekToFirst();
+  public void seek(K key);
 }

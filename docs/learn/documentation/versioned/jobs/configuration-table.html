@@ -184,6 +184,27 @@
                 </tr>
 
                 <tr>
+                    <td class="property" id="job-coordinator-monitor-partition-change">job.coordinator.<br />monitor-partition-change</td>
+                    <td class="default">false</td>
+                    <td class="description">
+                        If you are using Kafka for coordinator stream, this configuration enables the Job Coordinator to
+                        detect partition count difference in Kafka input topics. On detection, it updates a Gauge
+                        metric of format <span class="system">system-name</span>.<span class="stream">stream-name</span>.partitionCount,
+                        which indicates the difference in the partition count from the initial state. Please note that currently this
+                        feature only works for Kafka-based systems.
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="property" id="job-coordinator-monitor-partition-change-frequency-ms">job.coordinator.<br />monitor-partition-change.frequency.ms</td>
+                    <td class="default">300000</td>
+                    <td class="description">
+                        The frequency at which the input streams' partition count change should be detected. This check
+                        can be tuned to be pretty low as partition increase is not a common event.
+                    </td>
+                </tr>
+
+                <tr>
                     <td class="property" id="job-config-rewriter-class">job.config.rewriter.<br><span class="rewriter">rewriter-name</span>.class</td>
                     <td class="default"></td>
                     <td class="description">
@@ -229,6 +250,13 @@
                           <dt><code>org.apache.samza.container.grouper.stream.GroupBySystemStreamPartitionFactory</code></dt>
                           <dd>Assigns each SystemStreamPartition to its own unique StreamTask. The  GroupBySystemStreamPartitionFactory is useful in cases where you want increased parallelism (more containers), and don't care about co-locating partitions for grouping or joins, since it allows for a greater number of StreamTasks to be divided up amongst Samza containers.</dd>
                         </dl>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="property" id="job-checkpoint-validation-enabled">job.checkpoint.<br>validation.enabled</td>
+                    <td class="default">true</td>
+                    <td class="description">
+                        This setting controls if the job should fail(true) or just warn(false) in case the validation of checkpoint partition number fails. <br/> <b>CAUTION</b>: this configuration needs to be used w/ care. It should only be used as a work-around after the checkpoint has been auto-created with wrong number of partitions by mistake.
                     </td>
                 </tr>
 
@@ -1518,9 +1546,14 @@
                     <td class="description">A date format (using Java's SimpleDataFormat syntax) appropriate for use in an HDFS Path, which can configure time-based bucketing of output files.</td>
                 </tr>
                 <tr>
-                  <td class="property" id="hdfs-write-batch-size-bytes">systems.*.producer.write.batch.size.bytes</td>
+                  <td class="property" id="hdfs-write-batch-size-bytes">systems.*.producer.hdfs.write.batch.size.bytes</td>
                   <td class="default">268435456</td>
                   <td class="description">The number of bytes of outgoing messages to write to each HDFS output file before cutting a new file. Defaults to 256MB if not set.</td>
+                </tr>
+                <tr>
+                    <td class="property" id="hdfs-write-batch-size-records">systems.*.producer.hdfs.write.batch.size.records</td>
+                    <td class="default">262144</td>
+                    <td class="description">The number of outgoing messages to write to each HDFS output file before cutting a new file. Defaults to 262144 if not set.</td>
                 </tr>
 
                 <tr>

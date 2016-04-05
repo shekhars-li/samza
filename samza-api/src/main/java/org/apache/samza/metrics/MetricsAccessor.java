@@ -31,7 +31,7 @@ public interface MetricsAccessor {
    * Get the values of a counter
    * @param group Group for the counter, e.g. org.apache.samza.container.SamzaContainerMetrics
    * @param counter Name of the counter, e.g. commit-calls
-   * @return A map of counter values, keyed by type, e.g. {"samza-container-0" -> 100L}
+   * @return A map of counter values, keyed by type, e.g. {"samza-container-0": 100L}
    */
   Map<String, Long> getCounterValues(String group, String counter);
 
@@ -40,7 +40,7 @@ public interface MetricsAccessor {
    * @param group Group for the gauge, e.g. org.apache.samza.container.SamzaContainerMetrics
    * @param gauge Name of the gauge, e.g. event-loop-utilization
    * @param <T> Type of the gauge value, e.g. Double
-   * @return A map of gauge values, keyed by type, e.g. {"samza-container-0" -> 0.8}
+   * @return A map of gauge values, keyed by type, e.g. {"samza-container-0": 0.8}
    */
   <T> Map<String, T> getGaugeValues(String group, String gauge);
 
@@ -48,7 +48,7 @@ public interface MetricsAccessor {
    * Get the values of a timer
    * @param group Group for the timer, e.g. org.apache.samza.container.SamzaContainerMetrics
    * @param timer Name of the timer, e.g. choose-ns
-   * @return A map of timer values, keyed by type, e.g. {"samza-container-0" -> 10.5}
+   * @return A map of timer values, keyed by type, e.g. {"samza-container-0": 10.5}
    */
   Map<String, Double> getTimerValues(String group, String timer);
 }

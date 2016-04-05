@@ -70,8 +70,7 @@ public class JmxMetricsAccessor implements MetricsAccessor {
         values.put(type, val);
       }
       return values;
-    }
-    catch(Exception e) {
+    } catch (Exception e) {
       log.error(e.getMessage(), e);
       return Collections.EMPTY_MAP;
     }

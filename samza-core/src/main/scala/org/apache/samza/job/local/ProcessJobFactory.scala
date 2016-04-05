@@ -19,9 +19,6 @@
 
 package org.apache.samza.job.local
 
-
-import java.io.File
-
 import org.apache.samza.config.{JobConfig, Config}
 import org.apache.samza.config.TaskConfig._
 import org.apache.samza.coordinator.JobCoordinator
@@ -36,16 +33,9 @@ class ProcessJobFactory extends StreamJobFactory with Logging {
     val coordinator = JobCoordinator(config)
     val containerModel = coordinator.jobModel.getContainers.get(0)
 
-    var fwkPath = config.get(JobConfig.SAMZA_FWK_PATH, "")
-    var fwkVersion = config.get(JobConfig.SAMZA_FWK_VERSION)
-    if (fwkVersion == null || fwkVersion.isEmpty()) {
-      fwkVersion = "STABLE"
-    }
-    if (! fwkPath.isEmpty()) {
-      fwkPath = fwkPath + File.separator  + fwkVersion
-    }
-
+    val fwkPath = JobConfig.getFwkPath(config) // see if split deployment is configured
     info("Process job. using fwkPath = " + fwkPath)
+
     val commandBuilder = {
       config.getCommandClass match {
         case Some(cmdBuilderClassName) => {

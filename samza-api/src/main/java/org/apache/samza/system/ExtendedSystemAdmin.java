@@ -16,17 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.samza.system;
 
-package org.apache.samza.metrics;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Thrown when the metrics validation fails. See {@link org.apache.samza.metrics.MetricsValidator}.
+ * Interface extends the more generic SystemAdmin interface
+ * TODO: Merge this interface method with SystemAdmin when we upgrade to JDK 1.8
  */
-public class MetricsValidationFailureException extends Exception {
-  public MetricsValidationFailureException(String message) {
-    super(message);
-  }
-  public MetricsValidationFailureException(String message, Throwable cause) {
-    super(message, cause);
-  }
+public interface ExtendedSystemAdmin extends SystemAdmin {
+  Map<String, SystemStreamMetadata> getSystemStreamPartitionCounts(Set<String> streamNames);
 }

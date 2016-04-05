@@ -23,7 +23,7 @@ import org.apache.samza.config.Config;
 
 
 /**
- * A MetricsValidator fetches the job's metrics values by using the {@link org.apache.samza.metrics.MetricsAccessor},
+ * A MetricsValidator reads the job's metrics values by using the {@link org.apache.samza.metrics.MetricsAccessor},
  * and validate them.
  */
 public interface MetricsValidator {
@@ -34,15 +34,15 @@ public interface MetricsValidator {
   void init(Config config);
 
   /**
-   * Validate the metrics values of a job, such as {@Link org.apache.samza.container.SamzaContainerMetrics} and {@Link org.apache.samza.container.TaskInstanceMetrics}.
+   * Validate the metrics values of a job
    * @param accessor Accessor to get the metrics values through specific metrics system, e.g. JMX.
-   * @throws MetricsValidationFailureException
+   * @throws MetricsValidationFailureException Exception when the validation fails.
    */
   void validate(MetricsAccessor accessor) throws MetricsValidationFailureException;
 
   /**
    * Complete validation. Final checks can be performed here.
-   * @throws MetricsValidationFailureException
+   * @throws MetricsValidationFailureException Exception when the validation fails.
    */
   void complete() throws MetricsValidationFailureException;
 }
