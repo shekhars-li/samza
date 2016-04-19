@@ -215,7 +215,8 @@ class BrokerProxy(
    */
   def abdicateAll {
     info("Abdicating all topic partitions.")
-    nextOffsets.keySet.foreach(abdicate(_))
+    val immutableNextOffsetsCopy = nextOffsets.toMap
+    immutableNextOffsetsCopy.keySet.foreach(abdicate(_))
   }
 
   def handleErrors(errorResponses: mutable.Set[Entry[TopicAndPartition, FetchResponsePartitionData]], response:FetchResponse) = {
