@@ -25,7 +25,7 @@ import java.util
 
 import org.apache.samza.config.MapConfig
 import org.apache.samza.util.ExponentialSleepStrategy
-import org.junit.{Ignore, Assert, Test}
+import org.junit.{Assert, Test}
 import org.rocksdb.{RocksDB, FlushOptions, Options}
 
 class TestRocksDbKeyValueStore
@@ -63,7 +63,6 @@ class TestRocksDbKeyValueStore
   }
 
   @Test
-  @Ignore
   def testFlush(): Unit = {
     val map = new util.HashMap[String, String]()
     val config = new MapConfig(map)
