@@ -193,11 +193,6 @@ class RocksDbKeyValueStore(
     new RocksDbIterator(iter)
   }
 
-  def newIterator(): KeyValueIterator[Array[Byte], Array[Byte]] = {
-      metrics.newIterator.inc
-      new RocksDbIterator(db.newIterator);
-  }
-
   def flush {
     metrics.flushes.inc
     trace("Flushing.")
@@ -210,7 +205,7 @@ class RocksDbKeyValueStore(
   }
 
   class RocksDbIterator(iter: RocksIterator) extends KeyValueIterator[Array[Byte], Array[Byte]] {
-    private var open = iter.isValid
+    private var open = true
     private var firstValueAccessed = false;
     def close() = {
       open = false
@@ -250,18 +245,6 @@ class RocksDbKeyValueStore(
         metrics.bytesRead.inc(entry.getValue.size)
       }
       entry
-    }
-
-    def seekToFirst: Unit = {
-        metrics.alls.inc()
-        iter.seekToFirst()
-        open = true
-    }
-
-    def seek(target: Array[Byte]): Unit = {
-        metrics.alls.inc()
-        iter.seek(target)
-        open = true
     }
 
     override def finalize() {
