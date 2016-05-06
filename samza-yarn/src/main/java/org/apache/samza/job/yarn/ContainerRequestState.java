@@ -144,7 +144,6 @@ public class ContainerRequestState {
               addToAllocatedContainerList(ANY_HOST, container);
             }
           }
-          log.debug(
         }
       }
      else {
