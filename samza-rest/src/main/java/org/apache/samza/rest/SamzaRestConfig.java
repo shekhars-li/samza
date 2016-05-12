@@ -122,8 +122,7 @@ public class SamzaRestConfig extends MapConfig {
    *          or an empty list if none were configured.
    */
   public List<String> getResourceFactoryClassNames() {
-    String classList = get(CONFIG_REST_RESOURCE_FACTORIES);
-    return classList == null ? Collections.<String>emptyList() : Arrays.asList(classList.split("\\s*,\\s*"));
+    return parseCommaDelimitedStrings(get(CONFIG_REST_RESOURCE_FACTORIES));
   }
 
   /**
@@ -132,8 +131,7 @@ public class SamzaRestConfig extends MapConfig {
    *          that Samza REST should register or an empty list if none were configured.
    */
   public List<String> getResourceClassNames() {
-    String classList = get(CONFIG_REST_RESOURCE_CLASSES);
-    return classList == null ? Collections.<String>emptyList() : Arrays.asList(classList.split("\\s*,\\s*"));
+    return parseCommaDelimitedStrings(get(CONFIG_REST_RESOURCE_CLASSES));
   }
 
   /**
@@ -142,8 +140,7 @@ public class SamzaRestConfig extends MapConfig {
    *          Samza REST should schedule or an empty list if none were configured.
    */
   public List<String> getConfigMonitorClassList() {
-    String classList = get(CONFIG_MONITOR_CLASS_LIST);
-    return classList == null ? Collections.<String>emptyList() : Arrays.asList(classList.split("\\s*,\\s*"));
+    return parseCommaDelimitedStrings(get(CONFIG_MONITOR_CLASS_LIST));
   }
 
   /**
@@ -165,5 +162,19 @@ public class SamzaRestConfig extends MapConfig {
       return null;
     }
     return rawPath.replaceFirst("^~", System.getProperty("user.home"));
+  }
+
+  /**
+   * Parses a string containing a set of comma-delimited strings. Whitespace is ignored.
+   * If the input string is null or empty, an empty list is returned.
+   *
+   * @param commaDelimitedStrings the string to parse.
+   * @return                      the list of strings parsed from the input or an empty list if none.
+   */
+  private List<String> parseCommaDelimitedStrings(String commaDelimitedStrings) {
+    if (commaDelimitedStrings == null || commaDelimitedStrings.trim().isEmpty()) {
+      return Collections.emptyList();
+    }
+    return Arrays.asList(commaDelimitedStrings.split("\\s*,\\s*"));
   }
 }
