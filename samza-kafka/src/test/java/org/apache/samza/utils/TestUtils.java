@@ -20,6 +20,8 @@ import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import org.apache.kafka.common.Cluster;
@@ -56,7 +58,7 @@ public class TestUtils {
         List<PartitionInfo> parts = new ArrayList<PartitionInfo>();
         for (int i = 0; i < partitions; i++)
             parts.add(new PartitionInfo(topic, i, ns[i % ns.length], ns, ns));
-        return new Cluster(asList(ns), parts);
+        return new Cluster(asList(ns), parts, Collections.emptySet());
     }
 
     /**

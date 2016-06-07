@@ -21,6 +21,7 @@ package org.apache.samza.system.kafka
 
 import java.util
 
+import kafka.utils.ZkUtils
 import org.I0Itec.zkclient.ZkClient
 import org.apache.samza.Partition
 import org.apache.samza.SamzaException
@@ -261,7 +262,7 @@ class KafkaSystemAdmin(
         val zkClient = connectZk()
         try {
           AdminUtils.createTopic(
-            zkClient,
+            ZkUtils.apply(zkClient,false),
             streamName,
             1, // Always one partition for coordinator stream.
             coordinatorStreamReplicationFactor,
@@ -367,7 +368,7 @@ class KafkaSystemAdmin(
         val zkClient = connectZk()
         try {
           AdminUtils.createTopic(
-            zkClient,
+            ZkUtils.apply(zkClient,false),
             topicName,
             numKafkaChangelogPartitions,
             topicMetaInfo.replicationFactor,

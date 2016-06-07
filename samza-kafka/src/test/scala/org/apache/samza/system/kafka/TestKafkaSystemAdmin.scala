@@ -86,9 +86,9 @@ object TestKafkaSystemAdmin {
   def beforeSetupServers {
     zookeeper = new EmbeddedZookeeper()
     zkConnect = "127.0.0.1:"+zookeeper.port
-    server1 = TestUtils.createServer(new KafkaConfig(props1))
-    server2 = TestUtils.createServer(new KafkaConfig(props2))
-    server3 = TestUtils.createServer(new KafkaConfig(props3))
+    server1 = TestUtils.createServer(KafkaConfig(props1))
+    server2 = TestUtils.createServer(KafkaConfig(props2))
+    server3 = TestUtils.createServer(KafkaConfig(props3))
     zkClient = ZkUtils.createZkClient(zkConnect, 6000, 6000)
     producer = new KafkaProducer[Array[Byte], Array[Byte]](producerConfig.getProducerProperties)
     metadataStore = new ClientUtilTopicMetadataStore(brokers, "some-job-name")
@@ -96,7 +96,7 @@ object TestKafkaSystemAdmin {
 
   def createTopic {
     AdminUtils.createTopic(
-      zkClient,
+      ZkUtils.apply(zkClient,false),
       TOPIC,
       TOTAL_PARTITIONS,
       REPLICATION_FACTOR)

@@ -105,7 +105,7 @@ class RegExTopicGenerator extends ConfigRewriter with Logging {
     val zkClient = ZkUtils.createZkClient(zkConnect, 6000, 6000)
 
     try {
-      ZkUtils.getAllTopics(zkClient)
+      ZkUtils.apply(zkClient,false).getAllTopics()
     } finally {
       zkClient.close()
     }

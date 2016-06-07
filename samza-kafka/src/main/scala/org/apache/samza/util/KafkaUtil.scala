@@ -22,6 +22,7 @@ package org.apache.samza.util
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicLong
 import kafka.admin.AdminUtils
+import kafka.utils.ZkUtils
 import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.{Producer, ProducerRecord}
 import org.apache.kafka.common.PartitionInfo
@@ -104,7 +105,7 @@ class KafkaUtil(val retryBackoff: ExponentialSleepStrategy = new ExponentialSlee
         val zkClient = connectZk()
         try {
           AdminUtils.createTopic(
-            zkClient,
+            ZkUtils.apply(zkClient,false),
             topicName,
             partitionCount,
             replicationFactor,
@@ -187,7 +188,7 @@ class KafkaUtil(val retryBackoff: ExponentialSleepStrategy = new ExponentialSlee
   def topicExists(topicName: String): Boolean = {
     val zkClient = connectZk()
     try {
-      AdminUtils.topicExists(zkClient, topicName)
+      AdminUtils.topicExists(ZkUtils.apply(zkClient,false), topicName)
     } finally {
       zkClient.close()
     }
