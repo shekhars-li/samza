@@ -195,8 +195,9 @@ class RocksDbKeyValueStore(
 
   def flush {
     metrics.flushes.inc
-    trace("Flushing.")
+    trace("Flushing store: %s" format storeName)
     db.flush(flushOptions)
+    trace("Flushed store: %s" format storeName)
   }
 
   def close() {
