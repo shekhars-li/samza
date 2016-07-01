@@ -49,8 +49,8 @@ public class TestJobsResource extends JerseyTest {
   @Override
   protected Application configure() {
     Map<String, String> map = new HashMap<>();
-    map.put(SamzaRestConfig.CONFIG_JOB_PROXY_FACTORY, "org.apache.samza.rest.resources.mock.MockJobProxyFactory");
-    map.put(SamzaRestConfig.CONFIG_JOB_INSTALLATIONS_PATH, ".");
+    map.put(JobsResourceConfig.CONFIG_JOB_PROXY_FACTORY, "org.apache.samza.rest.resources.mock.MockJobProxyFactory");
+    map.put(JobsResourceConfig.CONFIG_JOB_INSTALLATIONS_PATH, ".");
     SamzaRestConfig config = new SamzaRestConfig(new MapConfig(map));
     return new SamzaRestApplication(config);
   }

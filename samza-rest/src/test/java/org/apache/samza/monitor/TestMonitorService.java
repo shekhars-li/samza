@@ -30,11 +30,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import java.io.IOException;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.fail;
@@ -67,7 +62,7 @@ public class TestMonitorService {
 
         // Initialize with a monitor that immediately throws an exception when run.
         Map<String, String> map = new HashMap<>();
-        map.put(SamzaRestConfig.CONFIG_MONITOR_CLASS_LIST, "org.apache.samza.monitor.mock.ExceptionThrowingMonitor");
+        map.put(SamzaRestConfig.CONFIG_MONITOR_CLASSES, "org.apache.samza.monitor.mock.ExceptionThrowingMonitor");
         map.put(SamzaRestConfig.CONFIG_MONITOR_INTERVAL_MS, "1");
         SamzaRestConfig config = new SamzaRestConfig(new MapConfig(map));
         SamzaMonitorService monitorService = new SamzaMonitorService(config, provider);

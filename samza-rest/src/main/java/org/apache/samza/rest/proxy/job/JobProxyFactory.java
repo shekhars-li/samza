@@ -18,7 +18,7 @@
  */
 package org.apache.samza.rest.proxy.job;
 
-import org.apache.samza.rest.SamzaRestConfig;
+import org.apache.samza.rest.resources.JobsResourceConfig;
 
 
 /**
@@ -27,7 +27,7 @@ import org.apache.samza.rest.SamzaRestConfig;
  *
  * To use a custom {@link JobProxy}, create an implementation of that interface, an implementation
  * of this interface which instantiates the custom proxy and finally reference the custom factory
- * in the config {@link SamzaRestConfig#CONFIG_JOB_PROXY_FACTORY}.
+ * in the config {@link JobsResourceConfig#CONFIG_JOB_PROXY_FACTORY}.
  */
 public interface JobProxyFactory {
 
@@ -37,5 +37,5 @@ public interface JobProxyFactory {
    * @param config  the {@link org.apache.samza.rest.SamzaRestConfig} to pass to the proxy.
    * @return        the created proxy.
    */
-  JobProxy getJobProxy(SamzaRestConfig config);
+  JobProxy getJobProxy(JobsResourceConfig config);
 }

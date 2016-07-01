@@ -21,9 +21,9 @@ package org.apache.samza.rest.proxy.job;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.nio.file.Paths;
-import org.apache.samza.rest.SamzaRestConfig;
 import org.apache.samza.rest.proxy.installation.InstallationFinder;
 import org.apache.samza.rest.proxy.installation.InstallationRecord;
+import org.apache.samza.rest.resources.JobsResourceConfig;
 import org.apache.samza.rest.script.ScriptPathProvider;
 import org.apache.samza.rest.script.ScriptRunner;
 
@@ -39,7 +39,7 @@ public abstract class ScriptJobProxy extends AbstractJobProxy implements ScriptP
    *
    * @param config  the config which specifies the path to the Samza framework installation.
    */
-  public ScriptJobProxy(SamzaRestConfig config) {
+  public ScriptJobProxy(JobsResourceConfig config) {
     super(config);
   }
 

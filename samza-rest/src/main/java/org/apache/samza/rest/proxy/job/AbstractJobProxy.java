@@ -26,9 +26,9 @@ import java.util.Set;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.ConfigFactory;
 import org.apache.samza.config.factories.PropertiesConfigFactory;
-import org.apache.samza.rest.SamzaRestConfig;
 import org.apache.samza.rest.model.Job;
 import org.apache.samza.rest.model.JobStatus;
+import org.apache.samza.rest.resources.JobsResourceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
 public abstract class AbstractJobProxy implements JobProxy {
   private static final Logger log = LoggerFactory.getLogger(AbstractJobProxy.class);
 
-  protected final SamzaRestConfig config;
+  protected final JobsResourceConfig config;
 
   /**
    * Creates a new JobProxy instance from the factory class specified in the config.
@@ -48,7 +48,7 @@ public abstract class AbstractJobProxy implements JobProxy {
    * @param config  the config containing the job proxy factory property.
    * @return        the JobProxy produced by the factory.
    */
-  public static JobProxy fromFactory(SamzaRestConfig config) {
+  public static JobProxy fromFactory(JobsResourceConfig config) {
     String jobProxyFactory = config.getJobProxyFactory();
     if (jobProxyFactory != null && !jobProxyFactory.isEmpty()) {
       try {
@@ -59,7 +59,7 @@ public abstract class AbstractJobProxy implements JobProxy {
         throw new SamzaException(e);
       }
     } else {
-      throw new SamzaException("Missing config: " + SamzaRestConfig.CONFIG_JOB_PROXY_FACTORY);
+      throw new SamzaException("Missing config: " + JobsResourceConfig.CONFIG_JOB_PROXY_FACTORY);
     }
   }
 
@@ -68,7 +68,7 @@ public abstract class AbstractJobProxy implements JobProxy {
    *
    * @param config  the config containing the installations path.
    */
-  public AbstractJobProxy(SamzaRestConfig config) {
+  public AbstractJobProxy(JobsResourceConfig config) {
     this.config = config;
   }
 
@@ -113,10 +113,10 @@ public abstract class AbstractJobProxy implements JobProxy {
    * @return the {@link ConfigFactory} to use to read job configuration files.
    */
   protected ConfigFactory getJobConfigFactory() {
-    String configFactoryClassName = config.get(SamzaRestConfig.CONFIG_JOB_CONFIG_FACTORY);
+    String configFactoryClassName = config.get(JobsResourceConfig.CONFIG_JOB_CONFIG_FACTORY);
     if (configFactoryClassName == null) {
       configFactoryClassName = PropertiesConfigFactory.class.getCanonicalName();
-      log.warn("{} not specified. Defaulting to {}", SamzaRestConfig.CONFIG_JOB_CONFIG_FACTORY, configFactoryClassName);
+      log.warn("{} not specified. Defaulting to {}", JobsResourceConfig.CONFIG_JOB_CONFIG_FACTORY, configFactoryClassName);
     }
 
     try {

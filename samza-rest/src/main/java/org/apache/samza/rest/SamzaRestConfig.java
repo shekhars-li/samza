@@ -24,9 +24,6 @@ import java.util.List;
 
 import org.apache.samza.config.Config;
 import org.apache.samza.config.MapConfig;
-import org.apache.samza.rest.proxy.installation.InstallationRecord;
-import org.apache.samza.rest.proxy.job.JobProxy;
-import org.apache.samza.rest.proxy.job.JobProxyFactory;
 
 
 /**
@@ -35,25 +32,6 @@ import org.apache.samza.rest.proxy.job.JobProxyFactory;
  * implementation classes.
  */
 public class SamzaRestConfig extends MapConfig {
-  /**
-   * Specifies the canonical name of the {@link JobProxyFactory} class to produce
-   * {@link JobProxy} instances.
-   *
-   * To use your own proxy, implement the factory and specify the class for this config.
-   */
-  public static final String CONFIG_JOB_PROXY_FACTORY = "job.proxy.factory.class";
-
-  /**
-   * The path where all the Samza jobs are installed (unzipped). Each subdirectory of this path
-   * is expected to be a Samza job installation and corresponds to one {@link InstallationRecord}.
-   */
-  public static final String CONFIG_JOB_INSTALLATIONS_PATH = "job.installations.path";
-
-  /**
-   * Specifies the canonical name of the {@link org.apache.samza.config.ConfigFactory} to read the job configs.
-   */
-  public static final String CONFIG_JOB_CONFIG_FACTORY = "job.config.factory.class";
-
   /**
    * Specifies a comma-delimited list of class names that implement ResourceFactory.
    * These factories will be used to create specific instances of resources, passing the server config.
@@ -70,7 +48,7 @@ public class SamzaRestConfig extends MapConfig {
    * These will be instantiated and scheduled to run periodically at runtime.
    * Note that you must include the ENTIRE package name (org.apache.samza...).
    */
-  public static final String CONFIG_MONITOR_CLASS_LIST = "monitor.class.list";
+  public static final String CONFIG_MONITOR_CLASSES = "monitor.classes";
 
   /**
    * Specifies the interval at which each registered Monitor's monitor method will be called.
@@ -92,22 +70,6 @@ public class SamzaRestConfig extends MapConfig {
   }
 
   /**
-   * @see SamzaRestConfig#CONFIG_JOB_CONFIG_FACTORY
-   * @return the canonical name of the {@link JobProxyFactory} class to produce {@link JobProxy} instances.
-   */
-  public String getJobProxyFactory() {
-    return get(CONFIG_JOB_PROXY_FACTORY);
-  }
-
-  /**
-   * @see SamzaRestConfig#CONFIG_JOB_INSTALLATIONS_PATH
-   * @return the path where all the Samza jobs are installed (unzipped).
-   */
-  public String getInstallationsPath() {
-    return sanitizePath(get(CONFIG_JOB_INSTALLATIONS_PATH));
-  }
-
-  /**
    * @see SamzaRestConfig#CONFIG_SAMZA_REST_SERVICE_PORT
    * @return  the port number to use for the HTTP server or 0 to dynamically choose a port.
    */
@@ -116,7 +78,7 @@ public class SamzaRestConfig extends MapConfig {
   }
 
   /**
-   * @see SamzaRestConfig#CONFIG_REST_RESOURCE_FACTORIES;
+   * @see SamzaRestConfig#CONFIG_REST_RESOURCE_FACTORIES
    * @return a list of class names as Strings corresponding to factories
    *          that Samza REST should use to instantiate and register resources
    *          or an empty list if none were configured.
@@ -126,7 +88,7 @@ public class SamzaRestConfig extends MapConfig {
   }
 
   /**
-   * @see SamzaRestConfig#CONFIG_REST_RESOURCE_CLASSES;
+   * @see SamzaRestConfig#CONFIG_REST_RESOURCE_CLASSES
    * @return a list of class names as Strings corresponding to resource classes
    *          that Samza REST should register or an empty list if none were configured.
    */
@@ -135,33 +97,20 @@ public class SamzaRestConfig extends MapConfig {
   }
 
   /**
-   * @see SamzaRestConfig#CONFIG_MONITOR_CLASS_LIST;
+   * @see SamzaRestConfig#CONFIG_MONITOR_CLASSES
    * @return a list of class names as Strings corresponding to Monitors that
    *          Samza REST should schedule or an empty list if none were configured.
    */
   public List<String> getConfigMonitorClassList() {
-    return parseCommaDelimitedStrings(get(CONFIG_MONITOR_CLASS_LIST));
+    return parseCommaDelimitedStrings(get(CONFIG_MONITOR_CLASSES));
   }
 
   /**
-   * @see SamzaRestConfig#CONFIG_MONITOR_INTERVAL_MS ;
+   * @see SamzaRestConfig#CONFIG_MONITOR_INTERVAL_MS
    * @return an integer number of milliseconds, the period at which to schedule monitor runs.
    */
   public int getConfigMonitorIntervalMs() {
     return getInt(CONFIG_MONITOR_INTERVAL_MS, DEFAULT_MONITOR_INTERVAL);
-  }
-
-  /**
-   * Ensures a usable file path when the user specifies a tilde for the home path.
-   *
-   * @param rawPath the original path.
-   * @return        the updated path with the tilde resolved to home.
-   */
-  private String sanitizePath(String rawPath) {
-    if (rawPath == null) {
-      return null;
-    }
-    return rawPath.replaceFirst("^~", System.getProperty("user.home"));
   }
 
   /**
@@ -171,7 +120,7 @@ public class SamzaRestConfig extends MapConfig {
    * @param commaDelimitedStrings the string to parse.
    * @return                      the list of strings parsed from the input or an empty list if none.
    */
-  private List<String> parseCommaDelimitedStrings(String commaDelimitedStrings) {
+  private static List<String> parseCommaDelimitedStrings(String commaDelimitedStrings) {
     if (commaDelimitedStrings == null || commaDelimitedStrings.trim().isEmpty()) {
       return Collections.emptyList();
     }

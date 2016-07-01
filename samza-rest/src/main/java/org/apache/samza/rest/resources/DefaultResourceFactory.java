@@ -30,6 +30,6 @@ import org.apache.samza.rest.SamzaRestConfig;
 public class DefaultResourceFactory implements ResourceFactory {
   @Override
   public List<? extends Object> getResourceInstances(Config config) {
-    return Collections.singletonList(new JobsResource((SamzaRestConfig) config));
+    return Collections.singletonList(new JobsResource(new JobsResourceConfig(config)));
   }
 }

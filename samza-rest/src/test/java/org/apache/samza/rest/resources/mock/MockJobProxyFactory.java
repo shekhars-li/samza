@@ -20,12 +20,12 @@ package org.apache.samza.rest.resources.mock;
 
 import org.apache.samza.rest.proxy.job.JobProxy;
 import org.apache.samza.rest.proxy.job.JobProxyFactory;
-import org.apache.samza.rest.SamzaRestConfig;
+import org.apache.samza.rest.resources.JobsResourceConfig;
 
 
 public class MockJobProxyFactory implements JobProxyFactory{
   @Override
-  public JobProxy getJobProxy(SamzaRestConfig config) {
+  public JobProxy getJobProxy(JobsResourceConfig config) {
     return new MockJobProxy(config);
   }
 }

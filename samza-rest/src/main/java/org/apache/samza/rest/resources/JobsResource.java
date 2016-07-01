@@ -28,7 +28,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import org.apache.samza.rest.SamzaRestConfig;
 import org.apache.samza.rest.model.Job;
 import org.apache.samza.rest.model.JobStatus;
 import org.apache.samza.rest.proxy.job.AbstractJobProxy;
@@ -57,7 +56,7 @@ public class JobsResource {
    *
    * @param config  the configuration containing the {@link JobProxyFactory} class.
    */
-  public JobsResource(SamzaRestConfig config) {
+  public JobsResource(JobsResourceConfig config) {
     jobProxy = AbstractJobProxy.fromFactory(config);
   }
 
@@ -136,7 +135,7 @@ public class JobsResource {
       }
 
       if (status == null) {
-        throw new IllegalArgumentException("Unrecognized status: " + status);
+        throw new IllegalArgumentException("Unrecognized status parameter: " + status);
       }
 
       JobStatus samzaStatus = JobStatus.valueOf(status.toUpperCase());

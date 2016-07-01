@@ -18,14 +18,12 @@
  */
 package org.apache.samza.rest.resources.mock;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import org.apache.samza.rest.SamzaRestConfig;
 import org.apache.samza.rest.proxy.job.AbstractJobProxy;
 import org.apache.samza.rest.proxy.job.JobInstance;
 import org.apache.samza.rest.proxy.job.JobStatusProvider;
+import org.apache.samza.rest.resources.JobsResourceConfig;
 
 
 public class MockJobProxy extends AbstractJobProxy {
@@ -47,7 +45,7 @@ public class MockJobProxy extends AbstractJobProxy {
 
    * @param config  the config containing the installations path.
    */
-  public MockJobProxy(SamzaRestConfig config) {
+  public MockJobProxy(JobsResourceConfig config) {
     super(config);
   }
 
