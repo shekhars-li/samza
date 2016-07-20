@@ -23,9 +23,10 @@ import java.io.File
 
 import org.apache.samza.SamzaException
 import org.apache.samza.config.Config
-import org.apache.samza.util.{LexicographicComparator, Logging}
-import org.rocksdb._
+import org.apache.samza.util.LexicographicComparator
+import org.apache.samza.util.Logging
 import org.rocksdb.TtlDB
+import org.rocksdb._
 
 object RocksDbKeyValueStore extends Logging {
 
@@ -107,7 +108,6 @@ class RocksDbKeyValueStore(
   // after the directories are created, which happens much later from now.
   private lazy val db = RocksDbKeyValueStore.openDB(dir, options, storeConfig, isLoggedStore, storeName)
   private val lexicographic = new LexicographicComparator()
-  private var deletesSinceLastCompaction = 0
 
   def get(key: Array[Byte]): Array[Byte] = {
     metrics.gets.inc
@@ -142,7 +142,6 @@ class RocksDbKeyValueStore(
     require(key != null, "Null key not allowed.")
     if (value == null) {
       db.remove(writeOptions, key)
-      deletesSinceLastCompaction += 1
     } else {
       metrics.bytesWritten.inc(key.size + value.size)
       db.put(writeOptions, key, value)
@@ -169,7 +168,6 @@ class RocksDbKeyValueStore(
     }
     metrics.puts.inc(wrote)
     metrics.deletes.inc(deletes)
-    deletesSinceLastCompaction += deletes
   }
 
   def delete(key: Array[Byte]) {
