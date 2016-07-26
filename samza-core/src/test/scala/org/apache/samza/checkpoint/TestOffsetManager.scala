@@ -35,6 +35,8 @@ import org.apache.samza.system.SystemAdmin
 import org.scalatest.Assertions.intercept
 
 import scala.collection.JavaConversions._
+import scala.collection.Map
+
 
 class TestOffsetManager {
   @Test
@@ -259,8 +261,83 @@ class TestOffsetManager {
     }
   }
 
+  // mock OffsetManager class
+  class SafeOffsetOffsetManager(
+      startingOffsets1: Map[TaskName, Map[SystemStreamPartition, String]],
+      override val systemAdmins: Map[String, SystemAdmin]
+    ) extends OffsetManager {
+
+    startingOffsets = startingOffsets1
+  }
+
+  @Test
+  // some systems may provide notion of safeOffset (for checkpointing).
+  // this is to test getSafeOffset
+  def testGetSafeOffset() = {
+    val taskName = new TaskName("task")
+    val systemName = "system"
+    val ssp = new SystemStreamPartition(systemName, "stream", new Partition(1))
+    val ssp1 = new SystemStreamPartition(systemName, "stream1", new Partition(1))
+    val ssp2 = new SystemStreamPartition(systemName, "stream1", new Partition(2))
+    val ssp3 = new SystemStreamPartition(systemName, "stream1", new Partition(3))
+
+    // this system/systemAdmin supports SafeOffset, it makes the offset "safe" by adding 5.
+    val systemAdminsWithSafeCheckpoint: Map[String, SystemAdmin] = Map(systemName -> getSystemAdminWithSafeOffset)
+    val systemAdminsNoSafeCheckpoint: Map[String, SystemAdmin] = Map(systemName -> getSystemAdmin)
+
+    // starting offsets are (checkpointed_offset + 1)
+    val startingOffsets  = Map(taskName -> Map(ssp -> "11", ssp1 -> "19", ssp2 -> null))  // 11 actually means 10 was read from checkpoint
+
+    // "mock" class for OffsetManager; doesn't implement full functionality, only the part that is needed by getSafeOffset
+    val offsetManagerWithSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsWithSafeCheckpoint)
+
+    val offsetsToCheckpoint = Map(ssp->"10", ssp1->"20", ssp2->"30", ssp3->"40")
+    val safeOffsetsWithSafeCheckpoint = offsetManagerWithSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
+    assertEquals(safeOffsetsWithSafeCheckpoint(ssp), "10")  // since it matches the starting offset it shouldn't be changed
+    assertEquals(safeOffsetsWithSafeCheckpoint(ssp1), "25") // for test purposes safe offset - is given offset + 5
+    assertEquals(safeOffsetsWithSafeCheckpoint(ssp2), "35") // starting offset is invalid - should just get safe offset
+    assertEquals(safeOffsetsWithSafeCheckpoint(ssp3), "45") // there is no valid starting offset - should just get safe offset
+
+    // now same tests with a system that doesn't support safeCheckpoint
+    val offsetManagerNoSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsNoSafeCheckpoint)
+    val safeOffsetsNoSafeCheckpoint = offsetManagerNoSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
+
+    // since safeCheckpoint is not enabled - there should be no change
+    assertEquals(safeOffsetsNoSafeCheckpoint(ssp), "10")  // no change
+    assertEquals(safeOffsetsNoSafeCheckpoint(ssp1), "20") // no change
+    assertEquals(safeOffsetsNoSafeCheckpoint(ssp2), "30") // no change
+    assertEquals(safeOffsetsNoSafeCheckpoint(ssp3), "40") // no change
+  }
+
   private def getSystemAdmin = {
     new SystemAdmin {
+      def getOffsetsAfter(offsets: java.util.Map[SystemStreamPartition, String]) =
+        offsets.mapValues(offset => (offset.toLong + 1).toString)
+
+      def getSystemStreamMetadata(streamNames: java.util.Set[String]) =
+        Map[String, SystemStreamMetadata]()
+
+      override def createChangelogStream(topicName: String, numOfChangeLogPartitions: Int) {
+        new UnsupportedOperationException("Method not implemented.")
+      }
+
+      override def validateChangelogStream(topicName: String, numOfChangeLogPartitions: Int) {
+        new UnsupportedOperationException("Method not implemented.")
+      }
+
+      override def createCoordinatorStream(streamName: String) {
+        new UnsupportedOperationException("Method not implemented.")
+      }
+
+      override def offsetComparator(offset1: String, offset2: String) = null
+    }
+  }
+
+  private def getSystemAdminWithSafeOffset = {
+    new SystemAdmin with CheckpointSafeOffset {
+      override def checkpointSafeOffset(ssp: SystemStreamPartition, offset: String): String = {
+        (offset.toLong + 5).toString
+      }
       def getOffsetsAfter(offsets: java.util.Map[SystemStreamPartition, String]) =
         offsets.mapValues(offset => (offset.toLong + 1).toString)
 

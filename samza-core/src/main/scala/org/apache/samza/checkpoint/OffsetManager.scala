@@ -240,35 +240,44 @@ class OffsetManager(
   /**
    * see if the offset needs to be adjusted
    * @param taskName
-   * @param partitionOffsets
+   * @param partitionOffsets - offsets we are going to save as checkpoints
    * @return
    */
   def getSafeOffset(taskName: TaskName, partitionOffsets:  Map[SystemStreamPartition, String]): Map[SystemStreamPartition, String] = {
+    // Some systems (like kafka with large message support) provide a notion of a "SafeOffset",
+    // it is the offset the client is safe to seek to, so as the result the offset to be checkpointed may need to
+    // be adjusted to a "safe" one.
+
     // see if the offset is different from the starting one.
     val taskStartingOffsets = startingOffsets.getOrElse(taskName,
-                              throw new SamzaException("couldn't find starting offsets for task=" + taskName))
+                                                        throw new SamzaException("couldn't find starting offsets for task=" + taskName))
 
-    // Some systems (like kafka with large message support) provide a notion of a "SafeOffset",
-    // it is the offset the client is safe to seek to (if the client is using its own checkpointing).
-    // As the result the offset to be checkpointed may need to be adjusted to a "safe" one.
     val safePartitionOffsets = partitionOffsets.map {
           case (ssp, offset) => {
             // grab the systemAdmin for the this system
             val systemAdmin = systemAdmins.getOrElse(ssp.getSystem,
-                              throw new SamzaException("Missing system admin for %s. Need system admin to convert to SaveOffsets." format ssp.getSystem))
+                                                     throw new SamzaException(
+                                                       "Missing system admin for %s. Need system admin to convert to SaveOffsets." format ssp.getSystem))
 
-            // grab the starting offset for this taskName/ssp.
-            val startingOffset = taskStartingOffsets.get(ssp) match {
-               case Some(off) => (off.toLong - 1).toString // a 'would be' value if we were to write it out
-               case None => ""
-            }
+            // is the feature avaialable for this system
+            if (systemAdmin.isInstanceOf[CheckpointSafeOffset]) {
+             // grab the starting offset for this taskName/ssp.
+              val startingOffset = taskStartingOffsets.get(ssp) match {
+                case Some(null) => ""
+                case Some(off) => (off.toLong - 1).toString // a 'would be' value if we were to write it out as checkpoint
+                case None => ""
+              }
 
-            // if offset is the same as original read from checkpoint - then we don't need to adjust it.
-            // Also, in case of Kafka, getting the safeOffset is only possible after first poll() is successful.
-            if (!startingOffset.equals(offset) && systemAdmin.isInstanceOf[CheckpointSafeOffset]) {
-              ssp -> systemAdmin.asInstanceOf[CheckpointSafeOffset].checkpointSafeOffset(ssp, offset)
+              // if offset is the same as original read from checkpoint - then we don't need to adjust it.
+              // Also, in case of Kafka, getting the safeOffset is only possible after first poll() is successful.
+              if (!startingOffset.equals(offset)) {
+                ssp -> systemAdmin.asInstanceOf[CheckpointSafeOffset].checkpointSafeOffset(ssp, offset)
+              }
+              else {
+                ssp -> offset // no change
+              }
             } else {
-              ssp->offset
+              ssp -> offset  // no change
             }
           }
     }
