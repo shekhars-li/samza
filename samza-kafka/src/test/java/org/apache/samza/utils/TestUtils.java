@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.PartitionInfo;
@@ -58,7 +59,9 @@ public class TestUtils {
         List<PartitionInfo> parts = new ArrayList<PartitionInfo>();
         for (int i = 0; i < partitions; i++)
             parts.add(new PartitionInfo(topic, i, ns[i % ns.length], ns, ns));
-        return new Cluster(asList(ns), parts, Collections.emptySet());
+
+        Set<String> emptySet = Collections.emptySet();
+        return new Cluster(asList(ns), parts, emptySet);
     }
 
     /**
