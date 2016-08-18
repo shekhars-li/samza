@@ -48,7 +48,7 @@ object KafkaSystemFactory extends Logging {
 
 class KafkaSystemFactory extends SystemFactory with Logging {
   def getConsumer(systemName: String, config: Config, registry: MetricsRegistry): SystemConsumer = {
-    val clientId = KafkaUtil.getClientId("samza-consumer", config)
+    val clientId = KafkaUtil.getClientId(systemName + "samza-consumer", config)
     val metrics = new KafkaSystemConsumerMetrics(systemName, registry)
 
     // Kind of goofy to need a producer config for consumers, but we need metadata.
@@ -86,7 +86,7 @@ class KafkaSystemFactory extends SystemFactory with Logging {
   }
 
   def getProducer(systemName: String, config: Config, registry: MetricsRegistry): SystemProducer = {
-    val clientId = KafkaUtil.getClientId("samza-producer", config)
+    val clientId = KafkaUtil.getClientId(systemName + "samza-producer", config)
     val injectedProps = KafkaSystemFactory.getInjectedProducerProperties(systemName, config)
     val producerConfig = config.getKafkaSystemProducerConfig(systemName, clientId, injectedProps)
     val getProducer = () => { new KafkaProducer[Array[Byte], Array[Byte]](producerConfig.getProducerProperties) }
@@ -104,7 +104,7 @@ class KafkaSystemFactory extends SystemFactory with Logging {
   }
 
   def getAdmin(systemName: String, config: Config): SystemAdmin = {
-    val clientId = KafkaUtil.getClientId("samza-admin", config)
+    val clientId = KafkaUtil.getClientId(systemName + "samza-admin", config)
     val producerConfig = config.getKafkaSystemProducerConfig(systemName, clientId)
     val bootstrapServers = producerConfig.bootsrapServers
     val consumerConfig = config.getKafkaSystemConsumerConfig(systemName, clientId)

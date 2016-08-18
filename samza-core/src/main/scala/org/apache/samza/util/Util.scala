@@ -26,14 +26,10 @@ import java.util.zip.CRC32
 import org.apache.samza.{SamzaException, Partition}
 import org.apache.samza.system.{SystemFactory, SystemStreamPartition, SystemStream}
 import java.util.Random
-import org.apache.samza.config.Config
-import org.apache.samza.config.SystemConfig
+import org.apache.samza.config.{ConfigRewriter, Config, SystemConfig, ConfigException, MapConfig, JobConfig}
 import org.apache.samza.config.JobConfig.Config2Job
 import org.apache.samza.config.SystemConfig.Config2System
-import org.apache.samza.config.ConfigException
-import org.apache.samza.config.MapConfig
 import scala.collection.JavaConversions._
-import org.apache.samza.config.JobConfig
 import java.io.InputStreamReader
 import scala.collection.immutable.Map
 import org.apache.samza.serializers._
@@ -387,5 +383,29 @@ object Util extends Logging {
     }
 
     sum
+  }
+
+  /**
+   * Re-writes configuration using a ConfigRewriter, if one is defined. If
+   * there is no ConfigRewriter defined for the job, then this method is a
+   * no-op.
+   *
+   * @param config The config to re-write
+   * @return re-written config
+   */
+  def rewriteConfig(config: Config): Config = {
+    def rewrite(c: Config, rewriterName: String): Config = {
+      val klass = config
+        .getConfigRewriterClass(rewriterName)
+        .getOrElse(throw new SamzaException("Unable to find class config for config rewriter %s." format rewriterName))
+      val rewriter = Util.getObj[ConfigRewriter](klass)
+      info("Re-writing config with " + rewriter)
+      rewriter.rewrite(rewriterName, c)
+    }
+
+    config.getConfigRewriters match {
+      case Some(rewriters) => rewriters.split(",").foldLeft(config)(rewrite(_, _))
+      case _ => config
+    }
   }
 }

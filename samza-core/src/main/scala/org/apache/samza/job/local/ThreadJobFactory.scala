@@ -48,7 +48,7 @@ class ThreadJobFactory extends StreamJobFactory with Logging {
 
     try {
       coordinator.start
-      new ThreadJob(SamzaContainer(containerModel, coordinator.jobModel, new JmxServer))
+      new ThreadJob(SamzaContainer(containerModel.getContainerId, coordinator.jobModel, null, new JmxServer))
     } finally {
       coordinator.stop
     }

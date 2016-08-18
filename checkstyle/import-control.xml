@@ -39,8 +39,15 @@
         <allow class="org.apache.samza.SamzaException" />
         <allow pkg="org.apache.samza.system" />
         <allow pkg="org.apache.samza.util" />
-
+        <allow pkg="org.apache.samza.config" />
+        <allow pkg="org.apache.samza.container" />
+        <allow pkg="org.apache.samza.container.grouper" />
+        <allow pkg="org.apache.samza.container.grouper.stream" />
+        <allow pkg="org.apache.samza.container.grouper.task" />
+        <allow class="com.google.common.base.Joiner" />
+        <allow class="com.google.common.base.Strings" />
         <allow class="org.apache.samza.Partition" />
+        <allow class="junit.framework.Assert" />
     </subpackage>
 
     <subpackage name="clustermanager">
@@ -54,7 +61,6 @@
         <allow pkg="org.apache.samza.serializers" />
         <allow pkg="org.apache.samza.container" />
         <allow pkg="org.eclipse.jetty.servlet" />
-
 
         <allow class="org.apache.samza.Partition" />
     </subpackage>
@@ -156,6 +162,7 @@
             <subpackage name="stream">
                 <allow pkg="org.apache.samza.system" />
                 <allow class="org.apache.samza.Partition" />
+                <allow class="org.apache.samza.SamzaException" />
             </subpackage>
 
             <subpackage name="task">
@@ -178,11 +185,14 @@
         <allow pkg="org.apache.samza.serializers" />
         <allow pkg="org.apache.samza.util" />
         <allow pkg="org.apache.samza.coordinator.stream.messages" />
+        <allow pkg="org.apache.samza.coordinator.stream" />
 
         <allow class="org.apache.samza.Partition" />
         <allow class="org.apache.samza.SamzaException" />
         <allow class="joptsimple.OptionSet" />
         <allow class="org.apache.samza.container.TaskName" />
+        <allow class="org.apache.samza.job.model.JobModel" />
+        <allow class="org.apache.samza.coordinator.server.HttpServer" />
     </subpackage>
 
     <subpackage name="checkpoint">
@@ -246,6 +256,33 @@
         </subpackage>
     </subpackage>
 
+    <subpackage name="processor">
+        <allow pkg="org.apache.samza.config" />
+        <allow pkg="org.apache.samza.configbuilder" />
+        <allow pkg="org.apache.samza.container" />
+        <allow pkg="org.apache.samza.coordinator" />
+        <allow pkg="org.apache.samza.coordinator.stream" />
+        <allow pkg="org.apache.samza.metrics" />
+
+        <allow pkg="org.apache.samza.system" />
+        <allow pkg="org.apache.samza.storage" />
+        <allow pkg="org.apache.samza.task" />
+        <allow pkg="org.apache.samza.util" />
+
+        <allow class="org.apache.samza.job.model.JobModel" />
+        <allow class="org.apache.samza.metrics.JmxServer" />
+        <allow class="org.apache.samza.metrics.MetricsRegistryMap" />
+        <allow class="org.apache.samza.standalone.StandaloneJobCoordinator" />
+    </subpackage>
+
+    <subpackage name="standalone">
+        <allow pkg="org.apache.samza.coordinator" />
+        <allow pkg="org.apache.samza.config" />
+        <allow pkg="org.apache.samza.job.model" />
+        <allow pkg="org.apache.samza.util" />
+        <allow pkg="org.apache.samza.system" />
+        <allow class="org.apache.samza.SamzaException" />
+    </subpackage>
 
     <subpackage name="manager">
         <allow pkg="org.apache.samza.coordinator.stream" />

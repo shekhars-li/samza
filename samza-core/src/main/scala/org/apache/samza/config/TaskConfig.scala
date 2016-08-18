@@ -24,14 +24,18 @@ import org.apache.samza.util.{Logging, Util}
 
 object TaskConfig {
   // task config constants
-  val INPUT_STREAMS = "task.inputs" // streaming.input-streams
+  val INPUT_STREAMS = "task.inputs"
   val WINDOW_MS = "task.window.ms" // window period in milliseconds
+  val DEFAULT_WINDOW_MS = -1L     // negative integer disables windowing
+
   val COMMIT_MS = "task.commit.ms" // commit period in milliseconds
+  val DEFAULT_COMMIT_MS = 60000L
+
   val SHUTDOWN_MS = "task.shutdown.ms" // how long to wait for a clean shutdown
+  val DEFAULT_SHUTDOWN_MS = 5000L
+
   val TASK_CLASS = "task.class" // streaming.task-factory-class
   val COMMAND_BUILDER = "task.command.class" // streaming.task-factory-class
-  val LIFECYCLE_LISTENERS = "task.lifecycle.listeners" // li-generator,foo
-  val LIFECYCLE_LISTENER = "task.lifecycle.listener.%s.class" // task.lifecycle.listener.li-generator.class
   val CHECKPOINT_MANAGER_FACTORY = "task.checkpoint.factory" // class name to use when sending offset checkpoints
   val MESSAGE_CHOOSER_CLASS_NAME = "task.chooser.class"
   val DROP_DESERIALIZATION_ERROR = "task.drop.deserialization.errors" // define whether drop the messages or not when deserialization fails
@@ -75,22 +79,18 @@ class TaskConfig(config: Config) extends ScalaMapConfig(config) with Logging {
 
   def getWindowMs: Option[Long] = getOption(TaskConfig.WINDOW_MS) match {
     case Some(ms) => Some(ms.toLong)
-    case _ => None
+    case _ => Some(TaskConfig.DEFAULT_WINDOW_MS.toLong)
   }
 
   def getCommitMs: Option[Long] = getOption(TaskConfig.COMMIT_MS) match {
     case Some(ms) => Some(ms.toLong)
-    case _ => None
+    case _ => Some(TaskConfig.DEFAULT_COMMIT_MS.toLong)
   }
 
   def getShutdownMs: Option[Long] = getOption(TaskConfig.SHUTDOWN_MS) match {
     case Some(ms) => Some(ms.toLong)
-    case _ => None
+    case _ => Some(TaskConfig.DEFAULT_SHUTDOWN_MS.toLong)
   }
-
-  def getLifecycleListeners(): Option[String] = getOption(TaskConfig.LIFECYCLE_LISTENERS)
-
-  def getLifecycleListenerClass(name: String): Option[String] = getOption(TaskConfig.LIFECYCLE_LISTENER format name)
 
   def getTaskClass = getOption(TaskConfig.TASK_CLASS)
 

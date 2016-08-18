@@ -34,7 +34,7 @@ import org.apache.samza.checkpoint.OffsetManagerMetrics
 import org.apache.samza.config.JobConfig.Config2Job
 import org.apache.samza.config.MetricsConfig.Config2Metrics
 import org.apache.samza.config.SerializerConfig.Config2Serializer
-import org.apache.samza.config.ShellCommandConfig
+import org.apache.samza.config.{Config, ShellCommandConfig}
 import org.apache.samza.config.StorageConfig.Config2Storage
 import org.apache.samza.config.StreamConfig.Config2Stream
 import org.apache.samza.config.SystemConfig.Config2System
@@ -90,7 +90,7 @@ object SamzaContainer extends Logging {
   }
 
   def safeMain(
-    newJmxServer: () => JmxServer,
+      newJmxServer: () => JmxServer,
     exceptionHandler: UncaughtExceptionHandler = null) {
     if (exceptionHandler != null) {
       Thread.setDefaultUncaughtExceptionHandler(exceptionHandler)
@@ -103,8 +103,8 @@ object SamzaContainer extends Logging {
     logger.info("Got container ID: %s" format containerId)
     val coordinatorUrl = System.getenv(ShellCommandConfig.ENV_COORDINATOR_URL)
     logger.info("Got coordinator URL: %s" format coordinatorUrl)
+
     val jobModel = readJobModel(coordinatorUrl)
-    val containerModel = jobModel.getContainers()(containerId.toInt)
     val config = jobModel.getConfig
     putMDC("jobName", config.getName.getOrElse(throw new SamzaException("can not find the job name")))
     putMDC("jobId", config.getJobId.getOrElse("1"))
@@ -112,7 +112,7 @@ object SamzaContainer extends Logging {
 
     try {
       jmxServer = newJmxServer()
-      SamzaContainer(containerModel, jobModel, jmxServer).run
+      SamzaContainer(containerId.toInt, jobModel, getLocalityManager(containerId, config), jmxServer).run
     } finally {
       if (jmxServer != null) {
         jmxServer.stop
@@ -120,6 +120,16 @@ object SamzaContainer extends Logging {
     }
   }
 
+  def getLocalityManager(containerId: Int, config: Config): LocalityManager = {
+    val containerName = getSamzaContainerName(containerId)
+    val registryMap = new MetricsRegistryMap(containerName)
+    val coordinatorSystemProducer =
+      new CoordinatorStreamSystemFactory()
+        .getCoordinatorStreamSystemProducer(
+          config,
+          new SamzaContainerMetrics(containerName, registryMap).registry)
+    new LocalityManager(coordinatorSystemProducer)
+  }
   /**
    * Fetches config, task:SSP assignments, and task:changelog partition
    * assignments, and returns objects to be used for SamzaContainer's
@@ -136,10 +146,19 @@ object SamzaContainer extends Logging {
         classOf[JobModel])
   }
 
-  def apply(containerModel: ContainerModel, jobModel: JobModel, jmxServer: JmxServer) = {
+  def getSamzaContainerName(containerId: Int): String = {
+    "samza-container-%d" format containerId
+  }
+
+  def apply(
+    containerId: Int,
+    jobModel: JobModel,
+    localityManager: LocalityManager,
+    jmxServer: JmxServer,
+    customReporters: Map[String, MetricsReporter] = Map[String, MetricsReporter]()) = {
     val config = jobModel.getConfig
-    val containerId = containerModel.getContainerId
-    val containerName = "samza-container-%s" format containerId
+    val containerModel = jobModel.getContainers.get(containerId)
+    val containerName = getSamzaContainerName(containerId)
     val containerPID = Util.getContainerPID
 
     info("Setting up Samza container: %s" format containerName)
@@ -325,7 +344,7 @@ object SamzaContainer extends Logging {
 
     info("Setting up metrics reporters.")
 
-    val reporters = config.getMetricReporterNames.map(reporterName => {
+    var reporters = config.getMetricReporterNames.map(reporterName => {
       val metricsFactoryClassName = config
         .getMetricsFactoryClass(reporterName)
         .getOrElse(throw new SamzaException("Metrics reporter %s missing .class config" format reporterName))
@@ -337,6 +356,7 @@ object SamzaContainer extends Logging {
       (reporterName, reporter)
     }).toMap
 
+    reporters = reporters ++ customReporters
     info("Got metrics reporters: %s" format reporters.keys)
 
     val securityManager = config.getSecurityManagerFactory match {
@@ -348,8 +368,6 @@ object SamzaContainer extends Logging {
     }
     info("Got security manager: %s" format securityManager)
 
-    val coordinatorSystemProducer = new CoordinatorStreamSystemFactory().getCoordinatorStreamSystemProducer(config, samzaContainerMetrics.registry)
-    val localityManager = new LocalityManager(coordinatorSystemProducer)
     val checkpointManager = config.getCheckpointManagerFactory() match {
       case Some(checkpointFactoryClassName) if (!checkpointFactoryClassName.isEmpty) =>
         Util
@@ -676,6 +694,13 @@ class SamzaContainer(
       shutdownSecurityManger
 
       info("Shutdown complete.")
+    }
+  }
+
+  def shutdown() = {
+    runLoop match {
+      case runLoop: RunLoop => runLoop.shutdown
+      case asyncRunLoop: AsyncRunLoop => asyncRunLoop.shutdown()
     }
   }
 
