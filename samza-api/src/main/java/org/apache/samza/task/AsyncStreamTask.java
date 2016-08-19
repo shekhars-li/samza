@@ -22,7 +22,7 @@ package org.apache.samza.task;
 import org.apache.samza.system.IncomingMessageEnvelope;
 
 /**
- * An AsyncStreamTask is the basic class to support multithreading execution in Samza container. It’s provided for better
+ * An AsyncStreamTask is the basic class to support multithreading execution in Samza container. It's provided for better
  * parallelism and resource utilization. This class allows task to make asynchronous calls and fire callbacks upon completion.
  * Similar to {@link StreamTask}, an AsyncStreamTask may be augmented by implementing other interfaces, such as
  * {@link InitableTask}, {@link WindowableTask}, or {@link ClosableTask}. The following invariants hold with these mix-ins:
