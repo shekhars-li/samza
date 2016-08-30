@@ -47,17 +47,18 @@ import java.util.concurrent.TimeoutException;
  * independent processes
  *
  * Usage Example:
- * ConfigBuilder builder = ConfigBuilder
- *                          .getStandaloneBuilder("job-name", "stream-task-class-name")
- *                          .addTaskInput ...
- * ...
- * Config config = builder.build();
  * StreamProcessor processor = new StreamProcessor(1, config);
  * processor.start();
+ * try {
+ *  boolean status = processor.awaitStart(TIMEOUT_MS);    // Optional - blocking call
+ *  if (!status) {  // Timed out }
+ *  ...
  *
- * ...
- *
- * processor.stop();
+ * } catch (InterruptedException ie) {
+ *   ...
+ * } finally {
+ *   processor.stop();
+ * }
  *
  */
 public class StreamProcessor {
@@ -107,7 +108,6 @@ public class StreamProcessor {
     }
   }
 
-
   private JobCoordinatorFactory getJobCoordinatorFactory(Config config) {
     if (config.get(JOB_COORDINATOR_FACTORY) == null) {
       throw new ConfigException(
@@ -115,11 +115,15 @@ public class StreamProcessor {
     }
     return Util.<JobCoordinatorFactory>getObj(config.get("job.coordinator.factory"));
   }
+
   /**
    * StreamProcessor Lifecycle: start
    * - Starts the JobCoordinator and fetches the JobModel
    * - Instantiates a SamzaContainer and runs it in the executor
+   *
+   * When start() returns, it only guarantees that the container is initialized and submitted to the executor
    */
+
   public void start() {
     jobCoordinator.start();
 
@@ -131,6 +135,19 @@ public class StreamProcessor {
         Util.<String, MetricsReporter>javaMapAsScalaMap(customMetricsReporters));
 
     runContainer();
+  }
+
+  /**
+   * Method that allows the user to wait for a specified amount of time for the container to initialize and start
+   * processing messages
+   *
+   * @param timeoutMs Maximum time to wait, in milliseconds
+   * @return {@code true}, if the container started within the specified wait time and {@code false} if the waiting time
+   *          elapsed
+   * @throws InterruptedException if the current thread is interrupted while waiting for container to start-up
+   */
+  public boolean awaitStart(long timeoutMs) throws InterruptedException {
+    return container.awaitStart(timeoutMs);
   }
 
   /**
@@ -159,9 +176,9 @@ public class StreamProcessor {
     try {
       containerFuture.get(containerShutdownMs, TimeUnit.MILLISECONDS);
     } catch (InterruptedException | ExecutionException e) {
-      log.error("Ran into problems while trying to stop the processor!", e);
+      log.error("Ran into problems while trying to stop the container in the processor!", e);
     } catch (TimeoutException e) {
-      log.warn("Got Timeout Exception while trying to stop the processor! The processor may not have shutdown completely!", e);
+      log.warn("Got Timeout Exception while trying to stop the container in the processor! The processor may not shutdown properly", e);
     }
   }
 }

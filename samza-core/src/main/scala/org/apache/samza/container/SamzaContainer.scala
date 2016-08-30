@@ -22,9 +22,7 @@ package org.apache.samza.container
 import java.io.File
 import java.nio.file.Path
 import java.util
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{CountDownLatch, ExecutorService, Executors, TimeUnit}
 import java.lang.Thread.UncaughtExceptionHandler
 import java.net.{URL, UnknownHostException}
 import org.apache.samza.SamzaException
@@ -46,7 +44,6 @@ import org.apache.samza.container.disk.DiskQuotaPolicyFactory
 import org.apache.samza.container.disk.DiskSpaceMonitor
 import org.apache.samza.container.host.{SystemMemoryStatistics, SystemStatisticsMonitor, StatisticsMonitorImpl}
 import org.apache.samza.coordinator.stream.CoordinatorStreamSystemFactory
-import org.apache.samza.job.model.ContainerModel
 import org.apache.samza.job.model.JobModel
 import org.apache.samza.metrics.JmxServer
 import org.apache.samza.metrics.JvmMetrics
@@ -656,6 +653,17 @@ class SamzaContainer(
   taskThreadPool: ExecutorService = null) extends Runnable with Logging {
 
   val shutdownMs = containerContext.config.getShutdownMs.getOrElse(5000L)
+  private val runLoopStartLatch: CountDownLatch = new CountDownLatch(1)
+
+  def awaitStart(timeoutMs: Long): Boolean = {
+    try {
+      runLoopStartLatch.await(timeoutMs, TimeUnit.MILLISECONDS)
+    } catch {
+      case ie: InterruptedException =>
+        error("Interrupted while waiting for runloop to start!", ie)
+        throw ie
+    }
+  }
 
   def run {
     try {
@@ -672,8 +680,9 @@ class SamzaContainer(
       startConsumers
       startSecurityManger
 
-      info("Entering run loop.")
       addShutdownHook
+      runLoopStartLatch.countDown()
+      info("Entering run loop.")
       runLoop.run
     } catch {
       case e: Exception =>
