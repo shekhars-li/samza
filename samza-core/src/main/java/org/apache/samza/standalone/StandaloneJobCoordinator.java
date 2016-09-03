@@ -18,20 +18,26 @@
  */
 package org.apache.samza.standalone;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JavaSystemConfig;
+import org.apache.samza.config.MapConfig;
+import org.apache.samza.config.TaskConfig;
 import org.apache.samza.coordinator.JobCoordinator;
 import org.apache.samza.coordinator.JobModelManager;
 import org.apache.samza.coordinator.JobModelManager$;
 import org.apache.samza.job.model.JobModel;
 import org.apache.samza.system.StreamMetadataCache;
 import org.apache.samza.system.SystemAdmin;
+import org.apache.samza.system.SystemConsumer;
 import org.apache.samza.system.SystemFactory;
+import org.apache.samza.util.NoOpMetricsRegistry;
 import org.apache.samza.util.SystemClock;
 import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.collection.JavaConversions;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,14 +48,23 @@ import java.util.Map;
  * */
 public class StandaloneJobCoordinator implements JobCoordinator {
   private static final Logger log = LoggerFactory.getLogger(StandaloneJobCoordinator.class);
+  private static final String LOAD_BALANCED_FORMAT_STRING = "systems.%s.samza.loadBalanced";
 
   private final int processorId;
   private final Config config;
   private final JobModelManager jobModelManager;
 
+  @VisibleForTesting
+  StandaloneJobCoordinator(int processorId, Config config, JobModelManager jobModelManager) {
+    this.processorId = processorId;
+    this.config = verifyLoadBalancedConsumer(config);
+    this.jobModelManager = jobModelManager;
+  }
+
   public StandaloneJobCoordinator(int processorId, Config config) {
     this.processorId = processorId;
-    this.config = config;
+    this.config = verifyLoadBalancedConsumer(config);
+
     JavaSystemConfig systemConfig = new JavaSystemConfig(this.config);
     Map<String, SystemAdmin> systemAdmins = new HashMap<>();
     for (String systemName: systemConfig.getSystemNames()) {
@@ -58,11 +73,11 @@ public class StandaloneJobCoordinator implements JobCoordinator {
         log.error(String.format("A stream uses system %s, which is missing from the configuration.", systemName));
         throw new SamzaException(String.format("A stream uses system %s, which is missing from the configuration.", systemName));
       }
-      SystemFactory systemFactory = (SystemFactory) Util.getObj(systemFactoryClassName);
+      SystemFactory systemFactory = Util.getObj(systemFactoryClassName);
       systemAdmins.put(systemName, systemFactory.getAdmin(systemName, this.config));
     }
 
-    StreamMetadataCache streamMetadataCache = new StreamMetadataCache(Util.javaMapAsScalaMap(systemAdmins), 5000, SystemClock.instance());
+    StreamMetadataCache streamMetadataCache = new StreamMetadataCache(Util.<String, SystemAdmin>javaMapAsScalaMap(systemAdmins), 5000, SystemClock.instance());
 
     /** TODO:
      * Locality Manager seems to be required in JC for reading locality info and grouping tasks intelligently and also,
@@ -71,6 +86,32 @@ public class StandaloneJobCoordinator implements JobCoordinator {
      * (job.coordinator.task.grouper, instead of task.systemstreampartition.grouper)
      */
     this.jobModelManager = JobModelManager$.MODULE$.getJobCoordinator(config, null, null, streamMetadataCache, null);
+  }
+
+  private Config verifyLoadBalancedConsumer(final Config config) {
+    TaskConfig taskConfig = new TaskConfig(config);
+    Map<String, String> newConfig = new HashMap<>();
+    newConfig.putAll(config);
+
+    JavaConversions.setAsJavaSet(taskConfig.getInputStreams()).forEach(ss -> {
+      JavaSystemConfig systemConfig = new JavaSystemConfig(config);
+      String inputSystem = ss.getSystem();
+      if (systemConfig.getSystemFactory(inputSystem) == null) {
+        throw new SamzaException(String.format("Factory class config missing for system %s", ss.getStream()));
+      }
+      SystemFactory factory = Util.getObj(systemConfig.getSystemFactory(inputSystem));
+      SystemConsumer consumer = factory.getConsumer(ss.getSystem(), config, new NoOpMetricsRegistry());
+      if (!consumer.canSupportLoadBalancedConsumer()) {
+        throw new SamzaException(
+            String.format(
+                "Input system %s does not provide a load-balanced consumer. "
+                    + "Cannot run this job in Standalone mode!", inputSystem));
+      } else {
+        newConfig.put(String.format(LOAD_BALANCED_FORMAT_STRING, inputSystem), "true");
+      }
+    });
+
+    return new MapConfig(newConfig);
   }
 
   @Override

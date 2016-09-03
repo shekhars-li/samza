@@ -175,4 +175,22 @@ public interface SystemConsumer {
    *          thread.
    */
   Map<SystemStreamPartition, List<IncomingMessageEnvelope>> poll(Set<SystemStreamPartition> systemStreamPartitions, long timeout) throws InterruptedException;
+
+  /**
+   * Since Samza 0.12.0
+   *
+   * Samza processors should be able to run without any coordination from the JobCoordinator. For such scenarios, we
+   * either require:
+   * 1. a load-balanced consumer that automatically guarantees that the partitions are distributed evenly across the
+   * processing (and hence, consumer) instances. An example of such a consumer is the high-level Kafka consumer client
+   * 2. statically partitioned input consumption model (where a processor instance consumes a pre-configured subset of
+   * input stream partitions)
+   *
+   * @return True, if the consumer can perform the load balancing of the input stream partitions
+   *         False, by default (since most of the systems don't perform load-balancing / partitioning without some form
+   *         of external coordination)
+   */
+  default boolean canSupportLoadBalancedConsumer() {
+    return false;
+  }
 }
