@@ -75,6 +75,8 @@ object JobConfig {
   val DEFAULT_MONITOR_PARTITION_CHANGE_FREQUENCY_MS = 300000
   val JOB_SECURITY_MANAGER_FACTORY = "job.security.manager.factory"
 
+  val JOB_CONTAINER_LIFE_CYCLE_LISTENER = "job.container.lifecycle-listener.class"
+
   implicit def Config2Job(config: Config) = new JobConfig(config)
 
   /**
@@ -178,4 +180,6 @@ class JobConfig(config: Config) extends ScalaMapConfig(config) with Logging {
     case Some(mode) => mode.toBoolean
     case _ => false
   }
+
+  def getContainerLifeCycleListener = getOption(JobConfig.JOB_CONTAINER_LIFE_CYCLE_LISTENER)
 }

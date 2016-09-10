@@ -616,6 +616,11 @@ object SamzaContainer extends Logging {
 
     info("Samza container setup complete.")
 
+    val lifeCycleListener = config.getContainerLifeCycleListener match {
+      case Some(className) => Class.forName(className).newInstance.asInstanceOf[SamzaContainerLifeCycleListener]
+      case _ => new DefaultLifeCycleListener
+    }
+
     new SamzaContainer(
       containerContext = containerContext,
       taskInstances = taskInstances,
@@ -631,7 +636,8 @@ object SamzaContainer extends Logging {
       jmxServer = jmxServer,
       diskSpaceMonitor = diskSpaceMonitor,
       hostStatisticsMonitor = memoryStatisticsMonitor,
-      taskThreadPool = taskThreadPool)
+      taskThreadPool = taskThreadPool,
+      lifeCycleListener = lifeCycleListener)
   }
 }
 
@@ -650,7 +656,8 @@ class SamzaContainer(
   securityManager: SecurityManager = null,
   reporters: Map[String, MetricsReporter] = Map(),
   jvm: JvmMetrics = null,
-  taskThreadPool: ExecutorService = null) extends Runnable with Logging {
+  taskThreadPool: ExecutorService = null,
+  lifeCycleListener: SamzaContainerLifeCycleListener = new DefaultLifeCycleListener) extends Runnable with Logging {
 
   val shutdownMs = containerContext.config.getShutdownMs.getOrElse(5000L)
   private val runLoopStartLatch: CountDownLatch = new CountDownLatch(1)
@@ -668,6 +675,7 @@ class SamzaContainer(
   def run {
     try {
       info("Starting container.")
+      lifeCycleListener.beforeStart(containerContext)
 
       startMetrics
       startOffsetManager
@@ -680,6 +688,7 @@ class SamzaContainer(
       startConsumers
       startSecurityManger
 
+      lifeCycleListener.afterStart()
       addShutdownHook
       runLoopStartLatch.countDown()
       info("Entering run loop.")
@@ -689,6 +698,7 @@ class SamzaContainer(
         error("Caught exception in process loop.", e)
         throw e
     } finally {
+      lifeCycleListener.beforeShutdown()
       info("Shutting down.")
 
       shutdownConsumers
@@ -702,6 +712,7 @@ class SamzaContainer(
       shutdownMetrics
       shutdownSecurityManger
 
+      lifeCycleListener.afterShutdown()
       info("Shutdown complete.")
     }
   }
