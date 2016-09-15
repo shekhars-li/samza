@@ -209,24 +209,16 @@ public class AsyncRunLoop implements Runnable {
     synchronized (latch) {
       while (!shutdownNow && throwable == null) {
         for (AsyncTaskWorker worker : taskWorkers.values()) {
-          if (worker.state.isReady() && (envelope != null || worker.state.hasPendingOps())) {
-            // should continue running since the worker state is ready and there is either new message
-            // or some pending operations for the worker
+          if (worker.state.isReady()) {
+            // should continue running if any worker state is ready
+            // consumerMultiplexer will block on polling for empty partitions so it won't cause busy loop
             return;
           }
         }
 
         try {
           log.trace("Block loop thread");
-
-          if (envelope == null) {
-            // If the envelope is null then we will wait for a poll interval, otherwise next choose() will
-            // return null immediately and we will have a busy loop
-            latch.wait(consumerMultiplexer.pollIntervalMs());
-            return;
-          } else {
-            latch.wait();
-          }
+          latch.wait();
         } catch (InterruptedException e) {
           throw new SamzaException("Run loop is interrupted", e);
         }
@@ -529,10 +521,6 @@ public class AsyncRunLoop implements Runnable {
         // and no window/commit in flight
         return messagesInFlight.get() < maxConcurrency && !windowOrCommitInFlight;
       }
-    }
-
-    private boolean hasPendingOps() {
-      return !pendingEnvelopQueue.isEmpty() || needCommit || needWindow;
     }
 
     /**
