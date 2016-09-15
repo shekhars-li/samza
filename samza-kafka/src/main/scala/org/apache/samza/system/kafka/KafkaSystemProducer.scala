@@ -113,6 +113,7 @@ class KafkaSystemProducer(systemName: String,
     val exception = sourceData.exceptionThrown
     if (exception != null) {
       metrics.sendFailed.inc
+      sourceData.exceptionThrown = null  // in case the caller catches all exceptions and will try again
       throw exception
     }
 
@@ -154,8 +155,12 @@ class KafkaSystemProducer(systemName: String,
                 //If there is an exception in the callback, fail container!
                 //Close producer.
                 currentProducer.close
+                info("closing the producer because of an exception in callback: " + exception.getMessage)
+                // we do not allow the reopenning of the produce here, because the exception happen
+                // in a separate (callback) thread. And user has no control now.
                 sourceData.exceptionThrown = new SamzaException("Unable to send message from %s to system %s." format(source, systemName),
-                                                     exception)
+                                                                 exception)
+
                 metrics.sendFailed.inc
                 logger.error("Unable to send message on Topic:%s Partition:%s" format(topicName, partitionKey),
                              exception)
@@ -168,6 +173,10 @@ class KafkaSystemProducer(systemName: String,
     } catch {
       case e: Exception => {
         currentProducer.close()
+        producerLock.synchronized {
+          producer = null
+        }
+        info("closing the producer because of an exception in send: " + e.getMessage)
         metrics.sendFailed.inc
         throw new SamzaException(("Failed to send message on Topic:%s Partition:%s Exception:\n %s,")
           .format(topicName, partitionKey, e))
