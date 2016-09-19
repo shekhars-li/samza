@@ -21,6 +21,7 @@ package org.apache.samza.processor;
 import org.apache.samza.config.ClusterManagerConfig;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigException;
+import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.TaskConfigJava;
 import org.apache.samza.container.LocalityManager;
 import org.apache.samza.container.SamzaContainer;
@@ -33,6 +34,7 @@ import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -44,26 +46,38 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * StreamProcessor can be embedded in any application or executed in a distributed environment (aka cluster) as
- * independent processes
+ * independent processes <br />
  *
- * Usage Example:
- * StreamProcessor processor = new StreamProcessor(1, config);
+ * <b>Usage Example:</b>
+ * <pre>
+ * StreamProcessor processor = new StreamProcessor(1, config); <br />
  * processor.start();
  * try {
  *  boolean status = processor.awaitStart(TIMEOUT_MS);    // Optional - blocking call
- *  if (!status) {  // Timed out }
+ *  if (!status) {
+ *    // Timed out
+ *  }
  *  ...
- *
  * } catch (InterruptedException ie) {
  *   ...
  * } finally {
  *   processor.stop();
  * }
+ * </pre>
  *
  */
 public class StreamProcessor {
   private static final Logger log = LoggerFactory.getLogger(StreamProcessor.class);
   private static final String JOB_COORDINATOR_FACTORY = "job.coordinator.factory";
+  /**
+   * processor.id is equivalent to containerId in samza. It is a logical identifier used by Samza for a processor.
+   * In a distributed environment, this logical identifier is mapped to a physical identifier of the resource. For
+   * example, Yarn provides a "containerId" for every resource it allocates.
+   * In an embedded environment, this identifier is provided by the user by directly using the StreamProcessor API.
+   *
+   * <b>Note:</b>This identifier has to be unique across the instances of StreamProcessors.
+   */
+  private static final String PROCESSOR_ID = "processor.id";
 
   private Map<String, MetricsReporter> customMetricsReporters = new HashMap<>();
   private final int processorId;
@@ -80,9 +94,9 @@ public class StreamProcessor {
    * JobCoordinator controls how the various StreamProcessor instances belonging to a job coordinate. It is also
    * responsible generating and updating JobModel.
    * When StreamProcessor starts, it starts the JobCoordinator and brings up a SamzaContainer based on the JobModel.
-   * SamzaContainer is executed using the ExecutorService.
+   * SamzaContainer is executed using the ExecutorService. <br />
    *
-   * Note: Lifecycle of the ExecutorService is fully managed by the StreamProcessor, and NOT exposed to the user
+   * <b>Note:</b> Lifecycle of the ExecutorService is fully managed by the StreamProcessor, and NOT exposed to the user
    *
    * @param processorId Unique identifier for a processor within the same JVM. It has the same semantics as
    *                    "containerId" in Samza
@@ -92,17 +106,23 @@ public class StreamProcessor {
   public StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters) {
     this.executorService = Executors.newSingleThreadExecutor();
     this.processorId = processorId;
-    this.jobCoordinator = getJobCoordinatorFactory(config).getJobCoordinator(this.processorId, config);
+
+    Map<String, String> updatedConfigMap = Collections.emptyMap();
+    updatedConfigMap.putAll(config);
+    updatedConfigMap.put(PROCESSOR_ID, String.valueOf(processorId));
+    Config updatedConfig = new MapConfig(updatedConfigMap);
+
+    this.jobCoordinator = getJobCoordinatorFactory(updatedConfig).getJobCoordinator(this.processorId, updatedConfig);
 
     if (new ClusterManagerConfig(config).getHostAffinityEnabled()) {
       // Not sure if there is better solution for de-coupling localityManager from the container.
       // Container and JC share the same API for reading/writing locality information
-      localityManager = SamzaContainer$.MODULE$.getLocalityManager(this.processorId, config);
+      localityManager = SamzaContainer$.MODULE$.getLocalityManager(this.processorId, updatedConfig);
     } else {
       localityManager = null;
     }
 
-    containerShutdownMs = new TaskConfigJava(config).getShutdownMs();
+    containerShutdownMs = new TaskConfigJava(updatedConfig).getShutdownMs();
     if (customMetricsReporters != null) {
       this.customMetricsReporters.putAll(customMetricsReporters);
     }
@@ -117,13 +137,13 @@ public class StreamProcessor {
   }
 
   /**
-   * StreamProcessor Lifecycle: start
-   * - Starts the JobCoordinator and fetches the JobModel
-   * - Instantiates a SamzaContainer and runs it in the executor
-   *
+   * StreamProcessor Lifecycle: start()
+   * <ul>
+   * <li>Starts the JobCoordinator and fetches the JobModel</li>
+   * <li>Instantiates a SamzaContainer and runs it in the executor</li>
+   * </ul>
    * When start() returns, it only guarantees that the container is initialized and submitted to the executor
    */
-
   public void start() {
     jobCoordinator.start();
 
@@ -151,10 +171,12 @@ public class StreamProcessor {
   }
 
   /**
-   * StreamProcessor Lifecycle: stop
-   * - Stops the SamzaContainer execution
-   * - Stops the JobCoordinator
-   * - Shuts down the executorService
+   * StreamProcessor Lifecycle: stop()
+   * <ul>
+   *  <li>Stops the SamzaContainer execution</li>
+   *  <li>Stops the JobCoordinator</li>
+   *  <li>Shuts down the executorService</li>
+   * </ul>
    */
   public void stop() {
     stopContainer();

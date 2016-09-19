@@ -21,8 +21,10 @@ package org.apache.samza.container.grouper.task;
 import org.apache.samza.config.Config;
 
 public class SingleContainerGrouperFactory implements TaskNameGrouperFactory {
+  private static final String PROCESSOR_ID = "processor.id";
+
   @Override
   public TaskNameGrouper build(Config config) {
-    return new SingleContainerGrouper(1);
+    return new SingleContainerGrouper(config.getInt(PROCESSOR_ID));
   }
 }
