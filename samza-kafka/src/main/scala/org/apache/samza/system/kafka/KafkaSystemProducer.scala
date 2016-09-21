@@ -20,8 +20,7 @@
 package org.apache.samza.system.kafka
 
 
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Future
+import java.util.concurrent.{TimeUnit, ConcurrentHashMap, Future}
 
 import org.apache.kafka.clients.producer.Callback
 import org.apache.kafka.clients.producer.Producer
@@ -97,6 +96,20 @@ class KafkaSystemProducer(systemName: String,
     }
   }
 
+  def closeAndNullifyCurrentProducer(currentProducer: Producer[Array[Byte], Array[Byte]]) {
+    try {
+      currentProducer.close(0, TimeUnit.MILLISECONDS) // must use timeout to make sure we fail all waiting messages
+    } catch {
+      case e: Exception => error("producer close failed", e)
+    }
+    producerLock.synchronized {
+      if (currentProducer == producer) {
+        // only nullify the member producer if it is still the same object, no point nullifying new producer
+        producer = null
+      }
+    }
+  }
+
   def send(source: String, envelope: OutgoingMessageEnvelope) {
     trace("Enqueuing message: %s, %s." format (source, envelope))
 
@@ -154,15 +167,16 @@ class KafkaSystemProducer(systemName: String,
               else {
                 //If there is an exception in the callback, fail container!
                 //Close producer.
-                currentProducer.close
-                info("closing the producer because of an exception in callback: " + exception.getMessage)
+                closeAndNullifyCurrentProducer(currentProducer)
+
+                error("closing the producer because of an exception in callback: " + exception.getMessage)
                 // we do not allow the reopenning of the produce here, because the exception happen
                 // in a separate (callback) thread. And user has no control now.
                 sourceData.exceptionThrown = new SamzaException("Unable to send message from %s to system %s." format(source, systemName),
                                                                  exception)
 
                 metrics.sendFailed.inc
-                logger.error("Unable to send message on Topic:%s Partition:%s" format(topicName, partitionKey),
+                error("Unable to send message on Topic:%s Partition:%s" format(topicName, partitionKey),
                              exception)
               }
             }
@@ -172,11 +186,9 @@ class KafkaSystemProducer(systemName: String,
       metrics.sends.inc
     } catch {
       case e: Exception => {
-        currentProducer.close()
-        producerLock.synchronized {
-          producer = null
-        }
-        info("closing the producer because of an exception in send: " + e.getMessage)
+        closeAndNullifyCurrentProducer(currentProducer)
+
+        error("closing the producer because of an exception in send: ", e)
         metrics.sendFailed.inc
         throw new SamzaException(("Failed to send message on Topic:%s Partition:%s Exception:\n %s,")
           .format(topicName, partitionKey, e))
