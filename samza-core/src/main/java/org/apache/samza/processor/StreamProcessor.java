@@ -107,7 +107,7 @@ public class StreamProcessor {
     this.executorService = Executors.newSingleThreadExecutor();
     this.processorId = processorId;
 
-    Map<String, String> updatedConfigMap = Collections.emptyMap();
+    Map<String, String> updatedConfigMap = new HashMap<>();
     updatedConfigMap.putAll(config);
     updatedConfigMap.put(PROCESSOR_ID, String.valueOf(processorId));
     Config updatedConfig = new MapConfig(updatedConfigMap);
