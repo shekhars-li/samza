@@ -189,9 +189,10 @@ class KafkaSystemProducer(systemName: String,
       metrics.sends.inc
     } catch {
       case e: Exception => {
+        error("closing the producer because of an exception in send: ", e)
+
         closeAndNullifyCurrentProducer(currentProducer)
 
-        error("closing the producer because of an exception in send: ", e)
         metrics.sendFailed.inc
         throw new SamzaException(("Failed to send message on Topic:%s Partition:%s Exception:\n %s,")
           .format(topicName, partitionKey, e))
