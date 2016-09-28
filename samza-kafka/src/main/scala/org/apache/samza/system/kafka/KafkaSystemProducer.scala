@@ -20,6 +20,7 @@
 package org.apache.samza.system.kafka
 
 
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{TimeUnit, ConcurrentHashMap, Future}
 
 import org.apache.kafka.clients.producer.Callback
@@ -60,7 +61,7 @@ class KafkaSystemProducer(systemName: String,
      * requests from the samza thread. It helps the samza thread identify if the failure happened in I/O thread or not.
      */
     @volatile
-    var exceptionThrown: SamzaException = null
+    var callbackExceptionFirstThrown: AtomicReference[SamzaException] = new AtomicReference[SamzaException]()
   }
 
   @volatile var producer: Producer[Array[Byte], Array[Byte]] = null
@@ -79,7 +80,7 @@ class KafkaSystemProducer(systemName: String,
           producer = null
 
           sources.foreach {p =>
-            if (p._2.exceptionThrown == null) {
+            if (p._2.callbackExceptionFirstThrown.get() == null) {
               flush(p._1)
             }
           }
@@ -123,10 +124,10 @@ class KafkaSystemProducer(systemName: String,
       throw new IllegalArgumentException("Source %s must be registered first before send." format source)
     }
 
-    val exception = sourceData.exceptionThrown
+    val exception = sourceData.callbackExceptionFirstThrown.get()
     if (exception != null) {
       metrics.sendFailed.inc
-      sourceData.exceptionThrown = null  // in case the caller catches all exceptions and will try again
+      sourceData.callbackExceptionFirstThrown = new AtomicReference[SamzaException]()  // in case the caller catches all exceptions and will try again
       throw exception
     }
 
@@ -165,15 +166,17 @@ class KafkaSystemProducer(systemName: String,
                 metrics.sendSuccess.inc
               }
               else {
+                error("closing the producer because of an exception in callback: " + exception.getMessage)
                 //If there is an exception in the callback, fail container!
                 //Close producer.
                 closeAndNullifyCurrentProducer(currentProducer)
 
-                error("closing the producer because of an exception in callback: " + exception.getMessage)
                 // we do not allow the reopenning of the produce here, because the exception happen
                 // in a separate (callback) thread. And user has no control now.
-                sourceData.exceptionThrown = new SamzaException("Unable to send message from %s to system %s." format(source, systemName),
-                                                                 exception)
+                if (sourceData.callbackExceptionFirstThrown.get() == null ) {
+                  sourceData.callbackExceptionFirstThrown.getAndSet(new SamzaException("Unable to send message from %s to system %s." format(source, systemName),
+                    exception))
+                }
 
                 metrics.sendFailed.inc
                 error("Unable to send message on Topic:%s Partition:%s" format(topicName, partitionKey),
@@ -204,7 +207,7 @@ class KafkaSystemProducer(systemName: String,
       //if latestFuture is null, it probably means that there has been no calls to "send" messages
       //Hence, nothing to do in flush
       if(sourceData.latestFuture != null) {
-        while(!sourceData.latestFuture.isDone && sourceData.exceptionThrown == null) {
+        while(!sourceData.latestFuture.isDone && sourceData.callbackExceptionFirstThrown.get() == null) {
           try {
             sourceData.latestFuture.get()
           } catch {
@@ -212,9 +215,9 @@ class KafkaSystemProducer(systemName: String,
           }
         }
 
-        if (sourceData.exceptionThrown != null) {
+        if (sourceData.callbackExceptionFirstThrown.get() != null) {
           metrics.flushFailed.inc
-          throw sourceData.exceptionThrown
+          throw sourceData.callbackExceptionFirstThrown.get()
         } else {
           trace("Flushed %s." format (source))
         }
