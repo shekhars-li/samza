@@ -34,7 +34,6 @@ import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -114,7 +113,7 @@ public class StreamProcessor {
 
     this.jobCoordinator = getJobCoordinatorFactory(updatedConfig).getJobCoordinator(this.processorId, updatedConfig);
 
-    if (new ClusterManagerConfig(config).getHostAffinityEnabled()) {
+    if (new ClusterManagerConfig(updatedConfig).getHostAffinityEnabled()) {
       // Not sure if there is better solution for de-coupling localityManager from the container.
       // Container and JC share the same API for reading/writing locality information
       localityManager = SamzaContainer$.MODULE$.getLocalityManager(this.processorId, updatedConfig);

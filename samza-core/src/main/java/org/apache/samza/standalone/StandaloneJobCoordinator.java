@@ -22,34 +22,31 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JavaSystemConfig;
-import org.apache.samza.config.MapConfig;
-import org.apache.samza.config.TaskConfig;
 import org.apache.samza.coordinator.JobCoordinator;
 import org.apache.samza.coordinator.JobModelManager;
 import org.apache.samza.coordinator.JobModelManager$;
 import org.apache.samza.job.model.JobModel;
 import org.apache.samza.system.StreamMetadataCache;
 import org.apache.samza.system.SystemAdmin;
-import org.apache.samza.system.SystemConsumer;
 import org.apache.samza.system.SystemFactory;
-import org.apache.samza.util.NoOpMetricsRegistry;
 import org.apache.samza.util.SystemClock;
 import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.JavaConversions;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Standalone Job Coordinator does not implement any leader elector module
- * It generates the JobModel using the Config passed into the constructor
+ * Standalone Job Coordinator does not implement any leader elector module or cluster manager
+ *
+ * It generates the JobModel using the Config passed into the constructor.
+ * Since the standalone JobCoordinator does not perform partition management, it allows two kinds of partition
+ * distribution mechanism - consumer-managed partition distribution and user-defined fixed partition distribution.
+ * 
  * */
 public class StandaloneJobCoordinator implements JobCoordinator {
   private static final Logger log = LoggerFactory.getLogger(StandaloneJobCoordinator.class);
-  private static final String LOAD_BALANCED_FORMAT_STRING = "systems.%s.samza.loadBalanced";
-
   private final int processorId;
   private final Config config;
   private final JobModelManager jobModelManager;
@@ -57,13 +54,13 @@ public class StandaloneJobCoordinator implements JobCoordinator {
   @VisibleForTesting
   StandaloneJobCoordinator(int processorId, Config config, JobModelManager jobModelManager) {
     this.processorId = processorId;
-    this.config = verifyLoadBalancedConsumer(config);
+    this.config = config;
     this.jobModelManager = jobModelManager;
   }
 
   public StandaloneJobCoordinator(int processorId, Config config) {
     this.processorId = processorId;
-    this.config = verifyLoadBalancedConsumer(config);
+    this.config = config;
 
     JavaSystemConfig systemConfig = new JavaSystemConfig(this.config);
     Map<String, SystemAdmin> systemAdmins = new HashMap<>();
@@ -85,33 +82,7 @@ public class StandaloneJobCoordinator implements JobCoordinator {
      * TaskNameGrouper with the LocalityManager! Hence, groupers should be a property of the jobcoordinator
      * (job.coordinator.task.grouper, instead of task.systemstreampartition.grouper)
      */
-    this.jobModelManager = JobModelManager$.MODULE$.getJobCoordinator(config, null, null, streamMetadataCache, null);
-  }
-
-  private Config verifyLoadBalancedConsumer(final Config config) {
-    TaskConfig taskConfig = new TaskConfig(config);
-    Map<String, String> newConfig = new HashMap<>();
-    newConfig.putAll(config);
-
-    JavaConversions.setAsJavaSet(taskConfig.getInputStreams()).forEach(ss -> {
-      JavaSystemConfig systemConfig = new JavaSystemConfig(config);
-      String inputSystem = ss.getSystem();
-      if (systemConfig.getSystemFactory(inputSystem) == null) {
-        throw new SamzaException(String.format("Factory class config missing for system %s", ss.getStream()));
-      }
-      SystemFactory factory = Util.getObj(systemConfig.getSystemFactory(inputSystem));
-      SystemConsumer consumer = factory.getConsumer(ss.getSystem(), config, new NoOpMetricsRegistry());
-      if (!consumer.canSupportLoadBalancedConsumer()) {
-        throw new SamzaException(
-            String.format(
-                "Input system %s does not provide a load-balanced consumer. "
-                    + "Cannot run this job in Standalone mode!", inputSystem));
-      } else {
-        newConfig.put(String.format(LOAD_BALANCED_FORMAT_STRING, inputSystem), "true");
-      }
-    });
-
-    return new MapConfig(newConfig);
+    this.jobModelManager = JobModelManager$.MODULE$.getJobCoordinator(this.config, null, null, streamMetadataCache, null);
   }
 
   @Override
