@@ -89,7 +89,7 @@ public class SimpleInstallationFinder implements InstallationFinder {
       String jobInstallCanonPath = jobInstallPath.getCanonicalPath();
       File configPath = Paths.get(jobInstallCanonPath, CFG_SUBPATH).toFile();
       if (!(configPath.exists() && configPath.isDirectory())) {
-        log.warn("Config path not found: " + configPath);
+        log.debug("Config path not found: " + configPath);
         return;
       }
 

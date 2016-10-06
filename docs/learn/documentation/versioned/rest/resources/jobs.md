@@ -285,19 +285,19 @@ There are three primary abstractions used by the JobsResource that users can imp
 2.  **InstallationFinder**: The InstallationFinder provides a generic interface to discover all the installed jobs, hiding any customizations in the job package structure and its location (e.g. local vs remote host). The InstallationFinder also resolves the job configuration, which is used to validate and identify the job.
 3.  **JobStatusProvider**: The JobStatusProvider allows the JobProxy to get the status of a job in a generic way. The same interface can be used to get the job status on Yarn, Mesos, or standalone jobs. It also enables different implementations for the same cluster. With Yarn, for example, one implementation may get job status via command line and another via the ResourceManager REST API.
 
-The configuration must specify a JobProxy factory class explicitly. By contrast, the InstallationFinder and JobStatusProvider abstractions are natural extensions of the JobProxy and are solely provided to demonstrate a pattern for discovering installed jobs and fetching job status. However, they are not an explicit requirement.
+The [configuration](jobs.html#configuration) must specify a JobProxy factory class explicitly. By contrast, the InstallationFinder and JobStatusProvider abstractions are natural extensions of the JobProxy and are solely provided to demonstrate a pattern for discovering installed jobs and fetching job status. However, they are not an explicit requirement.
 
-The `SimpleYarnJobProxy` that ships with Samza REST is intended to demonstrate a functional implementation of a JobProxy which works with the Hello Samza jobs. See the [tutorial](tutorial.html) to try it out. You can implement your own JobProxy to adapt the JobsResource to the specifics of your job packaging and deployment model.
+The `SimpleYarnJobProxy` that ships with Samza REST is intended to demonstrate a functional implementation of a JobProxy which works with the Hello Samza jobs. See the [tutorial](../../../../tutorials/{{site.version}}/samza-rest-getting-started.html) to try it out. You can implement your own JobProxy to adapt the JobsResource to the specifics of your job packaging and deployment model.
 
 
 ### Request Flow
 After validating each request, the JobsResource invokes the appropriate JobProxy command. The JobProxy uses the InstallationFinder to enumerate the installed jobs and the JobStatusProvider to get the runtime status of the jobs.
 
-The provided `SimpleInstallationFinder` crawls the file system, starting in the directory specified by the `job.installations.path` looking for valid Samza job config files. It extracts the `job.name` and `job.id` property values and creates an `InstallationRecord` for the each job instance. The InstallationRecord contains all the information needed to start, stop, and get the status for the job.
+The provided [SimpleInstallationFinder](../javadocs/org/apache/samza/rest/proxy/installation/SimpleInstallationFinder.html) crawls the file system, starting in the directory specified by the `job.installations.path` looking for valid Samza job config files. It extracts the `job.name` and `job.id` property values and creates an [InstallationRecord](../javadocs/org/apache/samza/rest/proxy/installation/InstallationRecord.html) for the each job instance. The InstallationRecord contains all the information needed to start, stop, and get the status for the job.
 
-The provided `YarnCliJobStatusProvider` leverages a ScriptRunner to fetch job status using the Yarn ApplicationCLI.
+The provided [YarnCliJobStatusProvider](../javadocs/org/apache/samza/rest/proxy/job/YarnCliJobStatusProvider.html) leverages a ScriptRunner to fetch job status using the Yarn ApplicationCLI.
 
-The `SimpleYarnJobProxy` relies on the scripts in the InstallationRecord scriptFilePath (`/bin`) directory to start and stop jobs.
+The [SimpleYarnJobProxy](../javadocs/org/apache/samza/rest/proxy/job/SimpleYarnJobProxy.html) relies on the scripts in the InstallationRecord scriptFilePath (`/bin`) directory to start and stop jobs.
 
 The following is a depiction of the implementation that ships with Samza REST:
 
@@ -321,7 +321,7 @@ The JobsResource properties should be specified in the same file as the Samza RE
       <td>job.installations.path</td><td><b>Required:</b> The file system path which contains the Samza job installations. The path must be on the same host as the Samza REST Service. Each installation must be a directory with structure conforming to the expectations of the InstallationRecord implementation used by the JobProxy.</td>
     </tr>
     <tr>
-      <td>job.config.factory.class</td><td><b>Required:</b> The config factory to use for reading Samza job configs. This is used to fetch the job.name and job.id properties for each job instance in the InstallationRecord. It's also used to validate that a particular directory within the installations path actually contains Samza jobs.</td>
+      <td>job.config.factory.class</td><td>The config factory to use for reading Samza job configs. This is used to fetch the job.name and job.id properties for each job instance in the InstallationRecord. It's also used to validate that a particular directory within the installations path actually contains Samza jobs. If not specified <pre>org.apache.samza.config.factories.PropertiesConfigFactory</pre> will be used. </td>
     </tr>
   </tbody>
 </table>

@@ -89,7 +89,7 @@ public class ScriptRunner {
     command.add(scriptPath);
     command.addAll(Arrays.asList(args));
 
-    log.info("Building process with command {}", command);
+    log.debug("Building process with command {}", command);
     return new ProcessBuilder(command);
   }
 
@@ -102,7 +102,7 @@ public class ScriptRunner {
    */
   private int waitForExitValue(final Process p)
       throws InterruptedException {
-    log.info("Waiting for the exit value for process {}", p);
+    log.debug("Waiting for the exit value for process {}", p);
     Thread t = new Thread(new Runnable() {
       @Override
       public void run() {
@@ -123,7 +123,7 @@ public class ScriptRunner {
     }
 
     int exitVal = p.exitValue();
-    log.info("Exit value {}", exitVal);
+    log.debug("Exit value {}", exitVal);
     return exitVal;
   }
 }

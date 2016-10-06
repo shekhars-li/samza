@@ -29,7 +29,7 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
- }
+  }
 }
 
 apply from: file("gradle/dependency-versions.gradle")
@@ -37,6 +37,7 @@ apply from: file("gradle/dependency-versions-scala-" + scalaVersion + ".gradle")
 apply from: file("gradle/release.gradle")
 apply from: file("gradle/rat.gradle")
 apply from: file('gradle/customize.gradle')
+
 
 rat {
   excludes = [
@@ -83,7 +84,8 @@ rat {
     'RELEASE.md',
     'samza-test/src/main/resources/**',
     'samza-hdfs/src/main/resources/**',
-    'samza-hdfs/src/test/resources/**'
+    'samza-hdfs/src/test/resources/**',
+    'out/**'
   ]
 }
 
@@ -119,12 +121,14 @@ project(':samza-api') {
   apply plugin: 'checkstyle'
 
   dependencies {
+    compile "org.slf4j:slf4j-api:$slf4jVersion"
     testCompile "junit:junit:$junitVersion"
     testCompile "org.mockito:mockito-all:$mockitoVersion"
   }
 
   checkstyle {
     configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+    toolVersion = "$checkstyleVersion"
   }
 }
 
@@ -135,7 +139,11 @@ project(":samza-core_$scalaVersion") {
   // Force scala joint compilation
   sourceSets.main.scala.srcDir "src/main/java"
   sourceSets.test.scala.srcDir "src/test/java"
+
+  // Disable the Javac compiler by forcing joint compilation by scalac. This is equivalent to setting
+  // tasks.compileTestJava.enabled = false
   sourceSets.main.java.srcDirs = []
+  sourceSets.test.java.srcDirs = []
 
   jar {
     manifest {
@@ -151,7 +159,6 @@ project(":samza-core_$scalaVersion") {
     compile "net.sf.jopt-simple:jopt-simple:$joptSimpleVersion"
     compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
     compile "org.eclipse.jetty:jetty-webapp:$jettyVersion"
-    compile "com.google.guava:guava:$guavaVersion"
     testCompile "junit:junit:$junitVersion"
     testCompile "org.mockito:mockito-all:$mockitoVersion"
     testCompile "org.scalatest:scalatest_$scalaVersion:$scalaTestVersion"
@@ -159,6 +166,7 @@ project(":samza-core_$scalaVersion") {
 
   checkstyle {
     configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+    toolVersion = "$checkstyleVersion"
   }
 }
 
@@ -166,6 +174,14 @@ project(":samza-autoscaling_$scalaVersion") {
   apply plugin: 'scala'
   apply plugin: 'checkstyle'
 
+  // Force scala joint compilation
+  sourceSets.main.scala.srcDir "src/main/java"
+  sourceSets.test.scala.srcDir "src/test/java"
+
+  // Disable the Javac compiler by forcing joint compilation by scalac. This is equivalent to setting
+  // tasks.compileTestJava.enabled = false
+  sourceSets.main.java.srcDirs = []
+  sourceSets.test.java.srcDirs = []
 
   dependencies {
     compile project(':samza-api')
@@ -191,6 +207,7 @@ project(":samza-autoscaling_$scalaVersion") {
 
   checkstyle {
     configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+    toolVersion = "$checkstyleVersion"
   }
 }
 
@@ -214,7 +231,13 @@ project(':samza-elasticsearch') {
 project(":samza-kafka_$scalaVersion") {
   apply plugin: 'scala'
 
+  // Force scala joint compilation
+  sourceSets.main.scala.srcDir "src/main/java"
   sourceSets.test.scala.srcDir "src/test/java"
+
+  // Disable the Javac compiler by forcing joint compilation by scalac. This is equivalent to setting
+  // tasks.compileTestJava.enabled = false
+  sourceSets.main.java.srcDirs = []
   sourceSets.test.java.srcDirs = []
 
   configurations {
@@ -270,6 +293,7 @@ project(':samza-log4j') {
 
   checkstyle {
     configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+    toolVersion = "$checkstyleVersion"
   }
 }
 
@@ -279,7 +303,12 @@ project(":samza-yarn_$scalaVersion") {
 
   // Force scala joint compilation
   sourceSets.main.scala.srcDir "src/main/java"
+  sourceSets.test.scala.srcDir "src/test/java"
+
+  // Disable the Javac compiler by forcing joint compilation by scalac. This is equivalent to setting
+  // tasks.compileTestJava.enabled = false
   sourceSets.main.java.srcDirs = []
+  sourceSets.test.java.srcDirs = []
 
   dependencies {
     compile project(':samza-api')
@@ -304,6 +333,10 @@ project(":samza-yarn_$scalaVersion") {
       exclude module: 'servlet-api'
       // Exclude because YARN's 3.4.5 ZK version is incompatbile with Kafka's 3.3.4.
       exclude module: 'zookeeper'
+    }
+    compile("org.apache.hadoop:hadoop-hdfs:$yarnVersion") {
+      exclude module: 'slf4j-log4j12'
+      exclude module: 'servlet-api'
     }
     compile("org.scalatra:scalatra_$scalaVersion:$scalatraVersion") {
       exclude module: 'scala-compiler'
@@ -403,6 +436,16 @@ project(":samza-kv_$scalaVersion") {
   apply plugin: 'scala'
   apply plugin: 'checkstyle'
 
+  // Force scala joint compilation
+  sourceSets.main.scala.srcDir "src/main/java"
+  sourceSets.test.scala.srcDir "src/test/java"
+
+  // Disable the Javac compiler by forcing joint compilation by scalac. This is equivalent to setting
+  // tasks.compileTestJava.enabled = false
+  sourceSets.main.java.srcDirs = []
+  sourceSets.test.java.srcDirs = []
+
+
   dependencies {
     compile project(':samza-api')
     compile project(":samza-core_$scalaVersion")
@@ -413,6 +456,7 @@ project(":samza-kv_$scalaVersion") {
 
   checkstyle {
     configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+    toolVersion = "$checkstyleVersion"
   }
 }
 
@@ -432,7 +476,13 @@ project(":samza-kv-inmemory_$scalaVersion") {
 project(":samza-kv-rocksdb_$scalaVersion") {
   apply plugin: 'scala'
 
+  // Force scala joint compilation
+  sourceSets.main.scala.srcDir "src/main/java"
   sourceSets.test.scala.srcDir "src/test/java"
+
+  // Disable the Javac compiler by forcing joint compilation by scalac. This is equivalent to setting
+  // tasks.compileTestJava.enabled = false
+  sourceSets.main.java.srcDirs = []
   sourceSets.test.java.srcDirs = []
 
   dependencies {
@@ -449,10 +499,19 @@ project(":samza-kv-rocksdb_$scalaVersion") {
 project(":samza-hdfs_$scalaVersion") {
   apply plugin: 'scala'
 
+  // Force scala joint compilation
+  sourceSets.main.scala.srcDir "src/main/java"
+  sourceSets.test.scala.srcDir "src/test/java"
+  sourceSets.main.java.srcDirs = []
+
   dependencies {
     compile project(':samza-api')
     compile project(":samza-core_$scalaVersion")
     compile project(":samza-kafka_$scalaVersion")
+    // currently hdfs system producer/consumer do depend on yarn for two things:
+    // 1. staging directory 2. security
+    // SAMZA-1032 to solve the staging directory dependency
+    compile project(":samza-yarn_$scalaVersion")
     compile "org.scala-lang:scala-library:$scalaLibVersion"
     compile("org.apache.hadoop:hadoop-hdfs:$yarnVersion") {
       exclude module: 'slf4j-log4j12'
@@ -532,6 +591,15 @@ project(":samza-test_$scalaVersion") {
   apply plugin: 'scala'
   apply plugin: 'checkstyle'
 
+  // Force scala joint compilation
+  sourceSets.main.scala.srcDir "src/main/java"
+  sourceSets.test.scala.srcDir "src/test/java"
+
+  // Disable the Javac compiler by forcing joint compilation by scalac. This is equivalent to setting
+  // tasks.compileTestJava.enabled = false
+  sourceSets.main.java.srcDirs = []
+  sourceSets.test.java.srcDirs = []
+
   configurations {
     // Remove transitive dependencies from Zookeeper that we don't want.
     compile.exclude group: 'javax.jms', module: 'jms'
@@ -547,6 +615,7 @@ project(":samza-test_$scalaVersion") {
     runtime project(":samza-log4j")
     runtime project(":samza-yarn_$scalaVersion")
     runtime project(":samza-kafka_$scalaVersion")
+    runtime project(":samza-hdfs_$scalaVersion")
     compile "org.scala-lang:scala-library:$scalaLibVersion"
     compile "net.sf.jopt-simple:jopt-simple:$joptSimpleVersion"
     compile "javax.mail:mail:1.4"
@@ -569,6 +638,7 @@ project(":samza-test_$scalaVersion") {
 
   checkstyle {
     configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+    toolVersion = "$checkstyleVersion"
   }
 
   tasks.create(name: "releaseTestJobs", dependsOn: configurations.archives.artifacts, type: Tar) {

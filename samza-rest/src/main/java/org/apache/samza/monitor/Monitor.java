@@ -18,8 +18,6 @@
  */
 package org.apache.samza.monitor;
 
-import java.io.IOException;
-
 /**
  * A Monitor is a class implementing some functionality that should be done every N milliseconds on a YARN RM or NM.
  * Classes specified in the config will have their monitor() method called at a configurable interval.
@@ -33,10 +31,8 @@ public interface Monitor {
     /**
      * Do the work of the monitor. Because this can be arbitrary behavior up to and including script execution,
      * IPC-related IOExceptions and concurrency-related InterruptedExceptions are caught by the SamzaMonitorService.
-     * @throws InterruptedException
-     * @throws IOException
+     * @throws Exception if there was any problem running the monitor.
      */
     void monitor()
-        throws InterruptedException, IOException;
-
+        throws Exception;
 }

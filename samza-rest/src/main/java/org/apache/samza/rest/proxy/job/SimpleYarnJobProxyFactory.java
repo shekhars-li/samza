@@ -24,7 +24,7 @@ import org.apache.samza.rest.resources.JobsResourceConfig;
 /**
  * Factory to produce SimpleJobProxy instances.
  *
- * See {@link AbstractJobProxy#fromFactory(org.apache.samza.rest.SamzaRestConfig)}
+ * See {@link AbstractJobProxy#fromFactory(org.apache.samza.rest.resources.JobsResourceConfig)}
  */
 public class SimpleYarnJobProxyFactory implements JobProxyFactory {
 

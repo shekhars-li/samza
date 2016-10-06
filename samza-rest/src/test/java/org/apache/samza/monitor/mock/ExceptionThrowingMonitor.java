@@ -19,10 +19,12 @@
 package org.apache.samza.monitor.mock;
 
 import org.apache.samza.monitor.Monitor;
-
 import java.io.IOException;
 
+
 public class ExceptionThrowingMonitor implements Monitor {
+
+    @Override
     public void monitor() throws IOException {
         throw new IOException("I don't know what I was expecting.");
     }
