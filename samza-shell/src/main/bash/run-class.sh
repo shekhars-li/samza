@@ -75,6 +75,17 @@ else
   done
 fi
 
+# This is LinkedIn Hadoop cluster specific dependency! The jar file is needed
+# for the Samza job to run on LinkedIn's Hadoop YARN cluster.
+# There is no clean way to include this dependency anywhere else, so we just
+# manually include it here.
+# Long term fix: make Hadoop YARN cluster officially support Samza job and prepare
+# runtime dependency for us.
+#
+if [ -e /export/apps/hadoop/site/lib/grid-topology-1.0.jar ]; then
+  CLASSPATH=$CLASSPATH:/export/apps/hadoop/site/lib/grid-topology-1.0.jar
+fi
+
 if [ -z "$JAVA_HOME" ]; then
   JAVA="java"
 else
