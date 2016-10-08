@@ -50,19 +50,19 @@ object JobConfig {
   val JOB_SEGMENT_BYTES = "job.coordinator.segment.bytes"
   val SSP_GROUPER_FACTORY = "job.systemstreampartition.grouper.factory"
 
-  val SSP_MATCHER_CLASS = "job.systemstreampartition.matcher.class";
+  val SSP_MATCHER_CLASS = "job.systemstreampartition.matcher.class"
 
   val SSP_MATCHER_CLASS_REGEX = "org.apache.samza.system.RegexSystemStreamPartitionMatcher"
 
   val SSP_MATCHER_CLASS_RANGE = "org.apache.samza.system.RangeSystemStreamPartitionMatcher"
 
-  val SSP_MATCHER_CONFIG_REGEX = "job.systemstreampartition.matcher.config.regex";
+  val SSP_MATCHER_CONFIG_REGEX = "job.systemstreampartition.matcher.config.regex"
 
-  val SSP_MATCHER_CONFIG_RANGES = "job.systemstreampartition.matcher.config.ranges";
+  val SSP_MATCHER_CONFIG_RANGES = "job.systemstreampartition.matcher.config.ranges"
 
-  val SSP_MATCHER_CONFIG_JOB_FACTORY_REGEX = "job.systemstreampartition.matcher.config.job.factory.regex";
+  val SSP_MATCHER_CONFIG_JOB_FACTORY_REGEX = "job.systemstreampartition.matcher.config.job.factory.regex"
 
-  val DEFAULT_SSP_MATCHER_CONFIG_JOB_FACTORY_REGEX = "org\\.apache\\.samza\\.job\\.local(.*ProcessJobFactory|.*ThreadJobFactory)";
+  val DEFAULT_SSP_MATCHER_CONFIG_JOB_FACTORY_REGEX = "org\\.apache\\.samza\\.job\\.local(.*ProcessJobFactory|.*ThreadJobFactory)"
 
   // number of partitions in the checkpoint stream should be 1. But sometimes,
   // if a stream was created(automatically) with the wrong number of partitions(default number of partitions
