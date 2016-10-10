@@ -19,7 +19,6 @@
 package org.apache.samza.monitor;
 
 import org.apache.samza.metrics.MetricsRegistry;
-import org.apache.samza.util.ClassLoaderHelper;
 
 
 public class MonitorLoader {
@@ -33,13 +32,13 @@ public class MonitorLoader {
    */
   public static Monitor instantiateMonitor(MonitorConfig monitorConfig, MetricsRegistry metricsRegistry)
       throws InstantiationException {
-      String factoryClass = monitorConfig.getMonitorFactoryClass();
-      try {
-        MonitorFactory monitorFactory = ClassLoaderHelper.fromClassName(factoryClass);
-        return monitorFactory.getMonitorInstance(monitorConfig, metricsRegistry);
-      } catch (Exception e) {
-        throw (InstantiationException)
-            new InstantiationException("Unable to instantiate monitor with factory class " + factoryClass).initCause(e);
-      }
+    String factoryClass = monitorConfig.getMonitorFactoryClass();
+    try {
+      MonitorFactory monitorFactory = (MonitorFactory) Class.forName(factoryClass).newInstance();
+      return monitorFactory.getMonitorInstance(monitorConfig, metricsRegistry);
+    } catch (Exception e) {
+      throw (InstantiationException)
+          new InstantiationException("Unable to instantiate monitor with factory class " + factoryClass).initCause(e);
+    }
   }
 }
