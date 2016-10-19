@@ -71,10 +71,7 @@ import org.apache.samza.task.AsyncStreamTask
 import org.apache.samza.task.AsyncStreamTaskAdapter
 import org.apache.samza.task.StreamTask
 import org.apache.samza.task.TaskInstanceCollector
-import org.apache.samza.util.ExponentialSleepStrategy
-import org.apache.samza.util.Logging
-import org.apache.samza.util.ThrottlingExecutor
-import org.apache.samza.util.Util
+import org.apache.samza.util.{ExponentialSleepStrategy, Logging, Throttleable, Util}
 
 import scala.collection.JavaConversions._
 
@@ -569,8 +566,15 @@ object SamzaContainer extends Logging {
       (taskName, taskInstance)
     }).toMap
 
-    val executor = new ThrottlingExecutor(
-      config.getLong("container.disk.quota.delay.max.ms", TimeUnit.SECONDS.toMillis(1)))
+    val maxThrottlingDelayMs = config.getLong("container.disk.quota.delay.max.ms", TimeUnit.SECONDS.toMillis(1))
+
+    val runLoop = RunLoopFactory.createRunLoop(
+      taskInstances,
+      consumerMultiplexer,
+      taskThreadPool,
+      maxThrottlingDelayMs,
+      samzaContainerMetrics,
+      config)
 
     val memoryStatisticsMonitor : SystemStatisticsMonitor = new StatisticsMonitorImpl()
     memoryStatisticsMonitor.registerListener(new SystemStatisticsMonitor.Listener {
@@ -597,8 +601,8 @@ object SamzaContainer extends Logging {
       diskSpaceMonitor.registerListener(new Listener {
         override def onUpdate(diskUsageBytes: Long): Unit = {
           val newWorkRate = diskQuotaPolicy.apply(1.0 - (diskUsageBytes.toDouble / diskQuotaBytes))
-          executor.setWorkFactor(newWorkRate)
-          samzaContainerMetrics.executorWorkFactor.set(executor.getWorkFactor)
+          runLoop.asInstanceOf[Throttleable].setWorkFactor(newWorkRate)
+          samzaContainerMetrics.executorWorkFactor.set(runLoop.asInstanceOf[Throttleable].getWorkFactor)
           samzaContainerMetrics.diskUsageBytes.set(diskUsageBytes)
         }
       })
@@ -608,13 +612,6 @@ object SamzaContainer extends Logging {
       info(s"Disk quotas disabled because polling interval is not set ($DISK_POLL_INTERVAL_KEY)")
     }
 
-    val runLoop = RunLoopFactory.createRunLoop(
-      taskInstances,
-      consumerMultiplexer,
-      taskThreadPool,
-      executor,
-      samzaContainerMetrics,
-      config)
 
     info("Samza container setup complete.")
 
@@ -907,7 +904,6 @@ class SamzaContainer(
     offsetManager.stop
   }
 
-
   def shutdownMetrics {
     info("Shutting down metrics reporters.")
 
@@ -941,6 +937,4 @@ class SamzaContainer(
       hostStatisticsMonitor.stop()
     }
   }
-
-
 }
