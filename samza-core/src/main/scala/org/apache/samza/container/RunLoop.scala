@@ -102,10 +102,6 @@ class RunLoop (
     shutdownNow = true
   }
 
-  def stop: Unit = {
-    shutdownNow = true
-  }
-
   /**
    * Chooses a message from an input stream to process, and calls the
    * process() method on the appropriate StreamTask to handle it.
