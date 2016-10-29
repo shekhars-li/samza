@@ -23,6 +23,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.system.IncomingMessageEnvelope;
+import org.apache.samza.util.TimerClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,13 +49,14 @@ class TaskCallbackImpl implements TaskCallback, Comparable<TaskCallbackImpl> {
       TaskName taskName,
       IncomingMessageEnvelope envelope,
       ReadableCoordinator coordinator,
-      long seqNum) {
+      long seqNum,
+      long timeCreatedNs) {
     this.listener = listener;
     this.taskName = taskName;
     this.envelope = envelope;
     this.coordinator = coordinator;
     this.seqNum = seqNum;
-    this.timeCreatedNs = System.nanoTime();
+    this.timeCreatedNs = timeCreatedNs;
   }
 
   @Override

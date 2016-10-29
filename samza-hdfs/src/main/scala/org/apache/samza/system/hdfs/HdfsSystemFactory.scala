@@ -21,11 +21,12 @@ package org.apache.samza.system.hdfs
 
 
 import org.apache.samza.config.Config
+import org.apache.samza.config.MetricsConfig.Config2Metrics
 import org.apache.samza.metrics.MetricsRegistry
 import org.apache.samza.system.SystemFactory
 import org.apache.samza.system.hdfs.HdfsSystemConsumer.HdfsSystemConsumerMetrics
 import org.apache.samza.util.{KafkaUtil, Logging}
-
+import org.apache.samza.util.Util.asScalaClock
 
 class HdfsSystemFactory extends SystemFactory with Logging {
   def getConsumer(systemName: String, config: Config, registry: MetricsRegistry) = {
@@ -36,7 +37,8 @@ class HdfsSystemFactory extends SystemFactory with Logging {
     // TODO: SAMZA-1026: should remove Kafka dependency below
     val clientId = KafkaUtil.getClientId("samza-producer", config)
     val metrics = new HdfsSystemProducerMetrics(systemName, registry)
-    new HdfsSystemProducer(systemName, clientId, config, metrics)
+    val clock = config.getMetricsTimerClock
+    new HdfsSystemProducer(systemName, clientId, config, metrics, clock)
   }
 
   def getAdmin(systemName: String, config: Config) = {

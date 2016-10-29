@@ -18,7 +18,10 @@
  */
 
 package org.apache.samza.config
-import scala.collection.JavaConversions._
+
+
+import org.apache.samza.util.TimerClock
+
 
 object MetricsConfig {
   // metrics config constants
@@ -26,6 +29,7 @@ object MetricsConfig {
   val METRICS_REPORTER_FACTORY = "metrics.reporter.%s.class"
   val METRICS_SNAPSHOT_REPORTER_STREAM = "metrics.reporter.%s.stream"
   val METRICS_SNAPSHOT_REPORTER_INTERVAL= "metrics.reporter.%s.interval"
+  val METRICS_TIMER_ENABLED= "metrics.timer.enabled"
 
   implicit def Config2Metrics(config: Config) = new MetricsConfig(config)
 }
@@ -51,6 +55,19 @@ class MetricsConfig(config: Config) extends ScalaMapConfig(config) {
         List[String]()
       }
       case _ => List[String]()
+    }
+  }
+
+  def getMetricsTimerClock: TimerClock = {
+    if (getBoolean(MetricsConfig.METRICS_TIMER_ENABLED, true)) {
+      return new TimerClock {
+        override def nanoTime(): Long = System.nanoTime()
+      }
+    }
+    else {
+      return new TimerClock {
+        override def nanoTime(): Long = 0L
+      }
     }
   }
 }

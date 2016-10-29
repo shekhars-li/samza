@@ -408,4 +408,6 @@ object Util extends Logging {
       case _ => config
     }
   }
+
+  implicit def asScalaClock(c: TimerClock): () => Long = () => c.nanoTime()
 }

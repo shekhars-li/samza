@@ -39,6 +39,7 @@ import org.apache.samza.container.SamzaContainerMetrics;
 import org.apache.samza.container.TaskInstance;
 import org.apache.samza.container.TaskInstanceMetrics;
 import org.apache.samza.container.TaskName;
+import org.apache.samza.util.TimerClock;
 import org.apache.samza.system.IncomingMessageEnvelope;
 import org.apache.samza.system.SystemConsumers;
 import org.apache.samza.system.SystemStreamPartition;
@@ -55,7 +56,7 @@ import scala.collection.JavaConversions;
 public class AsyncRunLoop implements Runnable, Throttleable {
   private static final Logger log = LoggerFactory.getLogger(AsyncRunLoop.class);
 
-  private final Map<TaskName, AsyncTaskWorker> taskWorkers;
+  private final List<AsyncTaskWorker> taskWorkers;
   private final SystemConsumers consumerMultiplexer;
   private final Map<SystemStreamPartition, List<AsyncTaskWorker>> sspToTaskWorkerMapping;
 
@@ -72,6 +73,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
   private final ThrottlingScheduler callbackExecutor;
   private volatile boolean shutdownNow = false;
   private volatile Throwable throwable = null;
+  private final TimerClock clock;
 
   public AsyncRunLoop(Map<TaskName, TaskInstance<AsyncStreamTask>> taskInstances,
       ExecutorService threadPool,
@@ -81,7 +83,8 @@ public class AsyncRunLoop implements Runnable, Throttleable {
       long commitMs,
       long callbackTimeoutMs,
       long maxThrottlingDelayMs,
-      SamzaContainerMetrics containerMetrics) {
+      SamzaContainerMetrics containerMetrics,
+      TimerClock clock) {
 
     this.threadPool = threadPool;
     this.consumerMultiplexer = consumerMultiplexer;
@@ -95,13 +98,14 @@ public class AsyncRunLoop implements Runnable, Throttleable {
     this.coordinatorRequests = new CoordinatorRequests(taskInstances.keySet());
     this.latch = new Object();
     this.workerTimer = Executors.newSingleThreadScheduledExecutor();
+    this.clock = clock;
     Map<TaskName, AsyncTaskWorker> workers = new HashMap<>();
     for (TaskInstance<AsyncStreamTask> task : taskInstances.values()) {
       workers.put(task.taskName(), new AsyncTaskWorker(task));
     }
     // Partions and tasks assigned to the container will not change during the run loop life time
-    this.taskWorkers = Collections.unmodifiableMap(workers);
-    this.sspToTaskWorkerMapping = Collections.unmodifiableMap(getSspToAsyncTaskWorkerMap(taskInstances, taskWorkers));
+    this.sspToTaskWorkerMapping = Collections.unmodifiableMap(getSspToAsyncTaskWorkerMap(taskInstances, workers));
+    this.taskWorkers = Collections.unmodifiableList(new ArrayList<>(workers.values()));
   }
 
   /**
@@ -130,11 +134,11 @@ public class AsyncRunLoop implements Runnable, Throttleable {
   @Override
   public void run() {
     try {
-      for (AsyncTaskWorker taskWorker : taskWorkers.values()) {
+      for (AsyncTaskWorker taskWorker : taskWorkers) {
         taskWorker.init();
       }
 
-      long prevNs = System.nanoTime();
+      long prevNs = clock.nanoTime();
 
       while (!shutdownNow) {
         if (throwable != null) {
@@ -142,25 +146,28 @@ public class AsyncRunLoop implements Runnable, Throttleable {
           throw new SamzaException(throwable);
         }
 
-        long startNs = System.nanoTime();
+        long startNs = clock.nanoTime();
 
         IncomingMessageEnvelope envelope = chooseEnvelope();
-        long chooseNs = System.nanoTime();
+        long chooseNs = clock.nanoTime();
 
         containerMetrics.chooseNs().update(chooseNs - startNs);
 
         runTasks(envelope);
 
-        long blockNs = System.nanoTime();
+        long blockNs = clock.nanoTime();
 
         blockIfBusy(envelope);
 
-        long currentNs = System.nanoTime();
+        long currentNs = clock.nanoTime();
         long activeNs = blockNs - chooseNs;
         long totalNs = currentNs - prevNs;
         prevNs = currentNs;
         containerMetrics.blockNs().update(currentNs - blockNs);
-        containerMetrics.utilization().set(((double) activeNs) / totalNs);
+
+        if (totalNs != 0) {
+          containerMetrics.utilization().set(((double) activeNs) / totalNs);
+        }
       }
     } finally {
       workerTimer.shutdown();
@@ -206,7 +213,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
   /**
    * Insert the envelope into the task pending queues and run all the tasks
    */
-  private void runTasks(IncomingMessageEnvelope envelope) {
+  public void runTasks(IncomingMessageEnvelope envelope) {
     if (envelope != null) {
       PendingEnvelope pendingEnvelope = new PendingEnvelope(envelope);
       for (AsyncTaskWorker worker : sspToTaskWorkerMapping.get(envelope.getSystemStreamPartition())) {
@@ -214,7 +221,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
       }
     }
 
-    for (AsyncTaskWorker worker: taskWorkers.values()) {
+    for (AsyncTaskWorker worker: taskWorkers) {
       worker.run();
     }
   }
@@ -224,10 +231,10 @@ public class AsyncRunLoop implements Runnable, Throttleable {
    * Block the runloop thread if all tasks are busy. When a task worker finishes or window/commit completes,
    * it will resume the runloop.
    */
-  private void blockIfBusy(IncomingMessageEnvelope envelope) {
+  public void blockIfBusy(IncomingMessageEnvelope envelope) {
     synchronized (latch) {
       while (!shutdownNow && throwable == null) {
-        for (AsyncTaskWorker worker : taskWorkers.values()) {
+        for (AsyncTaskWorker worker : taskWorkers) {
           if (worker.state.isReady()) {
             // should continue running if any worker state is ready
             // consumerMultiplexer will block on polling for empty partitions so it won't cause busy loop
@@ -310,7 +317,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
 
     AsyncTaskWorker(TaskInstance<AsyncStreamTask> task) {
       this.task = task;
-      this.callbackManager = new TaskCallbackManager(this, task.metrics(), callbackTimer, callbackTimeoutMs);
+      this.callbackManager = new TaskCallbackManager(this, callbackTimer, callbackTimeoutMs, maxConcurrency, clock);
       Set<SystemStreamPartition> sspSet = getWorkingSSPSet(task);
       this.state = new AsyncTaskState(task.taskName(), task.metrics(), sspSet);
     }
@@ -430,9 +437,9 @@ public class AsyncRunLoop implements Runnable, Throttleable {
             containerMetrics.windows().inc();
 
             ReadableCoordinator coordinator = new ReadableCoordinator(task.taskName());
-            long startTime = System.nanoTime();
+            long startTime = clock.nanoTime();
             task.window(coordinator);
-            containerMetrics.windowNs().update(System.nanoTime() - startTime);
+            containerMetrics.windowNs().update(clock.nanoTime() - startTime);
             coordinatorRequests.update(coordinator);
 
             state.doneWindowOrCommit();
@@ -466,9 +473,9 @@ public class AsyncRunLoop implements Runnable, Throttleable {
           try {
             containerMetrics.commits().inc();
 
-            long startTime = System.nanoTime();
+            long startTime = clock.nanoTime();
             task.commit();
-            containerMetrics.commitNs().update(System.nanoTime() - startTime);
+            containerMetrics.commitNs().update(clock.nanoTime() - startTime);
 
             state.doneWindowOrCommit();
           } catch (Throwable t) {
@@ -497,17 +504,17 @@ public class AsyncRunLoop implements Runnable, Throttleable {
      */
     @Override
     public void onComplete(final TaskCallback callback) {
-      long workNanos = System.nanoTime() - ((TaskCallbackImpl) callback).timeCreatedNs;
+      long workNanos = clock.nanoTime() - ((TaskCallbackImpl) callback).timeCreatedNs;
       callbackExecutor.schedule(new Runnable() {
         @Override
         public void run() {
           try {
             state.doneProcess();
             TaskCallbackImpl callbackImpl = (TaskCallbackImpl) callback;
-            containerMetrics.processNs().update(System.nanoTime() - callbackImpl.timeCreatedNs);
+            containerMetrics.processNs().update(clock.nanoTime() - callbackImpl.timeCreatedNs);
             log.trace("Got callback complete for task {}, ssp {}", callbackImpl.taskName, callbackImpl.envelope.getSystemStreamPartition());
 
-            TaskCallbackImpl callbackToUpdate = callbackManager.updateCallback(callbackImpl, true);
+            TaskCallbackImpl callbackToUpdate = callbackManager.updateCallback(callbackImpl);
             if (callbackToUpdate != null) {
               IncomingMessageEnvelope envelope = callbackToUpdate.envelope;
               log.trace("Update offset for ssp {}, offset {}", envelope.getSystemStreamPartition(), envelope.getOffset());
@@ -540,7 +547,6 @@ public class AsyncRunLoop implements Runnable, Throttleable {
         abort(t);
         // update pending count, but not offset
         TaskCallbackImpl callbackImpl = (TaskCallbackImpl) callback;
-        callbackManager.updateCallback(callbackImpl, false);
         log.error("Got callback failure for task {}", callbackImpl.taskName);
       } catch (Throwable e) {
         log.error(e.getMessage(), e);
@@ -579,9 +585,8 @@ public class AsyncRunLoop implements Runnable, Throttleable {
 
 
     private boolean checkEndOfStream() {
-      PendingEnvelope pendingEnvelope = pendingEnvelopQueue.peek();
-
-      if (pendingEnvelope != null) {
+      if (pendingEnvelopQueue.size() == 1) {
+        PendingEnvelope pendingEnvelope = pendingEnvelopQueue.peek();
         IncomingMessageEnvelope envelope = pendingEnvelope.envelope;
 
         if (envelope.isEndOfStream()) {
@@ -597,8 +602,13 @@ public class AsyncRunLoop implements Runnable, Throttleable {
      * Returns whether the task is ready to do process/window/commit.
      */
     private boolean isReady() {
-      endOfStream |= checkEndOfStream();
-      needCommit |= coordinatorRequests.commitRequests().remove(taskName);
+      if (checkEndOfStream()) {
+        endOfStream = true;
+      }
+      if (coordinatorRequests.commitRequests().remove(taskName)) {
+        needCommit = true;
+      }
+
       if (needWindow || needCommit || endOfStream) {
         // ready for window or commit only when no messages are in progress and
         // no window/commit in flight
@@ -645,7 +655,8 @@ public class AsyncRunLoop implements Runnable, Throttleable {
     }
 
     private void startProcess() {
-      messagesInFlight.incrementAndGet();
+      int count = messagesInFlight.incrementAndGet();
+      taskMetrics.messagesInFlight().set(count);
     }
 
     private void doneWindowOrCommit() {
@@ -653,7 +664,8 @@ public class AsyncRunLoop implements Runnable, Throttleable {
     }
 
     private void doneProcess() {
-      messagesInFlight.decrementAndGet();
+      int count = messagesInFlight.decrementAndGet();
+      taskMetrics.messagesInFlight().set(count);
     }
 
     /**
@@ -691,7 +703,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
       if (pendingEnvelope.markProcessed()) {
         SystemStreamPartition partition = pendingEnvelope.envelope.getSystemStreamPartition();
         consumerMultiplexer.tryUpdate(partition);
-        log.debug("Update chooser for " + partition);
+        log.debug("Update chooser for {}", partition);
       }
       return pendingEnvelope.envelope;
     }

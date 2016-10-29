@@ -43,17 +43,4 @@ public class Utils {
       }
     };
   }
-
-  /**
-   * Creates a nanosecond clock using default system nanotime
-   * @return object invokes the system clock
-   */
-  public static AbstractFunction0<Object> defaultClock() {
-    return new AbstractFunction0<Object>() {
-      @Override
-      public Object apply() {
-        return System.nanoTime();
-      }
-    };
-  }
 }
