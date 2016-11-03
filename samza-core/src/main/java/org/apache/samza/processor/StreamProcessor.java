@@ -18,6 +18,7 @@
  */
 package org.apache.samza.processor;
 
+import com.google.common.base.Strings;
 import org.apache.samza.config.ClusterManagerConfig;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigException;
@@ -30,6 +31,8 @@ import org.apache.samza.coordinator.JobCoordinator;
 import org.apache.samza.coordinator.JobCoordinatorFactory;
 import org.apache.samza.metrics.JmxServer;
 import org.apache.samza.metrics.MetricsReporter;
+import org.apache.samza.task.AsyncStreamTaskFactory;
+import org.apache.samza.task.StreamTaskFactory;
 import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,27 +87,54 @@ public class StreamProcessor {
   private Future containerFuture;
   private final LocalityManager localityManager;
   private final JobCoordinator jobCoordinator;
+  private final Object taskFactory;
   private final long containerShutdownMs;
 
   private volatile SamzaContainer container;
+
   /**
    * Create an instance of StreamProcessor that encapsulates a JobCoordinator and Samza Container
    *
    * JobCoordinator controls how the various StreamProcessor instances belonging to a job coordinate. It is also
    * responsible generating and updating JobModel.
    * When StreamProcessor starts, it starts the JobCoordinator and brings up a SamzaContainer based on the JobModel.
-   * SamzaContainer is executed using the ExecutorService. <br />
+   * SamzaContainer is executed using an ExecutorService. <br />
    *
    * <b>Note:</b> Lifecycle of the ExecutorService is fully managed by the StreamProcessor, and NOT exposed to the user
    *
-   * @param processorId Unique identifier for a processor within the same JVM. It has the same semantics as
+   * @param processorId Unique identifier for a processor within the job. It has the same semantics as
    *                    "containerId" in Samza
    * @param config Instance of config object - contains all configuration required for processing
    * @param customMetricsReporters Map of custom MetricReporter instances that are to be injected in the Samza job
+   * @param asyncStreamTaskFactory The {@link AsyncStreamTaskFactory} to be used for creating task instances.
+   */
+  public StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters,
+      AsyncStreamTaskFactory asyncStreamTaskFactory) {
+    this(processorId, config, customMetricsReporters, (Object) asyncStreamTaskFactory);
+  }
+
+  /**
+   * Same as {@link #StreamProcessor(int, Config, Map, AsyncStreamTaskFactory)}, except task instances are created
+   * using the provided {@link StreamTaskFactory}.
+   */
+  public StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters,
+      StreamTaskFactory streamTaskFactory) {
+    this(processorId, config, customMetricsReporters, (Object) streamTaskFactory);
+  }
+
+  /**
+   * Same as {@link #StreamProcessor(int, Config, Map, AsyncStreamTaskFactory)}, except task instances are created
+   * using the "task.class" configuration instead of a task factory.
    */
   public StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters) {
+    this(processorId, config, customMetricsReporters, (Object) null);
+  }
+
+  private StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters,
+      Object taskFactory) {
     this.executorService = Executors.newSingleThreadExecutor();
     this.processorId = processorId;
+    this.taskFactory = taskFactory;
 
     Map<String, String> updatedConfigMap = new HashMap<>();
     updatedConfigMap.putAll(config);
@@ -128,7 +158,8 @@ public class StreamProcessor {
   }
 
   private JobCoordinatorFactory getJobCoordinatorFactory(Config config) {
-    if (config.get(JOB_COORDINATOR_FACTORY) == null) {
+    String jobCoordinatorFactory = config.get(JOB_COORDINATOR_FACTORY);
+    if (Strings.isNullOrEmpty(jobCoordinatorFactory)) {
       throw new ConfigException(
           String.format("Missing config - %s. Cannot start StreamProcessor!", JOB_COORDINATOR_FACTORY));
     }
@@ -146,12 +177,15 @@ public class StreamProcessor {
   public void start() {
     jobCoordinator.start();
 
+    // container is constructed here instead of the constructor since the job model is
+    // only available after jobCoordinator.start()
     container = SamzaContainer$.MODULE$.apply(
         this.processorId,
         jobCoordinator.getJobModel(),
         localityManager,
         new JmxServer(),
-        Util.<String, MetricsReporter>javaMapAsScalaMap(customMetricsReporters));
+        Util.javaMapAsScalaMap(customMetricsReporters),
+        this.taskFactory);
 
     runContainer();
   }
@@ -184,12 +218,7 @@ public class StreamProcessor {
   }
 
   private void runContainer() {
-    containerFuture = executorService.submit(new Runnable() {
-      @Override
-      public void run() {
-        container.run();
-      }
-    });
+    containerFuture = executorService.submit(() -> container.run());
   }
 
   private void stopContainer() {

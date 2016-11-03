@@ -34,7 +34,6 @@ import org.apache.samza.serializers.SerdeManager
 import org.apache.samza.system.SystemStreamMetadata.SystemStreamPartitionMetadata
 import org.apache.samza.system.chooser.DefaultChooser
 import org.apache.samza.task.AsyncRunLoop
-import org.apache.samza.task.AsyncStreamTask
 import org.apache.samza.task.AsyncStreamTaskAdapter
 import org.apache.samza.task.MessageCollector
 import org.apache.samza.task.StreamTask
@@ -175,7 +174,7 @@ class TestSystemConsumersPerformance {
 
     val tasks = ssps.map{ ssp =>
       val taskName = new TaskName(ssp.getPartition.toString)
-      val taskInstance = new TaskInstance[AsyncStreamTask](
+      val taskInstance = new TaskInstance(
         task = new AsyncStreamTaskAdapter(new CountingTask, null),
         taskName = new TaskName(ssp.getPartition.toString),
         config = config,
