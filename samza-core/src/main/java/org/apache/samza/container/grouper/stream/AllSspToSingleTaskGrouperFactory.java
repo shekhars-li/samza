@@ -21,9 +21,10 @@ package org.apache.samza.container.grouper.stream;
 import org.apache.samza.config.Config;
 
 public class AllSspToSingleTaskGrouperFactory implements SystemStreamPartitionGrouperFactory {
+  private static final String PROCESSOR_ID = "processor.id";
 
   @Override
   public SystemStreamPartitionGrouper getSystemStreamPartitionGrouper(Config config) {
-    return new AllSspToSingleTaskGrouper();
+    return new AllSspToSingleTaskGrouper(config.getInt(PROCESSOR_ID));
   }
 }

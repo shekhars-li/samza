@@ -31,10 +31,17 @@ import java.util.Set;
  * This is useful, in case of using load-balanced consumers like the new Kafka consumer, Samza doesn't control the
  * partitions being consumed by a task. Hence, it is assumed that there is only 1 task that processes all messages,
  * irrespective of which partition it belongs to.
+ * This also implies that container and tasks are synonymous when this grouper is used. Taskname(s) has to be globally
+ * unique within a given job.
  *
  * Note: This grouper does not take in broadcast streams yet.
  */
 public class AllSspToSingleTaskGrouper implements SystemStreamPartitionGrouper {
+  private final int containerId;
+
+  public AllSspToSingleTaskGrouper(int containerId) {
+    this.containerId = containerId;
+  }
 
   @Override
   public Map<TaskName, Set<SystemStreamPartition>> group(final Set<SystemStreamPartition> ssps) {
@@ -45,7 +52,7 @@ public class AllSspToSingleTaskGrouper implements SystemStreamPartitionGrouper {
       throw new SamzaException("Cannot process stream task with no input system stream partitions");
     }
     
-    final TaskName taskName = new TaskName("SingletonTask");
+    final TaskName taskName = new TaskName(String.format("Task-%s", String.valueOf(containerId)));
 
     return Collections.singletonMap(taskName, ssps);
   }
