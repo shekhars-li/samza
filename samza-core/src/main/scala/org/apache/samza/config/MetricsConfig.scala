@@ -20,7 +20,7 @@
 package org.apache.samza.config
 
 
-import org.apache.samza.util.TimerClock
+import org.apache.samza.util.HighResolutionClock
 
 
 object MetricsConfig {
@@ -58,16 +58,9 @@ class MetricsConfig(config: Config) extends ScalaMapConfig(config) {
     }
   }
 
-  def getMetricsTimerClock: TimerClock = {
-    if (getBoolean(MetricsConfig.METRICS_TIMER_ENABLED, true)) {
-      return new TimerClock {
-        override def nanoTime(): Long = System.nanoTime()
-      }
-    }
-    else {
-      return new TimerClock {
-        override def nanoTime(): Long = 0L
-      }
-    }
-  }
+  /**
+   * Returns the flag to turn on/off the timer metrics.
+   * @return Boolean flag to enable the timer metrics
+   */
+  def getMetricsTimerEnabled: Boolean = getBoolean(MetricsConfig.METRICS_TIMER_ENABLED, true)
 }

@@ -19,19 +19,19 @@
 
 package org.apache.samza.container;
 
+import java.util.concurrent.ExecutorService;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.TaskConfig;
-import org.apache.samza.util.TimerClock;
+import org.apache.samza.util.HighResolutionClock;
 import org.apache.samza.system.SystemConsumers;
 import org.apache.samza.task.AsyncRunLoop;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConversions;
 import scala.collection.immutable.Map;
+import scala.runtime.AbstractFunction0;
 import scala.runtime.AbstractFunction1;
-import java.util.concurrent.ExecutorService;
 
-import static org.apache.samza.util.Utils.defaultValue;
 import static org.apache.samza.util.Util.asScalaClock;
 
 /**
@@ -51,7 +51,7 @@ public class RunLoopFactory {
       long maxThrottlingDelayMs,
       SamzaContainerMetrics containerMetrics,
       TaskConfig config,
-      TimerClock clock) {
+      HighResolutionClock clock) {
 
     long taskWindowMs = config.getWindowMs().getOrElse(defaultValue(DEFAULT_WINDOW_MS));
 
@@ -107,5 +107,20 @@ public class RunLoopFactory {
         containerMetrics,
         clock);
     }
+  }
+
+  /**
+   * Returns a default value object for scala option.getOrDefault() to use
+   * @param value default value
+   * @param <T> value type
+   * @return object containing default value
+   */
+  public static <T> AbstractFunction0<T> defaultValue(final T value) {
+    return new AbstractFunction0<T>() {
+      @Override
+      public T apply() {
+        return value;
+      }
+    };
   }
 }

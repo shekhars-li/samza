@@ -409,5 +409,5 @@ object Util extends Logging {
     }
   }
 
-  implicit def asScalaClock(c: TimerClock): () => Long = () => c.nanoTime()
+  implicit def asScalaClock(c: HighResolutionClock): () => Long = () => c.nanoTime()
 }

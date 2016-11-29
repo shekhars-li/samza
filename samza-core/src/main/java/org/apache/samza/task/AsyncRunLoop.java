@@ -39,7 +39,7 @@ import org.apache.samza.container.SamzaContainerMetrics;
 import org.apache.samza.container.TaskInstance;
 import org.apache.samza.container.TaskInstanceMetrics;
 import org.apache.samza.container.TaskName;
-import org.apache.samza.util.TimerClock;
+import org.apache.samza.util.HighResolutionClock;
 import org.apache.samza.system.IncomingMessageEnvelope;
 import org.apache.samza.system.SystemConsumers;
 import org.apache.samza.system.SystemStreamPartition;
@@ -73,7 +73,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
   private final ThrottlingScheduler callbackExecutor;
   private volatile boolean shutdownNow = false;
   private volatile Throwable throwable = null;
-  private final TimerClock clock;
+  private final HighResolutionClock clock;
 
   public AsyncRunLoop(Map<TaskName, TaskInstance> taskInstances,
       ExecutorService threadPool,
@@ -84,7 +84,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
       long callbackTimeoutMs,
       long maxThrottlingDelayMs,
       SamzaContainerMetrics containerMetrics,
-      TimerClock clock) {
+      HighResolutionClock clock) {
 
     this.threadPool = threadPool;
     this.consumerMultiplexer = consumerMultiplexer;
@@ -117,7 +117,9 @@ public class AsyncRunLoop implements Runnable, Throttleable {
     for (TaskInstance task : taskInstances.values()) {
       Set<SystemStreamPartition> ssps = JavaConversions.asJavaSet(task.systemStreamPartitions());
       for (SystemStreamPartition ssp : ssps) {
-        sspToWorkerMap.putIfAbsent(ssp, new ArrayList<>());
+        if (sspToWorkerMap.get(ssp) == null) {
+          sspToWorkerMap.put(ssp, new ArrayList<AsyncTaskWorker>());
+        }
         sspToWorkerMap.get(ssp).add(taskWorkers.get(task.taskName()));
       }
     }
@@ -164,6 +166,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
         containerMetrics.blockNs().update(currentNs - blockNs);
 
         if (totalNs != 0) {
+          // totalNs is not 0 if timer metrics are enabled
           containerMetrics.utilization().set(((double) activeNs) / totalNs);
         }
       }
@@ -199,8 +202,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
   private IncomingMessageEnvelope chooseEnvelope() {
     IncomingMessageEnvelope envelope = consumerMultiplexer.choose(false);
     if (envelope != null) {
-      log.trace("Choose envelope ssp {} offset {} for processing",
-          envelope.getSystemStreamPartition(), envelope.getOffset());
+      log.trace("Choose envelope ssp {} offset {} for processing", envelope.getSystemStreamPartition(), envelope.getOffset());
       containerMetrics.envelopes().inc();
     } else {
       log.trace("No envelope is available");
@@ -212,7 +214,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
   /**
    * Insert the envelope into the task pending queues and run all the tasks
    */
-  public void runTasks(IncomingMessageEnvelope envelope) {
+  private void runTasks(IncomingMessageEnvelope envelope) {
     if (envelope != null) {
       PendingEnvelope pendingEnvelope = new PendingEnvelope(envelope);
       for (AsyncTaskWorker worker : sspToTaskWorkerMapping.get(envelope.getSystemStreamPartition())) {
@@ -230,7 +232,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
    * Block the runloop thread if all tasks are busy. When a task worker finishes or window/commit completes,
    * it will resume the runloop.
    */
-  public void blockIfBusy(IncomingMessageEnvelope envelope) {
+  private void blockIfBusy(IncomingMessageEnvelope envelope) {
     synchronized (latch) {
       while (!shutdownNow && throwable == null) {
         for (AsyncTaskWorker worker : taskWorkers) {
@@ -356,9 +358,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
       Set<SystemStreamPartition> allPartitions = new HashSet<>(JavaConversions.asJavaSet(task.systemStreamPartitions()));
 
       // filter only those SSPs that are not at end of stream.
-      Set<SystemStreamPartition> workingSSPSet = allPartitions.stream()
-          .filter(ssp -> !consumerMultiplexer.isEndOfStream(ssp))
-          .collect(Collectors.toSet());
+      Set<SystemStreamPartition> workingSSPSet = allPartitions.stream().filter(ssp -> !consumerMultiplexer.isEndOfStream(ssp)).collect(Collectors.toSet());
       return workingSSPSet;
     }
 
@@ -513,18 +513,15 @@ public class AsyncRunLoop implements Runnable, Throttleable {
             state.doneProcess();
             TaskCallbackImpl callbackImpl = (TaskCallbackImpl) callback;
             containerMetrics.processNs().update(clock.nanoTime() - callbackImpl.timeCreatedNs);
-            log.trace("Got callback complete for task {}, ssp {}",
-                callbackImpl.taskName, callbackImpl.envelope.getSystemStreamPartition());
+            log.trace("Got callback complete for task {}, ssp {}", callbackImpl.taskName, callbackImpl.envelope.getSystemStreamPartition());
 
             TaskCallbackImpl callbackToUpdate = callbackManager.updateCallback(callbackImpl);
             if (callbackToUpdate != null) {
               IncomingMessageEnvelope envelope = callbackToUpdate.envelope;
-              log.trace("Update offset for ssp {}, offset {}",
-                  envelope.getSystemStreamPartition(), envelope.getOffset());
+              log.trace("Update offset for ssp {}, offset {}", envelope.getSystemStreamPartition(), envelope.getOffset());
 
               // update offset
-              task.offsetManager().update(task.taskName(),
-                  envelope.getSystemStreamPartition(), envelope.getOffset());
+              task.offsetManager().update(task.taskName(), envelope.getSystemStreamPartition(), envelope.getOffset());
 
               // update coordinator
               coordinatorRequests.update(callbackToUpdate.coordinator);
@@ -574,7 +571,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
     private volatile boolean endOfStream = false;
     private volatile boolean windowOrCommitInFlight = false;
     private final AtomicInteger messagesInFlight = new AtomicInteger(0);
-    private final ArrayDeque<PendingEnvelope> pendingEnvelopQueue;
+    private final ArrayDeque<PendingEnvelope> pendingEnvelopeQueue;
     //Set of SSPs that we are currently processing for this task instance
     private final Set<SystemStreamPartition> processingSspSet;
     private final TaskName taskName;
@@ -583,20 +580,20 @@ public class AsyncRunLoop implements Runnable, Throttleable {
     AsyncTaskState(TaskName taskName, TaskInstanceMetrics taskMetrics, Set<SystemStreamPartition> sspSet) {
       this.taskName = taskName;
       this.taskMetrics = taskMetrics;
-      this.pendingEnvelopQueue = new ArrayDeque<>();
+      this.pendingEnvelopeQueue = new ArrayDeque<>();
       this.processingSspSet = sspSet;
     }
 
 
     private boolean checkEndOfStream() {
-      if (pendingEnvelopQueue.size() == 1) {
-        PendingEnvelope pendingEnvelope = pendingEnvelopQueue.peek();
+      if (pendingEnvelopeQueue.size() == 1) {
+        PendingEnvelope pendingEnvelope = pendingEnvelopeQueue.peek();
         IncomingMessageEnvelope envelope = pendingEnvelope.envelope;
 
         if (envelope.isEndOfStream()) {
           SystemStreamPartition ssp = envelope.getSystemStreamPartition();
           processingSspSet.remove(ssp);
-          pendingEnvelopQueue.remove();
+          pendingEnvelopeQueue.remove();
         }
       }
       return processingSspSet.isEmpty();
@@ -635,7 +632,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
         if (needCommit) return WorkerOp.COMMIT;
         else if (needWindow) return WorkerOp.WINDOW;
         else if (endOfStream) return WorkerOp.END_OF_STREAM;
-        else if (!pendingEnvelopQueue.isEmpty()) return WorkerOp.PROCESS;
+        else if (!pendingEnvelopeQueue.isEmpty()) return WorkerOp.PROCESS;
       }
       return WorkerOp.NO_OP;
     }
@@ -678,8 +675,8 @@ public class AsyncRunLoop implements Runnable, Throttleable {
      * @param pendingEnvelope
      */
     private void insertEnvelope(PendingEnvelope pendingEnvelope) {
-      pendingEnvelopQueue.add(pendingEnvelope);
-      int queueSize = pendingEnvelopQueue.size();
+      pendingEnvelopeQueue.add(pendingEnvelope);
+      int queueSize = pendingEnvelopeQueue.size();
       taskMetrics.pendingMessages().set(queueSize);
       log.trace("Insert envelope to task {} queue.", taskName);
       log.debug("Task {} pending envelope count is {} after insertion.", taskName, queueSize);
@@ -698,11 +695,10 @@ public class AsyncRunLoop implements Runnable, Throttleable {
      * @return
      */
     private IncomingMessageEnvelope fetchEnvelope() {
-      PendingEnvelope pendingEnvelope = pendingEnvelopQueue.remove();
-      int queueSize = pendingEnvelopQueue.size();
+      PendingEnvelope pendingEnvelope = pendingEnvelopeQueue.remove();
+      int queueSize = pendingEnvelopeQueue.size();
       taskMetrics.pendingMessages().set(queueSize);
-      log.trace("fetch envelope ssp {} offset {} to process.",
-          pendingEnvelope.envelope.getSystemStreamPartition(), pendingEnvelope.envelope.getOffset());
+      log.trace("fetch envelope ssp {} offset {} to process.", pendingEnvelope.envelope.getSystemStreamPartition(), pendingEnvelope.envelope.getOffset());
       log.debug("Task {} pending envelopes count is {} after fetching.", taskName, queueSize);
 
       if (pendingEnvelope.markProcessed()) {

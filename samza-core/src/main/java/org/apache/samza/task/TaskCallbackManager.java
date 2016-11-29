@@ -24,11 +24,9 @@ import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.samza.container.TaskInstanceMetrics;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.system.IncomingMessageEnvelope;
-import org.apache.samza.util.TimerClock;
+import org.apache.samza.util.HighResolutionClock;
 
 
 /**
@@ -87,14 +85,18 @@ class TaskCallbackManager {
   }
 
   private long seqNum = 0L;
-  private final TaskCallbacks completeCallbacks = new TaskCallbacks();
+  private final TaskCallbacks completedCallbacks = new TaskCallbacks();
   private final ScheduledExecutorService timer;
   private final TaskCallbackListener listener;
   private final long timeout;
   private final int maxConcurrency;
-  private final TimerClock clock;
+  private final HighResolutionClock clock;
 
-  public TaskCallbackManager(TaskCallbackListener listener, ScheduledExecutorService timer, long timeout, int maxConcurrency, TimerClock clock) {
+  public TaskCallbackManager(TaskCallbackListener listener,
+      ScheduledExecutorService timer,
+      long timeout,
+      int maxConcurrency,
+      HighResolutionClock clock) {
     this.listener = listener;
     this.timer = timer;
     this.timeout = timeout;
@@ -129,8 +131,8 @@ class TaskCallbackManager {
    */
   public TaskCallbackImpl updateCallback(TaskCallbackImpl callback) {
     if (maxConcurrency > 1) {
-      // handle the out-of-order case when max concurrency is larger than 1
-      return completeCallbacks.update(callback);
+      // Use the completedCallbacks queue to handle the out-of-order case when max concurrency is larger than 1
+      return completedCallbacks.update(callback);
     } else {
       return callback;
     }

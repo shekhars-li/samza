@@ -19,10 +19,7 @@
 
 package org.apache.samza.task;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
-
 import java.util.concurrent.CopyOnWriteArraySet;
 import org.apache.samza.container.TaskName;
 import org.slf4j.Logger;
@@ -79,7 +76,7 @@ public class CoordinatorRequests {
 
     if (coordinator.requestedShutdownOnConsensus()) {
       taskShutdownRequests.add(coordinator.taskName());
-      log.debug("Shutdown has now been requested by tasks {}", taskShutdownRequests);
+      log.info("Shutdown has now been requested by tasks {}", taskShutdownRequests);
     }
 
     if (coordinator.requestedShutdownNow() || taskShutdownRequests.size() == taskNames.size()) {

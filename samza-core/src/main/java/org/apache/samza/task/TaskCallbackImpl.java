@@ -23,7 +23,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.system.IncomingMessageEnvelope;
-import org.apache.samza.util.TimerClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

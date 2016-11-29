@@ -48,7 +48,6 @@ import org.apache.samza.system.SystemConsumers;
 import org.apache.samza.system.SystemStreamPartition;
 import org.apache.samza.system.TestSystemConsumers;
 
-import org.apache.samza.util.TimerClock;
 import org.junit.Before;
 import org.junit.Test;
 import scala.Option;
