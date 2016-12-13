@@ -706,6 +706,8 @@ class SamzaContainer(
   lifeCycleListener: SamzaContainerLifeCycleListener = new DefaultLifeCycleListener) extends Runnable with Logging {
 
   val shutdownMs = containerContext.config.getShutdownMs.getOrElse(5000L)
+  var shutdownHookThread: Thread = null
+
   private val runLoopStartLatch: CountDownLatch = new CountDownLatch(1)
 
   def awaitStart(timeoutMs: Long): Boolean = {
@@ -757,6 +759,7 @@ class SamzaContainer(
       shutdownOffsetManager
       shutdownMetrics
       shutdownSecurityManger
+      removeShutdownHook
 
       lifeCycleListener.afterShutdown()
       info("Shutdown complete.")
@@ -886,7 +889,7 @@ class SamzaContainer(
 
   def addShutdownHook {
     val runLoopThread = Thread.currentThread()
-    Runtime.getRuntime().addShutdownHook(new Thread() {
+    shutdownHookThread = new Thread() {
       override def run() = {
         info("Shutting down, will wait up to %s ms" format shutdownMs)
         runLoop match {
@@ -900,7 +903,19 @@ class SamzaContainer(
           info("Shutdown complete")
         }
       }
-    })
+    }
+    Runtime.getRuntime.addShutdownHook(shutdownHookThread)
+  }
+
+  def removeShutdownHook = {
+    try {
+      Runtime.getRuntime.removeShutdownHook(shutdownHookThread)
+    } catch {
+      case e: IllegalStateException => {
+        // When samza is shutdown by external command, IllegalStationException will be thrown.
+        // And it's expected.
+      }
+    }
   }
 
   def shutdownConsumers {
