@@ -23,7 +23,6 @@ import java.util.Properties
 import java.util.concurrent.atomic.AtomicLong
 import kafka.admin.AdminUtils
 import kafka.utils.ZkUtils
-import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.{Producer, ProducerRecord}
 import org.apache.kafka.common.PartitionInfo
 import org.apache.samza.config.Config
@@ -87,7 +86,7 @@ object KafkaUtil extends Logging {
 }
 
 class KafkaUtil(val retryBackoff: ExponentialSleepStrategy = new ExponentialSleepStrategy,
-                val connectZk: () => ZkClient) extends Logging {
+                val connectZk: () => ZkUtils) extends Logging {
   /**
    * Common code for creating a topic in Kafka
    *
@@ -103,7 +102,7 @@ class KafkaUtil(val retryBackoff: ExponentialSleepStrategy = new ExponentialSlee
         val zkClient = connectZk()
         try {
           AdminUtils.createTopic(
-            ZkUtils.apply(zkClient,false),
+            zkClient,
             topicName,
             partitionCount,
             replicationFactor,
@@ -186,7 +185,7 @@ class KafkaUtil(val retryBackoff: ExponentialSleepStrategy = new ExponentialSlee
   def topicExists(topicName: String): Boolean = {
     val zkClient = connectZk()
     try {
-      AdminUtils.topicExists(ZkUtils.apply(zkClient,false), topicName)
+      AdminUtils.topicExists(zkClient, topicName)
     } finally {
       zkClient.close()
     }

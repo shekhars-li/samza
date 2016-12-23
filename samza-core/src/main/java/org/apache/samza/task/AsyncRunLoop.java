@@ -115,7 +115,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
       Map<TaskName, TaskInstance> taskInstances, Map<TaskName, AsyncTaskWorker> taskWorkers) {
     Map<SystemStreamPartition, List<AsyncTaskWorker>> sspToWorkerMap = new HashMap<>();
     for (TaskInstance task : taskInstances.values()) {
-      Set<SystemStreamPartition> ssps = JavaConversions.asJavaSet(task.systemStreamPartitions());
+      Set<SystemStreamPartition> ssps = JavaConversions.setAsJavaSet(task.systemStreamPartitions());
       for (SystemStreamPartition ssp : ssps) {
         if (sspToWorkerMap.get(ssp) == null) {
           sspToWorkerMap.put(ssp, new ArrayList<AsyncTaskWorker>());
@@ -313,7 +313,6 @@ public class AsyncRunLoop implements Runnable, Throttleable {
     private final TaskInstance task;
     private final TaskCallbackManager callbackManager;
     private volatile AsyncTaskState state;
-    private volatile boolean completed = false;
 
 
     AsyncTaskWorker(TaskInstance task) {
@@ -355,7 +354,7 @@ public class AsyncRunLoop implements Runnable, Throttleable {
      */
     private Set<SystemStreamPartition> getWorkingSSPSet(TaskInstance task) {
 
-      Set<SystemStreamPartition> allPartitions = new HashSet<>(JavaConversions.asJavaSet(task.systemStreamPartitions()));
+      Set<SystemStreamPartition> allPartitions = new HashSet<>(JavaConversions.setAsJavaSet(task.systemStreamPartitions()));
 
       // filter only those SSPs that are not at end of stream.
       Set<SystemStreamPartition> workingSSPSet = allPartitions.stream().filter(ssp -> !consumerMultiplexer.isEndOfStream(ssp)).collect(Collectors.toSet());

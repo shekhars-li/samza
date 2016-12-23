@@ -18,24 +18,26 @@
  */
 package org.apache.samza.operators.impl;
 
-import org.apache.samza.operators.internal.Operators.SinkOperator;
-import org.apache.samza.operators.MessageStream;
-import org.apache.samza.operators.data.Message;
+import org.apache.samza.operators.data.MessageEnvelope;
+import org.apache.samza.operators.functions.SinkFunction;
+import org.apache.samza.operators.spec.SinkOperatorSpec;
 import org.apache.samza.task.MessageCollector;
 import org.apache.samza.task.TaskCoordinator;
 
 
 /**
- * Implementation for {@link SinkOperator}
+ * Implementation for {@link SinkOperatorSpec}
  */
-public class SinkOperatorImpl<M extends Message> extends OperatorImpl<M, Message> {
-  private final MessageStream.VoidFunction3<M, MessageCollector, TaskCoordinator> sinkFunc;
+class SinkOperatorImpl<M extends MessageEnvelope> extends OperatorImpl<M, MessageEnvelope> {
 
-  SinkOperatorImpl(SinkOperator<M> sinkOp) {
-    this.sinkFunc = sinkOp.getFunction();
+  private final SinkFunction<M> sinkFn;
+
+  SinkOperatorImpl(SinkOperatorSpec<M> sinkOp) {
+    this.sinkFn = sinkOp.getSinkFn();
   }
 
-  @Override protected void onNext(M message, MessageCollector collector, TaskCoordinator coordinator) {
-    this.sinkFunc.apply(message, collector, coordinator);
+  @Override
+  public void onNext(M message, MessageCollector collector, TaskCoordinator coordinator) {
+    this.sinkFn.apply(message, collector, coordinator);
   }
 }

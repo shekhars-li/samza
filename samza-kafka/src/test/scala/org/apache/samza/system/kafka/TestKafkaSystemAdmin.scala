@@ -29,10 +29,11 @@ import kafka.api.FixedPortTestUtils
 import kafka.common.{ErrorMapping, LeaderNotAvailableException}
 import kafka.consumer.{Consumer, ConsumerConfig}
 import kafka.server.{KafkaConfig, KafkaServer}
-import kafka.utils.{CoreUtils, TestUtils, ZkUtils}
-import kafka.zk.EmbeddedZookeeper
-import org.I0Itec.zkclient.ZkClient
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import kafka.utils.{TestUtils, ZkUtils}
+import kafka.integration.KafkaServerTestHarness
+import org.apache.kafka.common.security.JaasUtils
+
 import org.apache.samza.Partition
 import org.apache.samza.config.KafkaProducerConfig
 import org.apache.samza.system.SystemStreamMetadata.SystemStreamPartitionMetadata
@@ -43,55 +44,56 @@ import org.junit._
 
 import scala.collection.JavaConversions._
 
-object TestKafkaSystemAdmin {
+
+object TestKafkaSystemAdmin extends KafkaServerTestHarness {
+
   val SYSTEM = "kafka"
   val TOPIC = "input"
   val TOPIC2 = "input2"
   val TOTAL_PARTITIONS = 50
   val REPLICATION_FACTOR = 2
+  val zkSecure = JaasUtils.isZkSecurityEnabled()
 
-  var zkConnect: String = null
-  var zkClient: ZkClient = null
-  val zkConnectionTimeout = 6000
-  val zkSessionTimeout = 6000
-  val brokerId1 = 0
-  val brokerId2 = 1
-  val brokerId3 = 2
-  val ports = FixedPortTestUtils.choosePorts(3)
-  val (port1, port2, port3) = (ports(0), ports(1), ports(2))
+  protected def numBrokers: Int = 3
 
-  val props1 = TestUtils.createBrokerConfig(brokerId1, zkConnect, port=port1)
-  val props2 = TestUtils.createBrokerConfig(brokerId2, zkConnect, port=port2)
-  val props3 = TestUtils.createBrokerConfig(brokerId3, zkConnect, port=port3)
-
-  val config = new util.HashMap[String, Object]()
-  val brokers = "localhost:%d,localhost:%d,localhost:%d" format (port1, port2, port3)
-  config.put("bootstrap.servers", brokers)
-  config.put("acks", "all")
-  config.put("serializer.class", "kafka.serializer.StringEncoder")
-  val producerConfig = new KafkaProducerConfig("kafka", "i001", config)
   var producer: KafkaProducer[Array[Byte], Array[Byte]] = null
-  var zookeeper: EmbeddedZookeeper = null
-  var server1: KafkaServer = null
-  var server2: KafkaServer = null
-  var server3: KafkaServer = null
   var metadataStore: TopicMetadataStore = null
+  var producerConfig: KafkaProducerConfig = null
+  var brokers: String = null
+
+  def generateConfigs() = {
+    val props = TestUtils.createBrokerConfigs(numBrokers, zkConnect, true)
+    props.map(KafkaConfig.fromProps)
+  }
 
   @BeforeClass
-  def beforeSetupServers {
-    zookeeper = new EmbeddedZookeeper()
-    zkConnect = "127.0.0.1:"+zookeeper.port
-    server1 = TestUtils.createServer(KafkaConfig(props1))
-    server2 = TestUtils.createServer(KafkaConfig(props2))
-    server3 = TestUtils.createServer(KafkaConfig(props3))
-    zkClient = ZkUtils.createZkClient(zkConnect, 6000, 6000)
+  override def setUp {
+    super.setUp
+
+    val config = new java.util.HashMap[String, Object]()
+
+    brokers = brokerList.split(",").map(p => "localhost" + p).mkString(",")
+
+    config.put("bootstrap.servers", brokers)
+    config.put("acks", "all")
+    config.put("serializer.class", "kafka.serializer.StringEncoder")
+
+    producerConfig = new KafkaProducerConfig("kafka", "i001", config)
+
     producer = new KafkaProducer[Array[Byte], Array[Byte]](producerConfig.getProducerProperties)
     metadataStore = new ClientUtilTopicMetadataStore(brokers, "some-job-name")
   }
 
+
+  @AfterClass
+  override def tearDown {
+    super.tearDown
+  }
+
+
   def createTopic(topicName: String, partitionCount: Int) {
     AdminUtils.createTopic(
-      ZkUtils.apply(zkClient,false),
+      zkUtils,
       topicName,
       partitionCount,
       REPLICATION_FACTOR)
@@ -135,21 +137,6 @@ object TestKafkaSystemAdmin {
     Consumer.create(consumerConfig)
   }
 
-  @AfterClass
-  def afterCleanLogDirs {
-    producer.close()
-    server1.shutdown
-    server1.awaitShutdown()
-    server2.shutdown
-    server2.awaitShutdown()
-    server3.shutdown
-    server3.awaitShutdown()
-    CoreUtils.rm(server1.config.logDirs)
-    CoreUtils.rm(server2.config.logDirs)
-    CoreUtils.rm(server3.config.logDirs)
-    zkClient.close
-    zookeeper.shutdown
-  }
 }
 
 /**
@@ -160,7 +147,7 @@ class TestKafkaSystemAdmin {
   import TestKafkaSystemAdmin._
 
   // Provide a random zkAddress, the system admin tries to connect only when a topic is created/validated
-  val systemAdmin = new KafkaSystemAdmin(SYSTEM, brokers, connectZk = () => ZkUtils.createZkClient(zkConnect, 6000, 6000))
+  val systemAdmin = new KafkaSystemAdmin(SYSTEM, brokers, connectZk = () => ZkUtils(zkConnect, 6000, 6000, zkSecure))
 
   @Test
   def testShouldAssembleMetadata {
@@ -287,7 +274,8 @@ class TestKafkaSystemAdmin {
   @Test
   def testShouldCreateCoordinatorStream {
     val topic = "test-coordinator-stream"
-    val systemAdmin = new KafkaSystemAdmin(SYSTEM, brokers, () => ZkUtils.createZkClient(zkConnect, 6000, 6000), coordinatorStreamReplicationFactor = 3)
+    val systemAdmin = new KafkaSystemAdmin(SYSTEM, brokers, () => ZkUtils(zkConnect, 6000, 6000, zkSecure), coordinatorStreamReplicationFactor = 3)
+
     systemAdmin.createCoordinatorStream(topic)
     validateTopic(topic, 1)
     val topicMetadataMap = TopicMetadataCache.getTopicMetadata(Set(topic), "kafka", metadataStore.getTopicInfo)
@@ -298,7 +286,7 @@ class TestKafkaSystemAdmin {
     assertEquals(3, partitionMetadata.replicas.size)
   }
 
-  class KafkaSystemAdminWithTopicMetadataError extends KafkaSystemAdmin(SYSTEM, brokers, () => ZkUtils.createZkClient(zkConnect, 6000, 6000)) {
+  class KafkaSystemAdminWithTopicMetadataError extends KafkaSystemAdmin(SYSTEM, brokers, () => ZkUtils(zkConnect, 6000, 6000, zkSecure)) {
     import kafka.api.TopicMetadata
     var metadataCallCount = 0
 

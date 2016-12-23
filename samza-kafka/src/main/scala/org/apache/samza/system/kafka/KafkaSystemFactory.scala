@@ -20,6 +20,7 @@
 package org.apache.samza.system.kafka
 
 import java.util.Properties
+import kafka.utils.ZkUtils
 import org.apache.samza.SamzaException
 import org.apache.samza.util.{Logging, KafkaUtil, ExponentialSleepStrategy, ClientUtilTopicMetadataStore}
 import org.apache.samza.config.Config
@@ -29,8 +30,6 @@ import org.apache.samza.config.JobConfig.Config2Job
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.samza.system.SystemFactory
 import org.apache.samza.config.StorageConfig._
-import org.I0Itec.zkclient.ZkClient
-import kafka.utils.ZKStringSerializer
 import org.apache.samza.system.SystemProducer
 import org.apache.samza.system.SystemAdmin
 import org.apache.samza.system.SystemConsumer
@@ -113,7 +112,7 @@ class KafkaSystemFactory extends SystemFactory with Logging {
     val zkConnect = Option(consumerConfig.zkConnect)
       .getOrElse(throw new SamzaException("no zookeeper.connect defined in config"))
     val connectZk = () => {
-      ZkUtils.createZkClient(zkConnect, 6000, 6000)
+      ZkUtils(zkConnect, 6000, 6000, false)
     }
     val coordinatorStreamProperties = getCoordinatorTopicProperties(config)
     val coordinatorStreamReplicationFactor = config.getCoordinatorReplicationFactor.toInt

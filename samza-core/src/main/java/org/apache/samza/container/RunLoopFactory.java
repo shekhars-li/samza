@@ -96,7 +96,7 @@ public class RunLoopFactory {
       log.info("Run loop in asynchronous mode.");
 
       return new AsyncRunLoop(
-        JavaConversions.asJavaMap(taskInstances),
+        JavaConversions.mapAsJavaMap(taskInstances),
         threadPool,
         consumerMultiplexer,
         taskMaxConcurrency,

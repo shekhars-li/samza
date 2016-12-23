@@ -37,9 +37,10 @@ class TestKafkaSystemProducer {
 
   @Test
   def testKafkaProducer {
+    val mockProducer = new MockProducer(true, new ByteArraySerializer, new ByteArraySerializer)
     val systemProducer = new KafkaSystemProducer(systemName = "test",
-                                           getProducer = () => { new MockProducer(true, new ByteArraySerializer(), new ByteArraySerializer()) },
-                                           metrics = new KafkaSystemProducerMetrics)
+                                                 getProducer = () => mockProducer,
+                                                 metrics = new KafkaSystemProducerMetrics)
     systemProducer.register("test")
     systemProducer.start
     systemProducer.send("test", someMessage)
