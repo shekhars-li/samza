@@ -37,7 +37,7 @@ import scala.collection.JavaConversions;
 public class TaskConfigJava extends MapConfig {
   // Task Configs
   private static final String TASK_SHUTDOWN_MS = "task.shutdown.ms";
-  private static final long DEFAULT_TASK_SHUTDOWN_MS = 5000L;
+  public static final long DEFAULT_TASK_SHUTDOWN_MS = 5000L;
 
   // broadcast streams consumed by all tasks. e.g. kafka.foo#1
   public static final String BROADCAST_INPUT_STREAMS = "task.broadcast.inputs";
@@ -124,11 +124,22 @@ public class TaskConfigJava extends MapConfig {
 
   /**
    * Returns a value indicating how long to wait for the tasks to shutdown
+   * If the value is not defined in the config or if does not parse correctly, we return the default value -
+   * {@value #DEFAULT_TASK_SHUTDOWN_MS}
    *
-   * @return value indicating how long to wait for the tasks to shutdown
+   * @return Long value indicating how long to wait for all the tasks to shutdown
    */
   public long getShutdownMs() {
-    if (get(TASK_SHUTDOWN_MS) == null)  return DEFAULT_TASK_SHUTDOWN_MS;
-    return Long.valueOf(get(TASK_SHUTDOWN_MS));
+    String shutdownMs = get(TASK_SHUTDOWN_MS);
+    try {
+      return Long.parseLong(shutdownMs);
+    } catch (NumberFormatException nfe) {
+      LOGGER.warn(String.format(
+          "Unable to parse user-configure value for %s - %s. Using default value %d",
+          TASK_SHUTDOWN_MS,
+          shutdownMs,
+          DEFAULT_TASK_SHUTDOWN_MS));
+      return DEFAULT_TASK_SHUTDOWN_MS;
+    }
   }
 }

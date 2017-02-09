@@ -18,18 +18,13 @@
  */
 package org.apache.samza.processor;
 
-import com.google.common.base.Strings;
-import org.apache.samza.config.ClusterManagerConfig;
+import org.apache.samza.annotation.InterfaceStability;
 import org.apache.samza.config.Config;
-import org.apache.samza.config.ConfigException;
+import org.apache.samza.config.JobCoordinatorConfig;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.TaskConfigJava;
-import org.apache.samza.container.LocalityManager;
-import org.apache.samza.container.SamzaContainer;
-import org.apache.samza.container.SamzaContainer$;
 import org.apache.samza.coordinator.JobCoordinator;
 import org.apache.samza.coordinator.JobCoordinatorFactory;
-import org.apache.samza.metrics.JmxServer;
 import org.apache.samza.metrics.MetricsReporter;
 import org.apache.samza.task.AsyncStreamTaskFactory;
 import org.apache.samza.task.StreamTaskFactory;
@@ -39,20 +34,14 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
- * StreamProcessor can be embedded in any application or executed in a distributed environment (aka cluster) as
- * independent processes <br />
- *
+ * StreamProcessor can be embedded in any application or executed in a distributed environment (aka cluster) as an
+ * independent process.
+ * <p>
  * <b>Usage Example:</b>
  * <pre>
- * StreamProcessor processor = new StreamProcessor(1, config); <br />
+ * StreamProcessor processor = new StreamProcessor(1, config);
  * processor.start();
  * try {
  *  boolean status = processor.awaitStart(TIMEOUT_MS);    // Optional - blocking call
@@ -66,50 +55,42 @@ import java.util.concurrent.TimeoutException;
  *   processor.stop();
  * }
  * </pre>
- *
+ * Note: A single JVM can create multiple StreamProcessor instances. It is safe to create StreamProcessor instances in
+ * multiple threads.
  */
+@InterfaceStability.Evolving
 public class StreamProcessor {
   private static final Logger log = LoggerFactory.getLogger(StreamProcessor.class);
-  private static final String JOB_COORDINATOR_FACTORY = "job.coordinator.factory";
   /**
    * processor.id is equivalent to containerId in samza. It is a logical identifier used by Samza for a processor.
    * In a distributed environment, this logical identifier is mapped to a physical identifier of the resource. For
    * example, Yarn provides a "containerId" for every resource it allocates.
    * In an embedded environment, this identifier is provided by the user by directly using the StreamProcessor API.
-   *
+   * <p>
    * <b>Note:</b>This identifier has to be unique across the instances of StreamProcessors.
    */
   private static final String PROCESSOR_ID = "processor.id";
-
-  private Map<String, MetricsReporter> customMetricsReporters = new HashMap<>();
   private final int processorId;
-  private final ExecutorService executorService;
-  private Future containerFuture;
-  private final LocalityManager localityManager;
   private final JobCoordinator jobCoordinator;
-  private final Object taskFactory;
-  private final long containerShutdownMs;
-
-  private volatile SamzaContainer container;
 
   /**
    * Create an instance of StreamProcessor that encapsulates a JobCoordinator and Samza Container
-   *
+   * <p>
    * JobCoordinator controls how the various StreamProcessor instances belonging to a job coordinate. It is also
    * responsible generating and updating JobModel.
    * When StreamProcessor starts, it starts the JobCoordinator and brings up a SamzaContainer based on the JobModel.
-   * SamzaContainer is executed using an ExecutorService. <br />
-   *
+   * SamzaContainer is executed using an ExecutorService.
+   * <p>
    * <b>Note:</b> Lifecycle of the ExecutorService is fully managed by the StreamProcessor, and NOT exposed to the user
    *
-   * @param processorId Unique identifier for a processor within the job. It has the same semantics as
-   *                    "containerId" in Samza
-   * @param config Instance of config object - contains all configuration required for processing
+   * @param processorId            Unique identifier for a processor within the job. It has the same semantics as
+   *                               "containerId" in Samza
+   * @param config                 Instance of config object - contains all configuration required for processing
    * @param customMetricsReporters Map of custom MetricReporter instances that are to be injected in the Samza job
    * @param asyncStreamTaskFactory The {@link AsyncStreamTaskFactory} to be used for creating task instances.
    */
   public StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters,
-      AsyncStreamTaskFactory asyncStreamTaskFactory) {
+                         AsyncStreamTaskFactory asyncStreamTaskFactory) {
     this(processorId, config, customMetricsReporters, (Object) asyncStreamTaskFactory);
   }
 
@@ -118,7 +99,7 @@ public class StreamProcessor {
    * using the provided {@link StreamTaskFactory}.
    */
   public StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters,
-      StreamTaskFactory streamTaskFactory) {
+                         StreamTaskFactory streamTaskFactory) {
     this(processorId, config, customMetricsReporters, (Object) streamTaskFactory);
   }
 
@@ -131,63 +112,39 @@ public class StreamProcessor {
   }
 
   private StreamProcessor(int processorId, Config config, Map<String, MetricsReporter> customMetricsReporters,
-      Object taskFactory) {
-    this.executorService = Executors.newSingleThreadExecutor();
+                          Object taskFactory) {
     this.processorId = processorId;
-    this.taskFactory = taskFactory;
 
     Map<String, String> updatedConfigMap = new HashMap<>();
     updatedConfigMap.putAll(config);
-    updatedConfigMap.put(PROCESSOR_ID, String.valueOf(processorId));
+    updatedConfigMap.put(PROCESSOR_ID, String.valueOf(this.processorId));
     Config updatedConfig = new MapConfig(updatedConfigMap);
 
-    this.jobCoordinator = getJobCoordinatorFactory(updatedConfig).getJobCoordinator(this.processorId, updatedConfig);
 
-    if (new ClusterManagerConfig(updatedConfig).getHostAffinityEnabled()) {
-      // Not sure if there is better solution for de-coupling localityManager from the container.
-      // Container and JC share the same API for reading/writing locality information
-      localityManager = SamzaContainer$.MODULE$.getLocalityManager(this.processorId, updatedConfig);
-    } else {
-      localityManager = null;
-    }
+    SamzaContainerController containerController = new SamzaContainerController(
+        taskFactory,
+        new TaskConfigJava(updatedConfig).getShutdownMs(),
+        String.valueOf(processorId),
+        customMetricsReporters);
 
-    containerShutdownMs = new TaskConfigJava(updatedConfig).getShutdownMs();
-    if (customMetricsReporters != null) {
-      this.customMetricsReporters.putAll(customMetricsReporters);
-    }
-  }
-
-  private JobCoordinatorFactory getJobCoordinatorFactory(Config config) {
-    String jobCoordinatorFactory = config.get(JOB_COORDINATOR_FACTORY);
-    if (Strings.isNullOrEmpty(jobCoordinatorFactory)) {
-      throw new ConfigException(
-          String.format("Missing config - %s. Cannot start StreamProcessor!", JOB_COORDINATOR_FACTORY));
-    }
-    return Util.<JobCoordinatorFactory>getObj(config.get("job.coordinator.factory"));
+    this.jobCoordinator = Util.
+        <JobCoordinatorFactory>getObj(
+            new JobCoordinatorConfig(updatedConfig)
+                .getJobCoordinatorFactoryClassName())
+        .getJobCoordinator(processorId, updatedConfig, containerController);
   }
 
   /**
    * StreamProcessor Lifecycle: start()
    * <ul>
    * <li>Starts the JobCoordinator and fetches the JobModel</li>
-   * <li>Instantiates a SamzaContainer and runs it in the executor</li>
+   * <li>jobCoordinator.start returns after starting the container using ContainerModel </li>
    * </ul>
-   * When start() returns, it only guarantees that the container is initialized and submitted to the executor
+   * When start() returns, it only guarantees that the container is initialized and submitted by the controller to
+   * execute
    */
   public void start() {
     jobCoordinator.start();
-
-    // container is constructed here instead of the constructor since the job model is
-    // only available after jobCoordinator.start()
-    container = SamzaContainer$.MODULE$.apply(
-        this.processorId,
-        jobCoordinator.getJobModel(),
-        localityManager,
-        new JmxServer(),
-        Util.javaMapAsScalaMap(customMetricsReporters),
-        this.taskFactory);
-
-    runContainer();
   }
 
   /**
@@ -196,39 +153,21 @@ public class StreamProcessor {
    *
    * @param timeoutMs Maximum time to wait, in milliseconds
    * @return {@code true}, if the container started within the specified wait time and {@code false} if the waiting time
-   *          elapsed
+   * elapsed
    * @throws InterruptedException if the current thread is interrupted while waiting for container to start-up
    */
   public boolean awaitStart(long timeoutMs) throws InterruptedException {
-    return container.awaitStart(timeoutMs);
+    return jobCoordinator.awaitStart(timeoutMs);
   }
 
   /**
    * StreamProcessor Lifecycle: stop()
    * <ul>
-   *  <li>Stops the SamzaContainer execution</li>
-   *  <li>Stops the JobCoordinator</li>
-   *  <li>Shuts down the executorService</li>
+   * <li>Stops the SamzaContainer execution</li>
+   * <li>Stops the JobCoordinator</li>
    * </ul>
    */
   public void stop() {
-    stopContainer();
     jobCoordinator.stop();
-    executorService.shutdown();
-  }
-
-  private void runContainer() {
-    containerFuture = executorService.submit(() -> container.run());
-  }
-
-  private void stopContainer() {
-    container.shutdown();
-    try {
-      containerFuture.get(containerShutdownMs, TimeUnit.MILLISECONDS);
-    } catch (InterruptedException | ExecutionException e) {
-      log.error("Ran into problems while trying to stop the container in the processor!", e);
-    } catch (TimeoutException e) {
-      log.warn("Got Timeout Exception while trying to stop the container in the processor! The processor may not shutdown properly", e);
-    }
   }
 }

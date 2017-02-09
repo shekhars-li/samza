@@ -16,15 +16,54 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.samza.container.grouper.stream;
 
+import org.apache.samza.SamzaException;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.JobConfig;
+import org.apache.samza.container.TaskName;
+import org.apache.samza.system.SystemStreamPartition;
 
-public class AllSspToSingleTaskGrouperFactory implements SystemStreamPartitionGrouperFactory {
-  private static final String PROCESSOR_ID = "processor.id";
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * AllSspToSingleTaskGrouper, as the name suggests, assigns all partitions to be consumed by a single TaskInstance
+ * This is useful, in case of using load-balanced consumers like the new Kafka consumer, Samza doesn't control the
+ * partitions being consumed by a task. Hence, it is assumed that there is only 1 task that processes all messages,
+ * irrespective of which partition it belongs to.
+ * This also implies that container and tasks are synonymous when this grouper is used. Taskname(s) has to be globally
+ * unique within a given job.
+ *
+ * Note: This grouper does not take in broadcast streams yet.
+ */
+class AllSspToSingleTaskGrouper implements SystemStreamPartitionGrouper {
+  private final int containerId;
+
+  public AllSspToSingleTaskGrouper(int containerId) {
+    this.containerId = containerId;
+  }
 
   @Override
+  public Map<TaskName, Set<SystemStreamPartition>> group(final Set<SystemStreamPartition> ssps) {
+    if (ssps == null) {
+      throw new SamzaException("ssp set cannot be null!");
+    }
+    if (ssps.size() == 0) {
+      throw new SamzaException("Cannot process stream task with no input system stream partitions");
+    }
+
+    final TaskName taskName = new TaskName(String.format("Task-%s", String.valueOf(containerId)));
+
+    return Collections.singletonMap(taskName, ssps);
+  }
+}
+
+public class AllSspToSingleTaskGrouperFactory implements SystemStreamPartitionGrouperFactory {
+  @Override
   public SystemStreamPartitionGrouper getSystemStreamPartitionGrouper(Config config) {
-    return new AllSspToSingleTaskGrouper(config.getInt(PROCESSOR_ID));
+    return new AllSspToSingleTaskGrouper(config.getInt(JobConfig.PROCESSOR_ID()));
   }
 }

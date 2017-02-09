@@ -19,18 +19,19 @@
 
 package org.apache.samza.container;
 
-import java.util.concurrent.ExecutorService;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.TaskConfig;
-import org.apache.samza.util.HighResolutionClock;
 import org.apache.samza.system.SystemConsumers;
 import org.apache.samza.task.AsyncRunLoop;
+import org.apache.samza.util.HighResolutionClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConversions;
 import scala.collection.immutable.Map;
 import scala.runtime.AbstractFunction0;
 import scala.runtime.AbstractFunction1;
+
+import java.util.concurrent.ExecutorService;
 
 import static org.apache.samza.util.Util.asScalaClock;
 
@@ -45,7 +46,7 @@ public class RunLoopFactory {
   private static final long DEFAULT_COMMIT_MS = 60000L;
   private static final long DEFAULT_CALLBACK_TIMEOUT_MS = -1L;
 
-  public static Runnable createRunLoop(Map<TaskName, TaskInstance> taskInstances,
+  public static Runnable createRunLoop(scala.collection.immutable.Map<TaskName, TaskInstance> taskInstances,
       SystemConsumers consumerMultiplexer,
       ExecutorService threadPool,
       long maxThrottlingDelayMs,

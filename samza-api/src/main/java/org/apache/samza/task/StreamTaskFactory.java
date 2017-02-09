@@ -19,10 +19,13 @@
 
 package org.apache.samza.task;
 
+import org.apache.samza.annotation.InterfaceStability;
+
 /**
  * Build {@link StreamTask} instances.
  * Implementations should return a new instance for each {@link #createInstance()} invocation.
  */
+@InterfaceStability.Stable
 public interface StreamTaskFactory {
   StreamTask createInstance();
 }

@@ -141,7 +141,7 @@ class RocksDbKeyValueStore(
     metrics.puts.inc
     require(key != null, "Null key not allowed.")
     if (value == null) {
-      db.remove(writeOptions, key)
+      db.delete(writeOptions, key)
     } else {
       metrics.bytesWritten.inc(key.size + value.size)
       db.put(writeOptions, key, value)
@@ -158,7 +158,7 @@ class RocksDbKeyValueStore(
       val curr = iter.next()
       if (curr.getValue == null) {
         deletes += 1
-        db.remove(writeOptions, curr.getKey)
+        db.delete(writeOptions, curr.getKey)
       } else {
         val key = curr.getKey
         val value = curr.getValue
@@ -206,13 +206,13 @@ class RocksDbKeyValueStore(
 
   class RocksDbIterator(iter: RocksIterator) extends KeyValueIterator[Array[Byte], Array[Byte]] {
     private var open = true
-    private var firstValueAccessed = false;
+    private var firstValueAccessed = false
     def close() = {
       open = false
-      iter.dispose()
+      iter.close()
     }
 
-    def remove() = throw new UnsupportedOperationException("RocksDB iterator doesn't support remove");
+    def remove() = throw new UnsupportedOperationException("RocksDB iterator doesn't support remove")
 
     def hasNext() = iter.isValid
 

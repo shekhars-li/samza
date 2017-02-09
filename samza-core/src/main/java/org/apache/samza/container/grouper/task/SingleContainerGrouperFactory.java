@@ -16,15 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.samza.container.grouper.task;
 
 import org.apache.samza.config.Config;
+import org.apache.samza.config.JobConfig;
+import org.apache.samza.container.TaskName;
+import org.apache.samza.job.model.ContainerModel;
+import org.apache.samza.job.model.TaskModel;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class SingleContainerGrouperFactory implements TaskNameGrouperFactory {
-  private static final String PROCESSOR_ID = "processor.id";
-
   @Override
   public TaskNameGrouper build(Config config) {
-    return new SingleContainerGrouper(config.getInt(PROCESSOR_ID));
+    return new SingleContainerGrouper(config.getInt(JobConfig.PROCESSOR_ID()));
+  }
+}
+
+class SingleContainerGrouper implements TaskNameGrouper {
+  private final int containerId;
+
+  SingleContainerGrouper(int containerId) {
+    this.containerId = containerId;
+  }
+
+  @Override
+  public Set<ContainerModel> group(Set<TaskModel> taskModels) {
+    Map<TaskName, TaskModel> taskNameTaskModelMap = new HashMap<>();
+    for (TaskModel taskModel: taskModels) {
+      taskNameTaskModelMap.put(taskModel.getTaskName(), taskModel);
+    }
+    ContainerModel containerModel = new ContainerModel(containerId, taskNameTaskModelMap);
+    return Collections.singleton(containerModel);
   }
 }

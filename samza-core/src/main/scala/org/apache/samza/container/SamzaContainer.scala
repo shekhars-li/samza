@@ -30,24 +30,24 @@ import org.apache.samza.checkpoint.{CheckpointListener, CheckpointManagerFactory
 import org.apache.samza.config.JobConfig.Config2Job
 import org.apache.samza.config.MetricsConfig.Config2Metrics
 import org.apache.samza.config.SerializerConfig.Config2Serializer
-import org.apache.samza.config.{Config, ShellCommandConfig}
+import org.apache.samza.config.{Config, ShellCommandConfig, StorageConfig}
 import org.apache.samza.config.StorageConfig.Config2Storage
 import org.apache.samza.config.StreamConfig.Config2Stream
 import org.apache.samza.config.SystemConfig.Config2System
 import org.apache.samza.config.TaskConfig.Config2Task
+import org.apache.samza.container.disk.DiskQuotaPolicyFactory
+import org.apache.samza.container.disk.DiskSpaceMonitor
 import org.apache.samza.container.disk.DiskSpaceMonitor.Listener
 import org.apache.samza.container.disk.NoThrottlingDiskQuotaPolicyFactory
 import org.apache.samza.container.disk.PollingScanDiskSpaceMonitor
-import org.apache.samza.container.disk.DiskQuotaPolicyFactory
-import org.apache.samza.container.disk.DiskSpaceMonitor
-import org.apache.samza.container.host.{SystemMemoryStatistics, SystemStatisticsMonitor, StatisticsMonitorImpl}
+import org.apache.samza.container.host.{StatisticsMonitorImpl, SystemMemoryStatistics, SystemStatisticsMonitor}
 import org.apache.samza.coordinator.stream.CoordinatorStreamSystemFactory
+import org.apache.samza.job.model.ContainerModel
 import org.apache.samza.job.model.JobModel
 import org.apache.samza.metrics.JmxServer
 import org.apache.samza.metrics.JvmMetrics
 import org.apache.samza.metrics.MetricsRegistryMap
 import org.apache.samza.metrics.MetricsReporter
-import org.apache.samza.metrics.MetricsReporterFactory
 import org.apache.samza.serializers.SerdeFactory
 import org.apache.samza.serializers.SerdeManager
 import org.apache.samza.serializers.model.SamzaObjectMapper
@@ -75,6 +75,9 @@ import org.apache.samza.util.HighResolutionClock
 import org.apache.samza.util.ExponentialSleepStrategy
 import org.apache.samza.util.Logging
 import org.apache.samza.util.Throttleable
+import org.apache.samza.util.MetricsReporterLoader
+import org.apache.samza.util.ThrottlingExecutor
+import org.apache.samza.util.SystemClock
 import org.apache.samza.util.Util
 import org.apache.samza.util.Util.asScalaClock
 
@@ -89,7 +92,7 @@ object SamzaContainer extends Logging {
   }
 
   def safeMain(
-      newJmxServer: () => JmxServer,
+    newJmxServer: () => JmxServer,
     exceptionHandler: UncaughtExceptionHandler = null) {
     if (exceptionHandler != null) {
       Thread.setDefaultUncaughtExceptionHandler(exceptionHandler)
@@ -102,8 +105,8 @@ object SamzaContainer extends Logging {
     logger.info("Got container ID: %s" format containerId)
     val coordinatorUrl = System.getenv(ShellCommandConfig.ENV_COORDINATOR_URL)
     logger.info("Got coordinator URL: %s" format coordinatorUrl)
-
     val jobModel = readJobModel(coordinatorUrl)
+    val containerModel = jobModel.getContainers()(containerId.toInt)
     val config = jobModel.getConfig
     putMDC("jobName", config.getName.getOrElse(throw new SamzaException("can not find the job name")))
     putMDC("jobId", config.getJobId.getOrElse("1"))
@@ -111,7 +114,14 @@ object SamzaContainer extends Logging {
 
     try {
       jmxServer = newJmxServer()
-      SamzaContainer(containerId.toInt, jobModel, getLocalityManager(containerId, config), jmxServer).run
+      val containerModel = jobModel.getContainers.get(containerId.toInt)
+      SamzaContainer(
+        containerId.toInt,
+        containerModel,
+        config,
+        jobModel.maxChangeLogStreamPartitions,
+        getLocalityManager(containerId, config),
+        jmxServer).run
     } finally {
       if (jmxServer != null) {
         jmxServer.stop
@@ -129,6 +139,7 @@ object SamzaContainer extends Logging {
           new SamzaContainerMetrics(containerName, registryMap).registry)
     new LocalityManager(coordinatorSystemProducer)
   }
+
   /**
    * Fetches config, task:SSP assignments, and task:changelog partition
    * assignments, and returns objects to be used for SamzaContainer's
@@ -151,13 +162,13 @@ object SamzaContainer extends Logging {
 
   def apply(
     containerId: Int,
-    jobModel: JobModel,
+    containerModel: ContainerModel,
+    config: Config,
+    maxChangeLogStreamPartitions: Int,
     localityManager: LocalityManager,
     jmxServer: JmxServer,
     customReporters: Map[String, MetricsReporter] = Map[String, MetricsReporter](),
     taskFactory: Object = null) = {
-    val config = jobModel.getConfig
-    val containerModel = jobModel.getContainers.get(containerId)
     val containerName = getSamzaContainerName(containerId)
     val containerPID = Util.getContainerPID
 
@@ -347,19 +358,8 @@ object SamzaContainer extends Logging {
 
     info("Setting up metrics reporters.")
 
-    var reporters = config.getMetricReporterNames.map(reporterName => {
-      val metricsFactoryClassName = config
-        .getMetricsFactoryClass(reporterName)
-        .getOrElse(throw new SamzaException("Metrics reporter %s missing .class config" format reporterName))
+    val reporters = MetricsReporterLoader.getMetricsReporters(config, containerName).toMap
 
-      val reporter =
-        Util
-          .getObj[MetricsReporterFactory](metricsFactoryClassName)
-          .getMetricsReporter(reporterName, containerName, config)
-      (reporterName, reporter)
-    }).toMap
-
-    reporters = reporters ++ customReporters
     info("Got metrics reporters: %s" format reporters.keys)
 
     val securityManager = config.getSecurityManagerFactory match {
@@ -371,10 +371,10 @@ object SamzaContainer extends Logging {
     }
     info("Got security manager: %s" format securityManager)
 
-    val checkpointManager = config.getCheckpointManagerFactory().filterNot(_.isEmpty)
+    val checkpointManager = config.getCheckpointManagerFactory()
+      .filterNot(_.isEmpty)
       .map(Util.getObj[CheckpointManagerFactory](_).getCheckpointManager(config, samzaContainerMetrics.registry))
       .orNull
-
     info("Got checkpoint manager: %s" format checkpointManager)
 
     // create a map of consumers with callbacks to pass to the OffsetManager
@@ -579,12 +579,14 @@ object SamzaContainer extends Logging {
         taskStores = taskStores,
         storeConsumers = storeConsumers,
         changeLogSystemStreams = changeLogSystemStreams,
-        jobModel.maxChangeLogStreamPartitions,
+        maxChangeLogStreamPartitions,
         streamMetadataCache = streamMetadataCache,
         storeBaseDir = defaultStoreBaseDir,
         loggedStoreBaseDir = loggedStorageBaseDir,
         partition = taskModel.getChangelogPartition,
-        systemAdmins = systemAdmins)
+        systemAdmins = systemAdmins,
+        new StorageConfig(config).getChangeLogDeleteRetentionsInMs,
+        new SystemClock)
 
       val systemStreamPartitions = taskModel
         .getSystemStreamPartitions
@@ -662,11 +664,6 @@ object SamzaContainer extends Logging {
 
     info("Samza container setup complete.")
 
-    val lifeCycleListener = config.getContainerLifeCycleListener match {
-      case Some(className) => Class.forName(className).newInstance.asInstanceOf[SamzaContainerLifeCycleListener]
-      case _ => new DefaultLifeCycleListener
-    }
-
     new SamzaContainer(
       containerContext = containerContext,
       taskInstances = taskInstances,
@@ -682,8 +679,7 @@ object SamzaContainer extends Logging {
       jmxServer = jmxServer,
       diskSpaceMonitor = diskSpaceMonitor,
       hostStatisticsMonitor = memoryStatisticsMonitor,
-      taskThreadPool = taskThreadPool,
-      lifeCycleListener = lifeCycleListener)
+      taskThreadPool = taskThreadPool)
   }
 }
 
@@ -702,12 +698,9 @@ class SamzaContainer(
   securityManager: SecurityManager = null,
   reporters: Map[String, MetricsReporter] = Map(),
   jvm: JvmMetrics = null,
-  taskThreadPool: ExecutorService = null,
-  lifeCycleListener: SamzaContainerLifeCycleListener = new DefaultLifeCycleListener) extends Runnable with Logging {
+  taskThreadPool: ExecutorService = null) extends Runnable with Logging {
 
   val shutdownMs = containerContext.config.getShutdownMs.getOrElse(5000L)
-  var shutdownHookThread: Thread = null
-
   private val runLoopStartLatch: CountDownLatch = new CountDownLatch(1)
 
   def awaitStart(timeoutMs: Long): Boolean = {
@@ -723,7 +716,6 @@ class SamzaContainer(
   def run {
     try {
       info("Starting container.")
-      lifeCycleListener.beforeStart(containerContext)
 
       startMetrics
       startOffsetManager
@@ -736,17 +728,15 @@ class SamzaContainer(
       startConsumers
       startSecurityManger
 
-      lifeCycleListener.afterStart()
       addShutdownHook
       runLoopStartLatch.countDown()
       info("Entering run loop.")
       runLoop.run
     } catch {
-      case e: Exception =>
-        error("Caught exception in process loop.", e)
+      case e: Throwable =>
+        error("Caught exception/error in process loop.", e)
         throw e
     } finally {
-      lifeCycleListener.beforeShutdown()
       info("Shutting down.")
 
       shutdownConsumers
@@ -759,9 +749,7 @@ class SamzaContainer(
       shutdownOffsetManager
       shutdownMetrics
       shutdownSecurityManger
-      removeShutdownHook
 
-      lifeCycleListener.afterShutdown()
       info("Shutdown complete.")
     }
   }
@@ -889,7 +877,7 @@ class SamzaContainer(
 
   def addShutdownHook {
     val runLoopThread = Thread.currentThread()
-    shutdownHookThread = new Thread() {
+    Runtime.getRuntime().addShutdownHook(new Thread() {
       override def run() = {
         info("Shutting down, will wait up to %s ms" format shutdownMs)
         runLoop match {
@@ -903,19 +891,7 @@ class SamzaContainer(
           info("Shutdown complete")
         }
       }
-    }
-    Runtime.getRuntime.addShutdownHook(shutdownHookThread)
-  }
-
-  def removeShutdownHook = {
-    try {
-      Runtime.getRuntime.removeShutdownHook(shutdownHookThread)
-    } catch {
-      case e: IllegalStateException => {
-        // When samza is shutdown by external command, IllegalStationException will be thrown.
-        // And it's expected.
-      }
-    }
+    })
   }
 
   def shutdownConsumers {

@@ -26,6 +26,7 @@ import org.apache.samza.coordinator.JobCoordinator;
 import org.apache.samza.coordinator.JobModelManager;
 import org.apache.samza.coordinator.JobModelManager$;
 import org.apache.samza.job.model.JobModel;
+import org.apache.samza.processor.SamzaContainerController;
 import org.apache.samza.system.StreamMetadataCache;
 import org.apache.samza.system.SystemAdmin;
 import org.apache.samza.system.SystemFactory;
@@ -41,26 +42,48 @@ import java.util.Map;
  * Standalone Job Coordinator does not implement any leader elector module or cluster manager
  *
  * It generates the JobModel using the Config passed into the constructor.
+ *
  * Since the standalone JobCoordinator does not perform partition management, it allows two kinds of partition
- * distribution mechanism - consumer-managed partition distribution and user-defined fixed partition distribution.
- * 
+ * distribution mechanism:
+ * <ul>
+ *   <li>
+ *     Consumer-managed Partition Distribution - For example, using the kafka consumer which also handles partition
+ *   load balancing across its consumers. In such a case, all input SystemStreamPartition(s) can be grouped to the same
+ *   task instance using {@link org.apache.samza.container.grouper.stream.AllSspToSingleTaskGrouperFactory} and the
+ *   task can be added to a single container using
+ *   {@link org.apache.samza.container.grouper.task.SingleContainerGrouperFactory}.
+ *   </li>
+ *   <li>
+ *     User-defined Fixed Partition Distribution - For example, the application may always run a fixed number of
+ *   processors and use a static distribution of partitions that doesn't change. This can be achieved by adding custom
+ *   {@link org.apache.samza.container.grouper.stream.SystemStreamPartitionGrouper} and
+ *   {@link org.apache.samza.container.grouper.task.TaskNameGrouper}.
+ *   </li>
+ * </ul>
  * */
 public class StandaloneJobCoordinator implements JobCoordinator {
   private static final Logger log = LoggerFactory.getLogger(StandaloneJobCoordinator.class);
   private final int processorId;
   private final Config config;
   private final JobModelManager jobModelManager;
+  private final SamzaContainerController containerController;
 
   @VisibleForTesting
-  StandaloneJobCoordinator(int processorId, Config config, JobModelManager jobModelManager) {
+  StandaloneJobCoordinator(
+      int processorId,
+      Config config,
+      SamzaContainerController containerController,
+      JobModelManager jobModelManager) {
     this.processorId = processorId;
     this.config = config;
+    this.containerController = containerController;
     this.jobModelManager = jobModelManager;
   }
 
-  public StandaloneJobCoordinator(int processorId, Config config) {
+  public StandaloneJobCoordinator(int processorId, Config config, SamzaContainerController containerController) {
     this.processorId = processorId;
     this.config = config;
+    this.containerController = containerController;
 
     JavaSystemConfig systemConfig = new JavaSystemConfig(this.config);
     Map<String, SystemAdmin> systemAdmins = new HashMap<>();
@@ -70,7 +93,7 @@ public class StandaloneJobCoordinator implements JobCoordinator {
         log.error(String.format("A stream uses system %s, which is missing from the configuration.", systemName));
         throw new SamzaException(String.format("A stream uses system %s, which is missing from the configuration.", systemName));
       }
-      SystemFactory systemFactory = Util.getObj(systemFactoryClassName);
+      SystemFactory systemFactory = Util.<SystemFactory>getObj(systemFactoryClassName);
       systemAdmins.put(systemName, systemFactory.getAdmin(systemName, this.config));
     }
 
@@ -88,11 +111,29 @@ public class StandaloneJobCoordinator implements JobCoordinator {
   @Override
   public void start() {
     // No-op
+    JobModel jobModel = getJobModel();
+    containerController.startContainer(
+        jobModel.getContainers().get(processorId),
+        jobModel.getConfig(),
+        jobModel.maxChangeLogStreamPartitions);
   }
 
   @Override
   public void stop() {
     // No-op
+    containerController.shutdown();
+  }
+
+  /**
+   * Waits for a specified amount of time for the JobCoordinator to fully start-up, which means it should be ready to
+   * process messages. In a Standalone use-case, it may be sufficient to wait for the container to start-up. In case of
+   * ZK based Standalone use-case, it also includes registration with ZK, the initialization of leader elector module etc.
+   *
+   * @param timeoutMs Maximum time to wait, in milliseconds
+   */
+  @Override
+  public boolean awaitStart(long timeoutMs) throws InterruptedException {
+    return containerController.awaitStart(timeoutMs);
   }
 
   @Override
