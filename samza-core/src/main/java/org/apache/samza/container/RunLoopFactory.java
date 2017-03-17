@@ -88,6 +88,8 @@ public class RunLoopFactory {
     } else {
       Integer taskMaxConcurrency = config.getMaxConcurrency().getOrElse(defaultValue(1));
 
+      boolean isAsyncCommitEnabled = config.getAsyncCommit().getOrElse(defaultValue(false));
+
       log.info("Got max messages in flight: " + taskMaxConcurrency);
 
       Long callbackTimeout = config.getCallbackTimeoutMs().getOrElse(defaultValue(DEFAULT_CALLBACK_TIMEOUT_MS));
@@ -106,7 +108,8 @@ public class RunLoopFactory {
         callbackTimeout,
         maxThrottlingDelayMs,
         containerMetrics,
-        clock);
+        clock,
+        isAsyncCommitEnabled);
     }
   }
 
