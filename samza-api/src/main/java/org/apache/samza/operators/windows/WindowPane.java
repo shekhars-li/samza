@@ -18,7 +18,8 @@
  */
 package org.apache.samza.operators.windows;
 
-import org.apache.samza.operators.triggers.FiringType;
+import org.apache.samza.operators.data.MessageEnvelope;
+
 
 /**
  * Specifies the result emitted from a {@link Window}.
@@ -26,7 +27,7 @@ import org.apache.samza.operators.triggers.FiringType;
  * @param <K>  the type of key in the window pane
  * @param <V>  the type of value in the window pane.
  */
-public final class WindowPane<K, V> {
+public final class WindowPane<K, V> implements MessageEnvelope<WindowKey<K>, V> {
 
   private final WindowKey<K> key;
 
@@ -34,28 +35,22 @@ public final class WindowPane<K, V> {
 
   private final AccumulationMode mode;
 
-  /**
-   * The type of the trigger that emitted this result. Results can be emitted from early, late or default triggers.
-   */
-  private final FiringType type;
-
-  public WindowPane(WindowKey<K> key, V value, AccumulationMode mode, FiringType type) {
+  WindowPane(WindowKey<K> key, V value, AccumulationMode mode) {
     this.key = key;
     this.value = value;
     this.mode = mode;
-    this.type = type;
   }
 
-  public V getMessage() {
+  @Override public V getMessage() {
     return this.value;
   }
 
-  public WindowKey<K> getKey() {
+  @Override public WindowKey<K> getKey() {
     return this.key;
   }
 
-  public FiringType getFiringType() {
-    return type;
+  static public <K, M> WindowPane<K, M> of(WindowKey<K> key, M result) {
+    return new WindowPane<>(key, result, AccumulationMode.DISCARDING);
   }
 }
 

@@ -24,12 +24,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import org.apache.samza.SamzaException;
+import org.apache.samza.config.ConfigFactory;
+import org.apache.samza.config.factories.PropertiesConfigFactory;
 import org.apache.samza.rest.model.Job;
 import org.apache.samza.rest.model.JobStatus;
 import org.apache.samza.rest.resources.JobsResourceConfig;
-import org.apache.samza.util.ClassLoaderHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 /**
  * Implements a subset of the {@link JobProxy} interface with the default, cluster-agnostic,
@@ -50,7 +52,8 @@ public abstract class AbstractJobProxy implements JobProxy {
     String jobProxyFactory = config.getJobProxyFactory();
     if (jobProxyFactory != null && !jobProxyFactory.isEmpty()) {
       try {
-        JobProxyFactory factory = ClassLoaderHelper.fromClassName(jobProxyFactory);
+        Class factoryCls = Class.forName(jobProxyFactory);
+        JobProxyFactory factory = (JobProxyFactory) factoryCls.newInstance();
         return factory.getJobProxy(config);
       } catch (Exception e) {
         throw new SamzaException(e);
@@ -106,6 +109,23 @@ public abstract class AbstractJobProxy implements JobProxy {
     return getAllJobInstances().contains(jobInstance);
   }
 
+  /**
+   * @return the {@link ConfigFactory} to use to read job configuration files.
+   */
+  protected ConfigFactory getJobConfigFactory() {
+    String configFactoryClassName = config.get(JobsResourceConfig.CONFIG_JOB_CONFIG_FACTORY);
+    if (configFactoryClassName == null) {
+      configFactoryClassName = PropertiesConfigFactory.class.getCanonicalName();
+      log.warn("{} not specified. Defaulting to {}", JobsResourceConfig.CONFIG_JOB_CONFIG_FACTORY, configFactoryClassName);
+    }
+
+    try {
+      Class factoryCls = Class.forName(configFactoryClassName);
+      return (ConfigFactory) factoryCls.newInstance();
+    } catch (Exception e) {
+      throw new SamzaException(e);
+    }
+  }
   /**
    * @return the {@link JobStatusProvider} to use in retrieving the job status.
    */

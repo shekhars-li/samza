@@ -33,7 +33,7 @@ public class TestIncomingSystemMessage {
   @Test
   public void testConstructor() {
     IncomingMessageEnvelope ime = mock(IncomingMessageEnvelope.class);
-    InputMessageEnvelope ism = new InputMessageEnvelope(ime);
+    IncomingSystemMessageEnvelope ism = new IncomingSystemMessageEnvelope(ime);
 
     Object mockKey = mock(Object.class);
     Object mockValue = mock(Object.class);

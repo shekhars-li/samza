@@ -19,6 +19,7 @@
 package org.apache.samza.operators.triggers;
 
 import org.apache.samza.annotation.InterfaceStability;
+import org.apache.samza.operators.data.MessageEnvelope;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -34,63 +35,61 @@ import java.util.List;
  * <pre> {@code
  *   MessageStream<> windowedStream = stream.window(Windows.tumblingWindow(Duration.of(10, TimeUnit.SECONDS))
  *     .setEarlyTrigger(Triggers.repeat(Triggers.any(Triggers.count(50), Triggers.timeSinceFirstMessage(Duration.of(4, TimeUnit.SECONDS))))))
- *     .setAccumulationMode(AccumulationMode.ACCUMULATING));
+ *     .accumulateFiredPanes());
  * }</pre>
  *
+ * @param <M> the type of input {@link MessageEnvelope}s in the {@link org.apache.samza.operators.MessageStream}
  */
 @InterfaceStability.Unstable
-public final class Triggers {
+public final class Triggers<M extends MessageEnvelope> {
 
   private Triggers() { }
 
   /**
-   * Creates a {@link Trigger} that fires when the number of messages in the pane
+   * Creates a {@link Trigger} that fires when the number of {@link MessageEnvelope}s in the pane
    * reaches the specified count.
    *
-   * @param count the number of messages to fire the trigger after
-   * @param <M> the type of input message in the window
+   * @param count the number of {@link MessageEnvelope}s to fire the trigger after
    * @return the created trigger
    */
-  public static <M> Trigger<M> count(long count) {
-    return new CountTrigger<M>(count);
+  public static Trigger count(long count) {
+    return new CountTrigger(count);
   }
 
   /**
-   * Creates a trigger that fires after the specified duration has passed since the first message in
+   * Creates a trigger that fires after the specified duration has passed since the first {@link MessageEnvelope} in
    * the pane.
    *
    * @param duration the duration since the first element
-   * @param <M> the type of input message in the window
    * @return the created trigger
    */
-  public static <M> Trigger<M> timeSinceFirstMessage(Duration duration) {
-    return new TimeSinceFirstMessageTrigger<M>(duration);
+  public static Trigger timeSinceFirstMessage(Duration duration) {
+    return new TimeSinceFirstMessageTrigger(duration);
   }
 
   /**
-   * Creates a trigger that fires when there is no new message for the specified duration in the pane.
+   * Creates a trigger that fires when there is no new {@link MessageEnvelope} for the specified duration in the pane.
    *
    * @param duration the duration since the last element
-   * @param <M> the type of input message in the window
    * @return the created trigger
    */
-  public static <M> Trigger<M> timeSinceLastMessage(Duration duration) {
-    return new TimeSinceLastMessageTrigger<M>(duration);
+  public static Trigger timeSinceLastMessage(Duration duration) {
+    return new TimeSinceLastMessageTrigger(duration);
   }
 
   /**
    * Creates a trigger that fires when any of the provided triggers fire.
    *
+   * @param <M> the type of input {@link MessageEnvelope} in the window
    * @param triggers the individual triggers
-   * @param <M> the type of input message in the window
    * @return the created trigger
    */
-  public static <M> Trigger<M> any(Trigger<M>... triggers) {
-    List<Trigger<M>> triggerList = new ArrayList<>();
+  public static <M extends MessageEnvelope> Trigger any(Trigger<M>... triggers) {
+    List<Trigger> triggerList = new ArrayList<>();
     for (Trigger trigger : triggers) {
       triggerList.add(trigger);
     }
-    return new AnyTrigger<M>(Collections.unmodifiableList(triggerList));
+    return new AnyTrigger(Collections.unmodifiableList(triggerList));
   }
 
   /**
@@ -99,11 +98,11 @@ public final class Triggers {
    * <p>Creating a {@link RepeatingTrigger} from an {@link AnyTrigger} is equivalent to creating an {@link AnyTrigger} from
    * its individual {@link RepeatingTrigger}s.
    *
+   * @param <M> the type of input {@link MessageEnvelope} in the window
    * @param trigger the individual trigger to repeat
-   * @param <M> the type of input message in the window
    * @return the created trigger
    */
-  public static <M> Trigger<M> repeat(Trigger<M> trigger) {
+  public static <M extends MessageEnvelope> Trigger repeat(Trigger<M> trigger) {
     return new RepeatingTrigger<>(trigger);
   }
 }

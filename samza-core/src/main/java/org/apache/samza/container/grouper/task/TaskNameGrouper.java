@@ -18,7 +18,6 @@
  */
 package org.apache.samza.container.grouper.task;
 
-import java.util.List;
 import org.apache.samza.job.model.ContainerModel;
 import org.apache.samza.job.model.TaskModel;
 
@@ -51,8 +50,4 @@ public interface TaskNameGrouper {
    * @return Set of containers, which contain the tasks that were passed in.
    */
   Set<ContainerModel> group(Set<TaskModel> tasks);
-
-  default Set<ContainerModel> group(Set<TaskModel> tasks, List<Integer> containersIds) {
-    return group(tasks);
-  }
 }

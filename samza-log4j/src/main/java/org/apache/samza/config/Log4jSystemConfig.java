@@ -19,9 +19,6 @@
 
 package org.apache.samza.config;
 
-import org.apache.samza.system.SystemStream;
-
-
 /**
  * This class contains the methods for getting properties that are needed by the
  * StreamAppender.
@@ -39,7 +36,7 @@ public class Log4jSystemConfig extends JavaSystemConfig {
    * Defines whether or not to include file location information for Log4J
    * appender messages. File location information includes the method, line
    * number, class, etc.
-   *
+   * 
    * @return If true, will include file location (method, line number, etc)
    *         information in Log4J appender messages.
    */
@@ -71,7 +68,7 @@ public class Log4jSystemConfig extends JavaSystemConfig {
 
   /**
    * Get the class name according to the serde name.
-   *
+   * 
    * @param name serde name
    * @return serde factory name, or null if there is no factory defined for the
    *         supplied serde name.
@@ -81,8 +78,7 @@ public class Log4jSystemConfig extends JavaSystemConfig {
   }
 
   public String getStreamSerdeName(String systemName, String streamName) {
-    StreamConfig streamConfig =  new StreamConfig(this);
-    scala.Option<String> option = streamConfig.getStreamMsgSerde(new SystemStream(systemName, streamName));
-    return option.isEmpty() ? null : option.get();
+    String streamSerdeNameConfig = String.format(StreamConfig.MSG_SERDE(), systemName, streamName);
+    return get(streamSerdeNameConfig, null);
   }
 }

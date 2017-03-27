@@ -18,28 +18,18 @@
  */
 package org.apache.samza.rest.proxy.job;
 
-import org.apache.samza.SamzaException;
 import org.apache.samza.rest.resources.JobsResourceConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
  * Factory to produce SimpleJobProxy instances.
  *
- * See {@link AbstractJobProxy#fromFactory(JobsResourceConfig)}
+ * See {@link AbstractJobProxy#fromFactory(org.apache.samza.rest.resources.JobsResourceConfig)}
  */
 public class SimpleYarnJobProxyFactory implements JobProxyFactory {
 
-  private static final Logger LOG = LoggerFactory.getLogger(SimpleYarnJobProxyFactory.class);
-
   @Override
   public JobProxy getJobProxy(JobsResourceConfig config) {
-    try {
-      return new SimpleYarnJobProxy(config);
-    } catch (Exception e) {
-      LOG.error("Exception during instantiation of SimpleYarnJobProxy: ", e);
-      throw new SamzaException(e);
-    }
+    return new SimpleYarnJobProxy(config);
   }
 }

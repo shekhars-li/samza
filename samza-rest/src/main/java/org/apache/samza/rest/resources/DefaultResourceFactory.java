@@ -18,10 +18,10 @@
  */
 package org.apache.samza.rest.resources;
 
-import com.google.common.collect.ImmutableList;
+import java.util.Collections;
 import java.util.List;
 import org.apache.samza.config.Config;
-import org.apache.samza.rest.proxy.task.TaskResourceConfig;
+import org.apache.samza.rest.SamzaRestConfig;
 
 
 /**
@@ -30,7 +30,6 @@ import org.apache.samza.rest.proxy.task.TaskResourceConfig;
 public class DefaultResourceFactory implements ResourceFactory {
   @Override
   public List<? extends Object> getResourceInstances(Config config) {
-    return ImmutableList.of(new JobsResource(new JobsResourceConfig(config)),
-                            new TasksResource(new TaskResourceConfig(config)));
+    return Collections.singletonList(new JobsResource(new JobsResourceConfig(config)));
   }
 }

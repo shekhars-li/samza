@@ -20,6 +20,7 @@
 package org.apache.samza.logging.log4j;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -114,9 +115,8 @@ public class StreamAppender extends AppenderSkeleton {
               new OutgoingMessageEnvelope(systemStream, key.getBytes("UTF-8"), serde.toBytes(subLog(event)));
           systemProducer.send(SOURCE, outgoingMessageEnvelope);
         }
-      } catch (Exception e) {
-        System.err.println("[StreamAppender] Error sending log message:");
-        e.printStackTrace();
+      } catch (UnsupportedEncodingException e) {
+        throw new SamzaException("can not send the log messages", e);
       } finally {
         recursiveCall.set(false);
       }

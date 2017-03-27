@@ -37,6 +37,7 @@ import org.apache.samza.rest.proxy.job.JobProxyFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 /**
  * The REST resource for jobs. Handles all requests for the jobs collection
  * or individual job instances.
@@ -72,7 +73,7 @@ public class JobsResource {
       return Response.ok(jobProxy.getAllJobStatuses()).build();
     } catch (Exception e) {
       log.error("Error in getInstalledJobs.", e);
-      return Responses.errorResponse(e.getMessage());
+      return errorResponse(e.getMessage());
     }
   }
 
@@ -104,7 +105,7 @@ public class JobsResource {
       return Response.ok(job).build();
     } catch (Exception e) {
       log.error("Error in getJob.", e);
-      return Responses.errorResponse(e.getMessage());
+      return errorResponse(e.getMessage());
     }
   }
 
@@ -154,10 +155,21 @@ public class JobsResource {
       }
     } catch (IllegalArgumentException e) {
       log.info(String.format("Illegal arguments updateJobStatus. JobName:%s JobId:%s Status=%s", jobName, jobId, status), e);
-      return Responses.badRequestResponse(e.getMessage());
+      return Response.status(Response.Status.BAD_REQUEST).entity(
+          Collections.singletonMap("message", e.getMessage())).build();
     } catch (Exception e) {
       log.error("Error in updateJobStatus.", e);
-      return Responses.errorResponse(String.format("Error type: %s message: %s", e.toString(), e.getMessage()));
+      return errorResponse(String.format("Error type: %s message: %s", e.toString(), e.getMessage()));
     }
+  }
+
+  /**
+   * Constructs a consistent format for error responses. This method should be used for every error case.
+   *
+   * @param message the error message to report.
+   * @return        the {@link Response} containing the error message.
+   */
+  private Response errorResponse(String message) {
+    return Response.serverError().entity(Collections.singletonMap("message", message)).build();
   }
 }
