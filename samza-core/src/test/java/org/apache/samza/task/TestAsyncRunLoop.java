@@ -586,7 +586,6 @@ public class TestAsyncRunLoop {
   }
 
   @Test
-  @Ignore
   public void testProcessBehaviourWhenAsyncCommitIsEnabled() throws InterruptedException {
     TestTask task0 = new TestTask(true, true, false);
 
