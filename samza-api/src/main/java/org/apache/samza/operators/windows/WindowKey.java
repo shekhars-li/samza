@@ -21,26 +21,65 @@ package org.apache.samza.operators.windows;
 /**
  * Key for a {@link WindowPane} emitted from a {@link Window}.
  *
- * @param <K> the type of the key in the incoming {@link org.apache.samza.operators.data.MessageEnvelope}.
+ * @param <K> the type of the key in the incoming message.
  *            Windows that are not keyed have a {@link Void} key type.
  *
  */
 public class WindowKey<K> {
-
+  /**
+   * A (key,paneId) tuple uniquely identifies an emission from a window. For instance, in case of keyed-tumbling time windows,
+   * the key is provided by the keyExtractor function, and the paneId is the start of the time window boundary. In case
+   * of session windows, the key is provided by the keyExtractor function, and the paneId is the time at which the earliest
+   * message in the window arrived.
+   */
   private final  K key;
 
-  private final String windowId;
+  private final String paneId;
 
-  public WindowKey(K key, String  windowId) {
+  public WindowKey(K key, String  paneId) {
     this.key = key;
-    this.windowId = windowId;
+    this.paneId = paneId;
   }
 
   public K getKey() {
     return key;
   }
 
-  public String getWindowId() {
-    return windowId;
+  public String getPaneId() {
+    return paneId;
   }
+
+  @Override
+  public String toString() {
+    String wndKey = "";
+    if (!(key instanceof Void)) {
+      wndKey = String.format("%s:", key.toString());
+    }
+    return String.format("%s%s", wndKey, paneId);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    WindowKey<?> windowKey = (WindowKey<?>) o;
+
+    if (!key.equals(windowKey.key)) return false;
+
+    if (paneId == null) {
+      return windowKey.paneId == null;
+    }
+
+    return paneId.equals(windowKey.paneId);
+
+  }
+
+  @Override
+  public int hashCode() {
+    int result = key.hashCode();
+    result = 31 * result + (paneId != null ? paneId.hashCode() : 0);
+    return result;
+  }
+
 }

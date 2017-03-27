@@ -60,6 +60,7 @@ public class SamzaContainerController {
    * @param taskFactory         Factory that be used create instances of {@link org.apache.samza.task.StreamTask} or
    *                            {@link org.apache.samza.task.AsyncStreamTask}
    * @param containerShutdownMs How long the Samza container should wait for an orderly shutdown of task instances
+   * @param processorId         Id of the processor
    * @param metricsReporterMap  Map of metric reporter name and {@link MetricsReporter} instance
    */
   public SamzaContainerController(
@@ -104,7 +105,9 @@ public class SamzaContainerController {
         localityManager,
         new JmxServer(),
         Util.<String, MetricsReporter>javaMapAsScalaMap(metricsReporterMap),
-        taskFactory);
+        taskFactory,
+        // TODO: need to use the correct local ApplicationRunner here
+        null);
     log.info("About to start container: " + containerModel.getContainerId());
     containerFuture = executorService.submit(() -> container.run());
   }
