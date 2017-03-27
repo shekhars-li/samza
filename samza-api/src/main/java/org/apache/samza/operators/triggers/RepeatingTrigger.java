@@ -18,17 +18,19 @@
  */
 package org.apache.samza.operators.triggers;
 
-import org.apache.samza.operators.data.MessageEnvelope;
-
 /**
  * A {@link Trigger} that repeats its underlying trigger forever.
  */
-class RepeatingTrigger<M extends MessageEnvelope> implements Trigger<M> {
+class RepeatingTrigger<M> implements Trigger<M> {
 
   private final Trigger<M> trigger;
 
   RepeatingTrigger(Trigger<M> trigger) {
     this.trigger = trigger;
+  }
+
+  public Trigger<M> getTrigger() {
+    return trigger;
   }
 }
 
