@@ -31,7 +31,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import org.apache.samza.Partition;
 import org.apache.samza.checkpoint.OffsetManager;
 import org.apache.samza.config.Config;
@@ -47,7 +46,6 @@ import org.apache.samza.system.SystemConsumer;
 import org.apache.samza.system.SystemConsumers;
 import org.apache.samza.system.SystemStreamPartition;
 import org.apache.samza.system.TestSystemConsumers;
-
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -396,7 +394,7 @@ public class TestAsyncRunLoop {
     assertEquals(2L, containerMetrics.processes().getCount());
   }
 
-//  @Test
+  @Test
   public void testEndOfStreamWithOutOfOrderProcess() throws Exception {
     maxMessagesInFlight = 2;
     task0 = new TestTask(true, true, false);
@@ -526,8 +524,8 @@ public class TestAsyncRunLoop {
   public void testCommitBehaviourWhenAsyncCommitIsEnabled() throws InterruptedException {
     commitRequest = TaskCoordinator.RequestScope.CURRENT_TASK;
     maxMessagesInFlight = 2;
-    TestTask task0 = new TestTask(true, true, false);
-    TestTask task1 = new TestTask(true, false, false);
+    task0 = new TestTask(true, true, false);
+    task1 = new TestTask(true, false, false);
 
     IncomingMessageEnvelope firstMsg = new IncomingMessageEnvelope(ssp0, "0", "key0", "value0");
     IncomingMessageEnvelope secondMsg = new IncomingMessageEnvelope(ssp0, "1", "key1", "value1");
@@ -586,6 +584,7 @@ public class TestAsyncRunLoop {
   }
 
   @Test
+  @Ignore
   public void testProcessBehaviourWhenAsyncCommitIsEnabled() throws InterruptedException {
     TestTask task0 = new TestTask(true, true, false);
 

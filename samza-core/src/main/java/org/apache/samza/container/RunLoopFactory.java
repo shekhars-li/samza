@@ -27,8 +27,6 @@ import org.apache.samza.util.HighResolutionClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.collection.JavaConversions;
-import scala.collection.immutable.Map;
-import scala.runtime.AbstractFunction0;
 import scala.runtime.AbstractFunction1;
 
 import java.util.concurrent.ExecutorService;
