@@ -49,6 +49,7 @@ import org.apache.samza.system.SystemStreamPartition;
 import org.apache.samza.system.TestSystemConsumers;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import scala.Option;
 import scala.collection.JavaConversions;
@@ -585,6 +586,10 @@ public class TestAsyncRunLoop {
   }
 
   @Test
+<<<<<<< HEAD
+=======
+  @Ignore
+>>>>>>> master
   public void testProcessBehaviourWhenAsyncCommitIsEnabled() throws InterruptedException {
     TestTask task0 = new TestTask(true, true, false);
 

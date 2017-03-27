@@ -34,6 +34,7 @@ import scala.runtime.AbstractFunction1;
 import java.util.concurrent.ExecutorService;
 
 import static org.apache.samza.util.Util.asScalaClock;
+import static org.apache.samza.util.ScalaToJavaUtils.defaultValue;
 
 /**
  * Factory class to create runloop for a Samza task, based on the type
@@ -113,18 +114,4 @@ public class RunLoopFactory {
     }
   }
 
-  /**
-   * Returns a default value object for scala option.getOrDefault() to use
-   * @param value default value
-   * @param <T> value type
-   * @return object containing default value
-   */
-  public static <T> AbstractFunction0<T> defaultValue(final T value) {
-    return new AbstractFunction0<T>() {
-      @Override
-      public T apply() {
-        return value;
-      }
-    };
-  }
 }

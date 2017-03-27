@@ -18,22 +18,20 @@
 */
 package org.apache.samza.operators.triggers;
 
-import org.apache.samza.operators.data.MessageEnvelope;
 import java.util.List;
 
 /**
  * A {@link Trigger} fires as soon as any of its individual triggers has fired.
  */
-public class AnyTrigger<M extends MessageEnvelope> implements Trigger {
+public class AnyTrigger<M> implements Trigger<M> {
 
-  private final List<Trigger> triggers;
+  private final List<Trigger<M>> triggers;
 
-  AnyTrigger(List<Trigger> triggers) {
+  AnyTrigger(List<Trigger<M>> triggers) {
     this.triggers = triggers;
   }
 
-  public List<Trigger> getTriggers() {
+  public List<Trigger<M>> getTriggers() {
     return triggers;
   }
 }
-
