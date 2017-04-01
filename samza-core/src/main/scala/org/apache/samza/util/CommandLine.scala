@@ -25,7 +25,7 @@ import joptsimple.util.KeyValuePair
 import org.apache.samza.config.{ConfigFactory, MapConfig}
 import org.apache.samza.config.factories.PropertiesConfigFactory
 import scala.collection.mutable.Buffer
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 /**
  * Defines a basic set of command-line options for Samza tasks. Tools can use this
@@ -63,11 +63,11 @@ class CommandLine {
     // Set up the job parameters.
     val configFactoryClass = options.valueOf(configFactoryOpt)
     val configPaths = options.valuesOf(configPathOpt)
-    configFactory = Class.forName(configFactoryClass).newInstance.asInstanceOf[ConfigFactory]
-    val configOverrides = options.valuesOf(configOverrideOpt).map(kv => (kv.key, kv.value)).toMap
+    configFactory = ClassLoaderHelper.fromClassName[ConfigFactory](configFactoryClass)
+    val configOverrides = options.valuesOf(configOverrideOpt).asScala.map(kv => (kv.key, kv.value)).toMap
 
-    val configs: Buffer[java.util.Map[String, String]] = configPaths.map(configFactory.getConfig)
-    configs += configOverrides
-    new MapConfig(configs)
+    val configs: Buffer[java.util.Map[String, String]] = configPaths.asScala.map(configFactory.getConfig)
+    configs += configOverrides.asJava
+    new MapConfig(configs.asJava)
   }
 }
