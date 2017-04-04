@@ -585,9 +585,12 @@ object SamzaContainer extends Logging {
       info(s"Disk quotas disabled because polling interval is not set ($DISK_POLL_INTERVAL_KEY)")
     }
 
+    val lifeCycleListener = config.getContainerLifeCycleListener match {
+      case Some(className) => Class.forName(className).newInstance.asInstanceOf[SamzaContainerLifeCycleListener]
+      case _ => new DefaultLifeCycleListener
+    }
 
     info("Samza container setup complete.")
-
     new SamzaContainer(
       containerContext = containerContext,
       taskInstances = taskInstances,
@@ -603,7 +606,8 @@ object SamzaContainer extends Logging {
       jmxServer = jmxServer,
       diskSpaceMonitor = diskSpaceMonitor,
       hostStatisticsMonitor = memoryStatisticsMonitor,
-      taskThreadPool = taskThreadPool)
+      taskThreadPool = taskThreadPool,
+      lifeCycleListener = lifeCycleListener)
   }
 }
 
@@ -622,9 +626,12 @@ class SamzaContainer(
   securityManager: SecurityManager = null,
   reporters: Map[String, MetricsReporter] = Map(),
   jvm: JvmMetrics = null,
-  taskThreadPool: ExecutorService = null) extends Runnable with Logging {
+  taskThreadPool: ExecutorService = null,
+  lifeCycleListener: SamzaContainerLifeCycleListener = new DefaultLifeCycleListener) extends Runnable with Logging {
 
   val shutdownMs = containerContext.config.getShutdownMs.getOrElse(5000L)
+  var shutdownHookThread: Thread = null
+
   private val runLoopStartLatch: CountDownLatch = new CountDownLatch(1)
 
   def awaitStart(timeoutMs: Long): Boolean = {
@@ -640,6 +647,7 @@ class SamzaContainer(
   def run {
     try {
       info("Starting container.")
+      lifeCycleListener.beforeStart(containerContext)
 
       startMetrics
       startOffsetManager
@@ -652,6 +660,7 @@ class SamzaContainer(
       startConsumers
       startSecurityManger
 
+      lifeCycleListener.afterStart()
       addShutdownHook
       runLoopStartLatch.countDown()
       info("Entering run loop.")
@@ -661,6 +670,7 @@ class SamzaContainer(
         error("Caught exception/error in process loop.", e)
         throw e
     } finally {
+      lifeCycleListener.beforeShutdown()
       info("Shutting down.")
 
       shutdownConsumers
@@ -673,7 +683,9 @@ class SamzaContainer(
       shutdownOffsetManager
       shutdownMetrics
       shutdownSecurityManger
+      removeShutdownHook
 
+      lifeCycleListener.afterShutdown()
       info("Shutdown complete.")
     }
   }
@@ -801,7 +813,7 @@ class SamzaContainer(
 
   def addShutdownHook {
     val runLoopThread = Thread.currentThread()
-    Runtime.getRuntime().addShutdownHook(new Thread() {
+    shutdownHookThread = new Thread() {
       override def run() = {
         info("Shutting down, will wait up to %s ms" format shutdownMs)
         runLoop match {
@@ -815,7 +827,19 @@ class SamzaContainer(
           info("Shutdown complete")
         }
       }
-    })
+    }
+    Runtime.getRuntime.addShutdownHook(shutdownHookThread)
+  }
+
+  def removeShutdownHook = {
+    try {
+      Runtime.getRuntime.removeShutdownHook(shutdownHookThread)
+    } catch {
+      case e: IllegalStateException => {
+        // When samza is shutdown by external command, IllegalStateException will be thrown.
+        // And it's expected.
+      }
+    }
   }
 
   def shutdownConsumers {
