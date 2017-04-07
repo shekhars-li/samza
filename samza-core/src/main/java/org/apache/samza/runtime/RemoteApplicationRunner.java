@@ -19,21 +19,17 @@
 
 package org.apache.samza.runtime;
 
-import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.samza.SamzaException;
 import org.apache.samza.application.StreamApplication;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JavaSystemConfig;
+import org.apache.samza.config.JobConfig;
 import org.apache.samza.execution.ExecutionPlanner;
-import org.apache.samza.execution.ProcessorGraph;
-import org.apache.samza.execution.ProcessorNode;
 import org.apache.samza.execution.StreamManager;
+import org.apache.samza.execution.ExecutionPlan;
 import org.apache.samza.job.ApplicationStatus;
 import org.apache.samza.job.JobRunner;
-import org.apache.samza.operators.StreamGraph;
 import org.apache.samza.operators.StreamGraphImpl;
-import org.apache.samza.system.StreamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,19 +56,15 @@ public class RemoteApplicationRunner extends AbstractApplicationRunner {
   public void run(StreamApplication app) {
     try {
       // 1. initialize and plan
-      ProcessorGraph processorGraph = getExecutionPlan(app);
+      ExecutionPlan plan = getExecutionPlan(app);
 
       // 2. create the necessary streams
-      List<StreamSpec> streams = processorGraph.getIntermediateStreams().stream()
-          .map(streamEdge -> streamEdge.getStreamSpec())
-          .collect(Collectors.toList());
-      streamManager.createStreams(streams);
+      streamManager.createStreams(plan.getIntermediateStreams());
 
       // 3. submit jobs for remote execution
-      processorGraph.getProcessorNodes().forEach(processor -> {
-          Config processorConfig = processor.generateConfig();
-          log.info("Starting processor {} with config {}", processor.getId(), processorConfig);
-          JobRunner runner = new JobRunner(processorConfig);
+      plan.getJobConfigs().forEach(jobConfig -> {
+          log.info("Starting job {} with config {}", jobConfig.getName(), jobConfig);
+          JobRunner runner = new JobRunner(jobConfig);
           runner.run(true);
         });
     } catch (Throwable t) {
@@ -83,12 +75,11 @@ public class RemoteApplicationRunner extends AbstractApplicationRunner {
   @Override
   public void kill(StreamApplication app) {
     try {
-      ProcessorGraph processorGraph = getExecutionPlan(app);
+      ExecutionPlan plan = getExecutionPlan(app);
 
-      processorGraph.getProcessorNodes().forEach(processor -> {
-          Config processorConfig = processor.generateConfig();
-          log.info("Killing processor {}", processor.getId());
-          JobRunner runner = new JobRunner(processorConfig);
+      plan.getJobConfigs().forEach(jobConfig -> {
+          log.info("Killing job {}", jobConfig.getName());
+          JobRunner runner = new JobRunner(jobConfig);
           runner.kill();
         });
     } catch (Throwable t) {
@@ -102,12 +93,11 @@ public class RemoteApplicationRunner extends AbstractApplicationRunner {
       boolean finished = false;
       boolean unsuccessfulFinish = false;
 
-      ProcessorGraph processorGraph = getExecutionPlan(app);
-      for (ProcessorNode processor : processorGraph.getProcessorNodes()) {
-        Config processorConfig = processor.generateConfig();
-        JobRunner runner = new JobRunner(processorConfig);
+      ExecutionPlan plan = getExecutionPlan(app);
+      for (JobConfig jobConfig : plan.getJobConfigs()) {
+        JobRunner runner = new JobRunner(jobConfig);
         ApplicationStatus status = runner.status();
-        log.debug("Status is {} for processor {}", new Object[]{status, processor.getId()});
+        log.debug("Status is {} for job {}", new Object[]{status, jobConfig.getName()});
 
         switch (status) {
           case Running:
@@ -133,9 +123,9 @@ public class RemoteApplicationRunner extends AbstractApplicationRunner {
     }
   }
 
-  private ProcessorGraph getExecutionPlan(StreamApplication app) throws Exception {
+  private ExecutionPlan getExecutionPlan(StreamApplication app) throws Exception {
     // build stream graph
-    StreamGraph streamGraph = new StreamGraphImpl(this, config);
+    StreamGraphImpl streamGraph = new StreamGraphImpl(this, config);
     app.init(streamGraph, config);
 
     // create the physical execution plan

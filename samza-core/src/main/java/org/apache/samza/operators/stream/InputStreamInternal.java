@@ -16,18 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.operators;
+package org.apache.samza.operators.stream;
 
 import org.apache.samza.annotation.InterfaceStability;
+import org.apache.samza.operators.MessageStream;
+import org.apache.samza.system.StreamSpec;
+
+import java.util.function.BiFunction;
 
 /**
- * An output stream to send messages to.
+ * Internal representation of an input stream.
  *
- * @param <K> the type of key in the outgoing message
- * @param <V> the type of message in the outgoing message
- * @param <M> the type of message in this {@link OutputStream}
+ * @param <M> the type of messages in the input stream
  */
 @InterfaceStability.Unstable
-public interface OutputStream<K, V, M> {
+public interface InputStreamInternal<K, V, M> extends MessageStream<M> {
+
+  StreamSpec getStreamSpec();
+
+  BiFunction<K, V, M> getMsgBuilder();
 
 }

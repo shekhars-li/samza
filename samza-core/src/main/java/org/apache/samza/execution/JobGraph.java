@@ -31,44 +31,73 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.JobConfig;
+import org.apache.samza.operators.StreamGraphImpl;
 import org.apache.samza.system.StreamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 /**
- * The ProcessorGraph is the physical execution graph for a multi-stage Samza application.
- * It contains the topology of execution processors connected with source/sink/intermediate streams.
- * High level APIs are transformed into ProcessorGraph for planning, validation and execution.
+ * The JobGraph is the physical execution graph for a multi-stage Samza application.
+ * It contains the topology of jobs connected with source/sink/intermediate streams.
+ * High level APIs are transformed into JobGraph for planning, validation and execution.
  * Source/sink streams are external streams while intermediate streams are created and managed by Samza.
- * Note that intermediate streams are both the input and output of a ProcessorNode in ProcessorGraph.
+ * Note that intermediate streams are both the input and output of a JobNode in JobGraph.
  * So the graph may have cycles and it's not a DAG.
  */
-public class ProcessorGraph {
-  private static final Logger log = LoggerFactory.getLogger(ProcessorGraph.class);
+/* package private */ class JobGraph implements ExecutionPlan {
+  private static final Logger log = LoggerFactory.getLogger(JobGraph.class);
 
-  private final Map<String, ProcessorNode> nodes = new HashMap<>();
+  private final Map<String, JobNode> nodes = new HashMap<>();
   private final Map<String, StreamEdge> edges = new HashMap<>();
   private final Set<StreamEdge> sources = new HashSet<>();
   private final Set<StreamEdge> sinks = new HashSet<>();
   private final Set<StreamEdge> intermediateStreams = new HashSet<>();
   private final Config config;
+  private final JobGraphJsonGenerator jsonGenerator = new JobGraphJsonGenerator();
 
   /**
-   * The ProcessorGraph is only constructed by the {@link ExecutionPlanner}.
+   * The JobGraph is only constructed by the {@link ExecutionPlanner}.
    * @param config Config
    */
-  /* package private */ ProcessorGraph(Config config) {
+  JobGraph(Config config) {
     this.config = config;
   }
 
   /**
-   * Add a source stream to a {@link ProcessorNode}
-   * @param input source stream
-   * @param targetProcessorId id of the {@link ProcessorNode}
+   * Returns the configs for single stage job, in the order of topologically sort.
+   * @return list of job configs
    */
-  /* package private */ void addSource(StreamSpec input, String targetProcessorId) {
-    ProcessorNode node = getOrCreateProcessor(targetProcessorId);
+  public List<JobConfig> getJobConfigs() {
+    return getJobNodes().stream().map(JobNode::generateConfig).collect(Collectors.toList());
+  }
+
+  /**
+   * Returns the intermediate streams that need to be created.
+   * @return intermediate {@link StreamSpec}s
+   */
+  public List<StreamSpec> getIntermediateStreams() {
+    return getIntermediateStreamEdges().stream()
+        .map(streamEdge -> streamEdge.getStreamSpec())
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Returns the JSON representation of the plan for visualization
+   * @return json string
+   * @throws Exception
+   */
+  public String getPlanAsJson() throws Exception {
+    return jsonGenerator.toJson(this);
+  }
+
+  /**
+   * Add a source stream to a {@link JobNode}
+   * @param input source stream
+   * @param node the job node that consumes from the source
+   */
+  void addSource(StreamSpec input, JobNode node) {
     StreamEdge edge = getOrCreateEdge(input);
     edge.addTargetNode(node);
     node.addInEdge(edge);
@@ -76,12 +105,11 @@ public class ProcessorGraph {
   }
 
   /**
-   * Add a sink stream to a {@link ProcessorNode}
+   * Add a sink stream to a {@link JobNode}
    * @param output sink stream
-   * @param sourceProcessorId id of the {@link ProcessorNode}
+   * @param node the job node that outputs to the sink
    */
-  /* package private */ void addSink(StreamSpec output, String sourceProcessorId) {
-    ProcessorNode node = getOrCreateProcessor(sourceProcessorId);
+  void addSink(StreamSpec output, JobNode node) {
     StreamEdge edge = getOrCreateEdge(output);
     edge.addSourceNode(node);
     node.addOutEdge(edge);
@@ -89,32 +117,32 @@ public class ProcessorGraph {
   }
 
   /**
-   * Add an intermediate stream from source to target {@link ProcessorNode}
+   * Add an intermediate stream from source to target {@link JobNode}
    * @param streamSpec intermediate stream
-   * @param sourceProcessorId id of the source {@link ProcessorNode}
-   * @param targetProcessorId id of the target {@link ProcessorNode}
+   * @param from the source node
+   * @param to the target node
    */
-  /* package private */ void addIntermediateStream(StreamSpec streamSpec, String sourceProcessorId, String targetProcessorId) {
-    ProcessorNode sourceNode = getOrCreateProcessor(sourceProcessorId);
-    ProcessorNode targetNode = getOrCreateProcessor(targetProcessorId);
+  void addIntermediateStream(StreamSpec streamSpec, JobNode from, JobNode to) {
     StreamEdge edge = getOrCreateEdge(streamSpec);
-    edge.addSourceNode(sourceNode);
-    edge.addTargetNode(targetNode);
-    sourceNode.addOutEdge(edge);
-    targetNode.addInEdge(edge);
+    edge.addSourceNode(from);
+    edge.addTargetNode(to);
+    from.addOutEdge(edge);
+    to.addInEdge(edge);
     intermediateStreams.add(edge);
   }
 
   /**
-   * Get the {@link ProcessorNode} for an id. Create one if it does not exist.
-   * @param processorId id of the processor
-   * @return processor node
+   * Get the {@link JobNode}. Create one if it does not exist.
+   * @param jobName name of the job
+   * @param jobId id of the job
+   * @return
    */
-  /* package private */ProcessorNode getOrCreateProcessor(String processorId) {
-    ProcessorNode node = nodes.get(processorId);
+  JobNode getOrCreateNode(String jobName, String jobId, StreamGraphImpl streamGraph) {
+    String nodeId = JobNode.createId(jobName, jobId);
+    JobNode node = nodes.get(nodeId);
     if (node == null) {
-      node = new ProcessorNode(processorId, config);
-      nodes.put(processorId, node);
+      node = new JobNode(jobName, jobId, streamGraph, config);
+      nodes.put(nodeId, node);
     }
     return node;
   }
@@ -124,7 +152,7 @@ public class ProcessorGraph {
    * @param streamSpec spec of the StreamEdge
    * @return stream edge
    */
-  /* package private */StreamEdge getOrCreateEdge(StreamSpec streamSpec) {
+  StreamEdge getOrCreateEdge(StreamSpec streamSpec) {
     String streamId = streamSpec.getId();
     StreamEdge edge = edges.get(streamId);
     if (edge == null) {
@@ -135,11 +163,11 @@ public class ProcessorGraph {
   }
 
   /**
-   * Returns the processors to be executed in the topological order
-   * @return unmodifiable list of {@link ProcessorNode}
+   * Returns the job nodes to be executed in the topological order
+   * @return unmodifiable list of {@link JobNode}
    */
-  public List<ProcessorNode> getProcessorNodes() {
-    List<ProcessorNode> sortedNodes = topologicalSort();
+  List<JobNode> getJobNodes() {
+    List<JobNode> sortedNodes = topologicalSort();
     return Collections.unmodifiableList(sortedNodes);
   }
 
@@ -147,7 +175,7 @@ public class ProcessorGraph {
    * Returns the source streams in the graph
    * @return unmodifiable set of {@link StreamEdge}
    */
-  public Set<StreamEdge> getSources() {
+  Set<StreamEdge> getSources() {
     return Collections.unmodifiableSet(sources);
   }
 
@@ -155,7 +183,7 @@ public class ProcessorGraph {
    * Return the sink streams in the graph
    * @return unmodifiable set of {@link StreamEdge}
    */
-  public Set<StreamEdge> getSinks() {
+  Set<StreamEdge> getSinks() {
     return Collections.unmodifiableSet(sinks);
   }
 
@@ -163,17 +191,16 @@ public class ProcessorGraph {
    * Return the intermediate streams in the graph
    * @return unmodifiable set of {@link StreamEdge}
    */
-  public Set<StreamEdge> getIntermediateStreams() {
+  Set<StreamEdge> getIntermediateStreamEdges() {
     return Collections.unmodifiableSet(intermediateStreams);
   }
-
 
   /**
    * Validate the graph has the correct topology, meaning the sources are coming from external streams,
    * sinks are going to external streams, and the nodes are connected with intermediate streams.
    * Also validate all the nodes are reachable from the sources.
    */
-  public void validate() {
+  void validate() {
     validateSources();
     validateSinks();
     validateInternalStreams();
@@ -233,31 +260,31 @@ public class ProcessorGraph {
    */
   private void validateReachability() {
     // validate all nodes are reachable from the sources
-    final Set<ProcessorNode> reachable = findReachable();
+    final Set<JobNode> reachable = findReachable();
     if (reachable.size() != nodes.size()) {
-      Set<ProcessorNode> unreachable = new HashSet<>(nodes.values());
+      Set<JobNode> unreachable = new HashSet<>(nodes.values());
       unreachable.removeAll(reachable);
-      throw new IllegalArgumentException(String.format("Processors %s cannot be reached from Sources.",
-          String.join(", ", unreachable.stream().map(ProcessorNode::getId).collect(Collectors.toList()))));
+      throw new IllegalArgumentException(String.format("Jobs %s cannot be reached from Sources.",
+          String.join(", ", unreachable.stream().map(JobNode::getId).collect(Collectors.toList()))));
     }
   }
 
   /**
    * Find the reachable set of nodes using BFS.
-   * @return reachable set of {@link ProcessorNode}
+   * @return reachable set of {@link JobNode}
    */
-  /* package private */ Set<ProcessorNode> findReachable() {
-    Queue<ProcessorNode> queue = new ArrayDeque<>();
-    Set<ProcessorNode> visited = new HashSet<>();
+  Set<JobNode> findReachable() {
+    Queue<JobNode> queue = new ArrayDeque<>();
+    Set<JobNode> visited = new HashSet<>();
 
     sources.forEach(source -> {
-        List<ProcessorNode> next = source.getTargetNodes();
+        List<JobNode> next = source.getTargetNodes();
         queue.addAll(next);
         visited.addAll(next);
       });
 
     while (!queue.isEmpty()) {
-      ProcessorNode node = queue.poll();
+      JobNode node = queue.poll();
       node.getOutEdges().stream().flatMap(edge -> edge.getTargetNodes().stream()).forEach(target -> {
           if (!visited.contains(target)) {
             visited.add(target);
@@ -272,17 +299,17 @@ public class ProcessorGraph {
   /**
    * An variation of Kahn's algorithm of topological sorting.
    * This algorithm also takes account of the simple loops in the graph
-   * @return topologically sorted {@link ProcessorNode}s
+   * @return topologically sorted {@link JobNode}s
    */
-  /* package private */ List<ProcessorNode> topologicalSort() {
-    Collection<ProcessorNode> pnodes = nodes.values();
+  List<JobNode> topologicalSort() {
+    Collection<JobNode> pnodes = nodes.values();
     if (pnodes.size() == 1) {
       return new ArrayList<>(pnodes);
     }
 
-    Queue<ProcessorNode> q = new ArrayDeque<>();
+    Queue<JobNode> q = new ArrayDeque<>();
     Map<String, Long> indegree = new HashMap<>();
-    Set<ProcessorNode> visited = new HashSet<>();
+    Set<JobNode> visited = new HashSet<>();
     pnodes.forEach(node -> {
         String nid = node.getId();
         //only count the degrees of intermediate streams
@@ -296,8 +323,8 @@ public class ProcessorGraph {
         }
       });
 
-    List<ProcessorNode> sortedNodes = new ArrayList<>();
-    Set<ProcessorNode> reachable = new HashSet<>();
+    List<JobNode> sortedNodes = new ArrayList<>();
+    Set<JobNode> reachable = new HashSet<>();
     while (sortedNodes.size() < pnodes.size()) {
       // Here we use indegree-based approach to implment Kahn's algorithm for topological sort
       // This approach will not change the graph itself during computation.
@@ -309,7 +336,7 @@ public class ProcessorGraph {
       // 4. loop 1-3 until no more nodes with indegree 0
       //
       while (!q.isEmpty()) {
-        ProcessorNode node = q.poll();
+        JobNode node = q.poll();
         sortedNodes.add(node);
         node.getOutEdges().stream().flatMap(edge -> edge.getTargetNodes().stream()).forEach(n -> {
             String nid = n.getId();
@@ -331,8 +358,8 @@ public class ProcessorGraph {
         if (!reachable.isEmpty()) {
           //find out the nodes with minimal input edge
           long min = Long.MAX_VALUE;
-          ProcessorNode minNode = null;
-          for (ProcessorNode node : reachable) {
+          JobNode minNode = null;
+          for (JobNode node : reachable) {
             Long degree = indegree.get(node.getId());
             if (degree < min) {
               min = degree;
@@ -345,7 +372,7 @@ public class ProcessorGraph {
         } else {
           // all the remaining nodes should be reachable from sources
           // start from sources again to find the next node that hasn't been visited
-          ProcessorNode nextNode = sources.stream().flatMap(source -> source.getTargetNodes().stream())
+          JobNode nextNode = sources.stream().flatMap(source -> source.getTargetNodes().stream())
               .filter(node -> !visited.contains(node))
               .findAny().get();
           q.add(nextNode);

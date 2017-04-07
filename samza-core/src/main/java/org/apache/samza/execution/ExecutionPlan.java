@@ -16,30 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.operators.triggers;
 
-import org.apache.samza.util.Clock;
+package org.apache.samza.execution;
 
-import java.time.Duration;
+import java.util.List;
+import org.apache.samza.config.JobConfig;
+import org.apache.samza.system.StreamSpec;
+
 
 /**
- * An implementation of {@link Clock} that allows to advance the time by an arbitrary duration.
- * Used for testing.
+ * This interface represents Samza {@link org.apache.samza.application.StreamApplication}
+ * plans for physical execution.
  */
-public class TestClock implements Clock {
+public interface ExecutionPlan {
 
-  long currentTime = 1;
+  /**
+   * Returns the configs for single stage job, in the order of topologically sort.
+   * @return list of job configs
+   */
+  List<JobConfig> getJobConfigs();
 
-  public void advanceTime(Duration duration) {
-    currentTime += duration.toMillis();
-  }
+  /**
+   * Returns the intermediate streams that need to be created.
+   * @return intermediate {@link StreamSpec}s
+   */
+  List<StreamSpec> getIntermediateStreams();
 
-  public void advanceTime(long millis) {
-    currentTime += millis;
-  }
-
-  @Override
-  public long currentTimeMillis() {
-    return currentTime;
-  }
+  /**
+   * Returns the JSON representation of the plan for visualization
+   * @return json string
+   * @throws Exception exception
+   */
+  String getPlanAsJson() throws Exception;
 }

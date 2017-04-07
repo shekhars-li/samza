@@ -16,31 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.example;
+package org.apache.samza.operators.stream;
 
-import org.apache.samza.application.StreamApplication;
-import org.apache.samza.system.SystemStream;
-import org.apache.samza.system.SystemStreamPartition;
+import org.apache.samza.operators.MessageStreamImpl;
+import org.apache.samza.operators.StreamGraphImpl;
+import org.apache.samza.system.StreamSpec;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.function.BiFunction;
 
-/**
- * Base class for test examples
- *
- */
-public abstract class TestExampleBase implements StreamApplication {
+public class InputStreamInternalImpl<K, V, M> extends MessageStreamImpl<M> implements InputStreamInternal<K, V, M> {
 
-  protected final Map<SystemStream, Set<SystemStreamPartition>> inputs;
+  private final StreamSpec streamSpec;
+  private final BiFunction<K, V, M> msgBuilder;
 
-  TestExampleBase(Set<SystemStreamPartition> inputs) {
-    this.inputs = new HashMap<>();
-    for (SystemStreamPartition input : inputs) {
-      this.inputs.putIfAbsent(input.getSystemStream(), new HashSet<>());
-      this.inputs.get(input.getSystemStream()).add(input);
-    }
+  public InputStreamInternalImpl(StreamGraphImpl graph, StreamSpec streamSpec, BiFunction<K, V, M> msgBuilder) {
+    super(graph);
+    this.streamSpec = streamSpec;
+    this.msgBuilder = msgBuilder;
   }
 
+  public StreamSpec getStreamSpec() {
+    return this.streamSpec;
+  }
+
+  public BiFunction<K, V, M> getMsgBuilder() {
+    return this.msgBuilder;
+  }
 }
