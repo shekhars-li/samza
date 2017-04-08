@@ -833,7 +833,9 @@ class SamzaContainer(
 
   def removeShutdownHook = {
     try {
-      Runtime.getRuntime.removeShutdownHook(shutdownHookThread)
+      if (shutdownHookThread != null) {
+        Runtime.getRuntime.removeShutdownHook(shutdownHookThread)
+      }
     } catch {
       case e: IllegalStateException => {
         // When samza is shutdown by external command, IllegalStateException will be thrown.
