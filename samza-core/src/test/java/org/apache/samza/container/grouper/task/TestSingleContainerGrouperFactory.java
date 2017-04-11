@@ -16,16 +16,10 @@ public class TestSingleContainerGrouperFactory {
     factory.build(new MapConfig());
   }
 
-  @Test(expected = NumberFormatException.class)
-  public void testBuildThrowsExceptionOnInvalidProcessorId() {
-    SingleContainerGrouperFactory factory = new SingleContainerGrouperFactory();
-    factory.build(new MapConfig(Collections.singletonMap(PROCESSOR_ID, "abc123")));
-  }
-
   @Test
   public void testBuildSucceeds() {
     SingleContainerGrouperFactory factory = new SingleContainerGrouperFactory();
-    TaskNameGrouper grouper = factory.build(new MapConfig(Collections.singletonMap(PROCESSOR_ID, "1")));
+    TaskNameGrouper grouper = factory.build(new MapConfig(Collections.singletonMap(PROCESSOR_ID, "abc")));
     Assert.assertNotNull(grouper);
     Assert.assertTrue(grouper instanceof SingleContainerGrouper);
   }

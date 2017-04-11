@@ -21,6 +21,7 @@ package org.apache.samza.container.grouper.stream;
 
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.ConfigException;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.system.SystemStreamPartition;
@@ -40,9 +41,9 @@ import java.util.Set;
  * Note: This grouper does not take in broadcast streams yet.
  */
 class AllSspToSingleTaskGrouper implements SystemStreamPartitionGrouper {
-  private final int containerId;
+  private final String containerId;
 
-  public AllSspToSingleTaskGrouper(int containerId) {
+  public AllSspToSingleTaskGrouper(String containerId) {
     this.containerId = containerId;
   }
 
@@ -64,6 +65,9 @@ class AllSspToSingleTaskGrouper implements SystemStreamPartitionGrouper {
 public class AllSspToSingleTaskGrouperFactory implements SystemStreamPartitionGrouperFactory {
   @Override
   public SystemStreamPartitionGrouper getSystemStreamPartitionGrouper(Config config) {
-    return new AllSspToSingleTaskGrouper(config.getInt(JobConfig.PROCESSOR_ID()));
+    if (config == null || config.get(JobConfig.PROCESSOR_ID()) == null) {
+      throw new ConfigException("Could not find " + JobConfig.PROCESSOR_ID() + " in Config!");
+    }
+    return new AllSspToSingleTaskGrouper(config.get(JobConfig.PROCESSOR_ID()));
   }
 }

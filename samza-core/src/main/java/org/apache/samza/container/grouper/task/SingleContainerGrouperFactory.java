@@ -20,6 +20,7 @@
 package org.apache.samza.container.grouper.task;
 
 import org.apache.samza.config.Config;
+import org.apache.samza.config.ConfigException;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.job.model.ContainerModel;
@@ -33,6 +34,9 @@ import java.util.Set;
 public class SingleContainerGrouperFactory implements TaskNameGrouperFactory {
   @Override
   public TaskNameGrouper build(Config config) {
+    if (config == null || config.get(JobConfig.PROCESSOR_ID()) == null) {
+      throw new ConfigException("Could not find " + JobConfig.PROCESSOR_ID() + " in Config!");
+    }
     return new SingleContainerGrouper(config.get(JobConfig.PROCESSOR_ID()));
   }
 }
