@@ -16,6 +16,12 @@ public class TestSingleContainerGrouperFactory {
     factory.build(new MapConfig());
   }
 
+  @Test(expected = ConfigException.class)
+  public void testBuildThrowsExceptionOnNullConfig() {
+    SingleContainerGrouperFactory factory = new SingleContainerGrouperFactory();
+    factory.build(null);
+  }
+
   @Test
   public void testBuildSucceeds() {
     SingleContainerGrouperFactory factory = new SingleContainerGrouperFactory();
