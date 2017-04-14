@@ -168,7 +168,7 @@ class TestBrokerProxy extends Logging {
             val fetchResponsePartitionData = FetchResponsePartitionData(0, 500, messageSet)
             val map = scala.Predef.Map[TopicAndPartition, FetchResponsePartitionData](tp -> fetchResponsePartitionData)
 
-            when(fetchResponse.data).thenReturn(map)
+            when(fetchResponse.data).thenReturn(map.toSet.toSeq)
             when(fetchResponse.messageSet(any(classOf[String]), any(classOf[Int]))).thenReturn(messageSet)
             fetchResponse
           }
@@ -264,7 +264,7 @@ class TestBrokerProxy extends Logging {
           val response = mock(classOf[FetchResponsePartitionData])
           when(response.error).thenReturn(ErrorMapping.OffsetOutOfRangeCode)
           val responseMap = Map(tp -> response)
-          when(mfr.data).thenReturn(responseMap)
+          when(mfr.data).thenReturn(responseMap.toSet.toSeq)
           invocationCount += 1
           mfr
         } else {

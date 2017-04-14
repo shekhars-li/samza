@@ -23,9 +23,10 @@ import java.util
 import java.util.{Properties, UUID}
 import kafka.admin.AdminUtils
 import kafka.api._
-import kafka.common.{TopicExistsException, TopicAndPartition}
+import kafka.common.TopicAndPartition
 import kafka.consumer.{ConsumerConfig, SimpleConsumer}
 import kafka.utils.ZkUtils
+import org.apache.kafka.common.errors.TopicExistsException
 import org.apache.samza.system.SystemStreamMetadata.SystemStreamPartitionMetadata
 import org.apache.samza.system._
 import org.apache.samza.util.{ClientUtilTopicMetadataStore, ExponentialSleepStrategy, KafkaUtil, Logging}
