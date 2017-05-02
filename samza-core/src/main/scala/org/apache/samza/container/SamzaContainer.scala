@@ -413,7 +413,6 @@ object SamzaContainer extends Logging {
     info("Got default storage engine base directory: %s" format defaultStoreBaseDir)
 
     val storeWatchPaths = new util.HashSet[Path]()
-    storeWatchPaths.add(defaultStoreBaseDir.toPath)
 
     val taskInstances: Map[TaskName, TaskInstance] = containerModel.getTasks.values.asScala.map(taskModel => {
       debug("Setting up task instance: %s" format taskModel)
@@ -455,8 +454,6 @@ object SamzaContainer extends Logging {
         loggedStorageBaseDir = defaultStoreBaseDir
       }
 
-      storeWatchPaths.add(loggedStorageBaseDir.toPath)
-
       info("Got base directory for logged data stores: %s" format loggedStorageBaseDir)
 
       val taskStores = storageEngineFactories
@@ -467,25 +464,30 @@ object SamzaContainer extends Logging {
             } else {
               null
             }
+
             val keySerde = config.getStorageKeySerde(storeName) match {
               case Some(keySerde) => serdes.getOrElse(keySerde,
                 throw new SamzaException("StorageKeySerde: No class defined for serde: %s." format keySerde))
               case _ => null
             }
+
             val msgSerde = config.getStorageMsgSerde(storeName) match {
               case Some(msgSerde) => serdes.getOrElse(msgSerde,
                 throw new SamzaException("StorageMsgSerde: No class defined for serde: %s." format msgSerde))
               case _ => null
             }
-            val storeBaseDir = if(changeLogSystemStreamPartition != null) {
+
+            val storeDir = if (changeLogSystemStreamPartition != null) {
               TaskStorageManager.getStorePartitionDir(loggedStorageBaseDir, storeName, taskName)
-            }
-            else {
+            } else {
               TaskStorageManager.getStorePartitionDir(defaultStoreBaseDir, storeName, taskName)
             }
+
+            storeWatchPaths.add(storeDir.toPath)
+
             val storageEngine = storageEngineFactory.getStorageEngine(
               storeName,
-              storeBaseDir,
+              storeDir,
               keySerde,
               msgSerde,
               collector,
@@ -630,9 +632,8 @@ class SamzaContainer(
   lifeCycleListener: SamzaContainerLifeCycleListener = new DefaultLifeCycleListener) extends Runnable with Logging {
 
   val shutdownMs = containerContext.config.getShutdownMs.getOrElse(5000L)
-  var shutdownHookThread: Thread = null
-
   private val runLoopStartLatch: CountDownLatch = new CountDownLatch(1)
+  var shutdownHookThread: Thread = null
 
   def awaitStart(timeoutMs: Long): Boolean = {
     try {
@@ -673,6 +674,8 @@ class SamzaContainer(
       lifeCycleListener.beforeShutdown()
       info("Shutting down.")
 
+      removeShutdownHook
+
       shutdownConsumers
       shutdownTask
       shutdownStores
@@ -683,7 +686,6 @@ class SamzaContainer(
       shutdownOffsetManager
       shutdownMetrics
       shutdownSecurityManger
-      removeShutdownHook
 
       lifeCycleListener.afterShutdown()
       info("Shutdown complete.")
@@ -813,22 +815,25 @@ class SamzaContainer(
 
   def addShutdownHook {
     val runLoopThread = Thread.currentThread()
-    shutdownHookThread = new Thread() {
+    shutdownHookThread = new Thread("CONTAINER-SHUTDOWN-HOOK") {
       override def run() = {
         info("Shutting down, will wait up to %s ms" format shutdownMs)
         runLoop match {
           case runLoop: RunLoop => runLoop.shutdown
           case asyncRunLoop: AsyncRunLoop => asyncRunLoop.shutdown()
         }
-        runLoopThread.join(shutdownMs)
-        if (runLoopThread.isAlive) {
-          warn("Did not shut down within %s ms, exiting" format shutdownMs)
-        } else {
+        try {
+          runLoopThread.join(shutdownMs)
+        } catch {
+          case e: Throwable => // Ignore to avoid deadlock with uncaughtExceptionHandler. See SAMZA-1220
+            error("Did not shut down within %s ms, exiting" format shutdownMs, e)
+        }
+        if (!runLoopThread.isAlive) {
           info("Shutdown complete")
         }
       }
     }
-    Runtime.getRuntime.addShutdownHook(shutdownHookThread)
+    Runtime.getRuntime().addShutdownHook(shutdownHookThread)
   }
 
   def removeShutdownHook = {
@@ -838,8 +843,7 @@ class SamzaContainer(
       }
     } catch {
       case e: IllegalStateException => {
-        // When samza is shutdown by external command, IllegalStateException will be thrown.
-        // And it's expected.
+        // Thrown when then JVM is already shutting down, so safe to ignore.
       }
     }
   }

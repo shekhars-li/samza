@@ -18,10 +18,9 @@
  */
 package org.apache.samza.operators.spec;
 
-import org.apache.samza.config.Config;
 import org.apache.samza.operators.MessageStreamImpl;
 import org.apache.samza.operators.functions.FlatMapFunction;
-import org.apache.samza.task.TaskContext;
+import org.apache.samza.operators.util.OperatorJsonUtils;
 
 
 /**
@@ -36,6 +35,7 @@ public class StreamOperatorSpec<M, OM> implements OperatorSpec<OM> {
   private final MessageStreamImpl<OM> nextStream;
   private final OperatorSpec.OpCode opCode;
   private final int opId;
+  private final String sourceLocation;
 
   /**
    * Constructor for a {@link StreamOperatorSpec} that accepts an output {@link MessageStreamImpl}.
@@ -45,12 +45,13 @@ public class StreamOperatorSpec<M, OM> implements OperatorSpec<OM> {
    * @param opCode  the {@link OpCode} for this {@link StreamOperatorSpec}
    * @param opId  the unique id for this {@link StreamOperatorSpec} in a {@link org.apache.samza.operators.StreamGraph}
    */
-  StreamOperatorSpec(FlatMapFunction<M, OM> transformFn, MessageStreamImpl nextStream,
+  StreamOperatorSpec(FlatMapFunction<M, OM> transformFn, MessageStreamImpl<OM> nextStream,
       OperatorSpec.OpCode opCode, int opId) {
     this.transformFn = transformFn;
     this.nextStream = nextStream;
     this.opCode = opCode;
     this.opId = opId;
+    this.sourceLocation = OperatorJsonUtils.getSourceLocation();
   }
 
   @Override
@@ -73,7 +74,7 @@ public class StreamOperatorSpec<M, OM> implements OperatorSpec<OM> {
   }
 
   @Override
-  public void init(Config config, TaskContext context) {
-    this.transformFn.init(config, context);
+  public String getSourceLocation() {
+    return sourceLocation;
   }
 }

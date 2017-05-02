@@ -37,21 +37,4 @@ public class TestMessageEnvelope {
     return this.key;
   }
 
-  public class MessageType {
-    private final String value;
-    private final long eventTime;
-
-    public MessageType(String value, long eventTime) {
-      this.value = value;
-      this.eventTime = eventTime;
-    }
-
-    public long getEventTime() {
-      return eventTime;
-    }
-
-    public String getValue() {
-      return value;
-    }
-  }
 }

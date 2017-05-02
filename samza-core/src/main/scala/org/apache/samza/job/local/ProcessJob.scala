@@ -69,7 +69,7 @@ class ProcessJob(commandBuilder: CommandBuilder, jobCoordinator: JobModelManager
   }
 
   def kill: StreamJob = {
-    process = process.destroyForcibly()
+    process.destroyForcibly
     jobStatus = Some(UnsuccessfulFinish);
     ProcessJob.this
   }

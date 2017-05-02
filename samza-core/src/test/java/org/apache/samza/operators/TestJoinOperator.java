@@ -19,13 +19,10 @@
 package org.apache.samza.operators;
 
 import com.google.common.collect.ImmutableSet;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import org.apache.samza.Partition;
 import org.apache.samza.application.StreamApplication;
 import org.apache.samza.config.Config;
+import org.apache.samza.metrics.MetricsRegistryMap;
 import org.apache.samza.operators.functions.JoinFunction;
 import org.apache.samza.runtime.ApplicationRunner;
 import org.apache.samza.system.IncomingMessageEnvelope;
@@ -42,12 +39,19 @@ import org.apache.samza.util.Clock;
 import org.apache.samza.util.SystemClock;
 import org.junit.Test;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TestJoinOperator {
+  private static final Duration JOIN_TTL = Duration.ofMinutes(10);
+
   private final TaskCoordinator taskCoordinator = mock(TaskCoordinator.class);
   private final Set<Integer> numbers = ImmutableSet.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
@@ -61,7 +65,6 @@ public class TestJoinOperator {
     numbers.forEach(n -> sot.process(new FirstStreamIME(n, n), messageCollector, taskCoordinator));
     // push messages to second stream with same keys
     numbers.forEach(n -> sot.process(new SecondStreamIME(n, n), messageCollector, taskCoordinator));
-
 
     int outputSum = output.stream().reduce(0, (s, m) -> s + m);
     assertEquals(110, outputSum);
@@ -198,7 +201,7 @@ public class TestJoinOperator {
     // push messages to first stream
     numbers.forEach(n -> sot.process(new FirstStreamIME(n, n), messageCollector, taskCoordinator));
 
-    testClock.advanceTime(100);
+    testClock.advanceTime(JOIN_TTL.plus(Duration.ofMinutes(1))); // 1 minute after ttl
     sot.window(messageCollector, taskCoordinator); // should expire first stream messages
 
     // push messages to second stream with same key
@@ -218,7 +221,7 @@ public class TestJoinOperator {
     // push messages to second stream
     numbers.forEach(n -> sot.process(new SecondStreamIME(n, n), messageCollector, taskCoordinator));
 
-    testClock.advanceTime(100); // 10 * ttl for join
+    testClock.advanceTime(JOIN_TTL.plus(Duration.ofMinutes(1))); // 1 minute after ttl
     sot.window(messageCollector, taskCoordinator); // should expire second stream messages
 
     // push messages to first stream with same key
@@ -236,6 +239,8 @@ public class TestJoinOperator {
     when(taskContext.getSystemStreamPartitions()).thenReturn(ImmutableSet
         .of(new SystemStreamPartition("insystem", "instream", new Partition(0)),
             new SystemStreamPartition("insystem2", "instream2", new Partition(0))));
+    when(taskContext.getMetricsRegistry()).thenReturn(new MetricsRegistryMap());
+
     Config config = mock(Config.class);
 
     StreamApplication sgb = new TestStreamApplication();
@@ -254,7 +259,7 @@ public class TestJoinOperator {
 
       SystemStream outputSystemStream = new SystemStream("outputSystem", "outputStream");
       inStream
-          .join(inStream2, new TestJoinFunction(), Duration.ofMillis(10))
+          .join(inStream2, new TestJoinFunction(), JOIN_TTL)
           .sink((message, messageCollector, taskCoordinator) -> {
               messageCollector.send(new OutgoingMessageEnvelope(outputSystemStream, message));
             });

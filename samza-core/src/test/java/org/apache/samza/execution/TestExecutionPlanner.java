@@ -42,6 +42,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -116,8 +118,10 @@ public class TestExecutionPlanner {
      *
      */
     StreamGraphImpl streamGraph = new StreamGraphImpl(runner, config);
-    OutputStream<Object, Object, Object> output1 = streamGraph.getOutputStream("output1", null, null);
-    streamGraph.getInputStream("input1", null)
+    Function mockFn = mock(Function.class);
+    OutputStream<Object, Object, Object> output1 = streamGraph.getOutputStream("output1", mockFn, mockFn);
+    BiFunction mockBuilder = mock(BiFunction.class);
+    streamGraph.getInputStream("input1", mockBuilder)
         .partitionBy(m -> "yes!!!").map(m -> m)
         .sendTo(output1);
     return streamGraph;
@@ -137,11 +141,13 @@ public class TestExecutionPlanner {
      */
 
     StreamGraphImpl streamGraph = new StreamGraphImpl(runner, config);
-    MessageStream m1 = streamGraph.getInputStream("input1", null).map(m -> m);
-    MessageStream m2 = streamGraph.getInputStream("input2", null).partitionBy(m -> "haha").filter(m -> true);
-    MessageStream m3 = streamGraph.getInputStream("input3", null).filter(m -> true).partitionBy(m -> "hehe").map(m -> m);
-    OutputStream<Object, Object, Object> output1 = streamGraph.getOutputStream("output1", null, null);
-    OutputStream<Object, Object, Object> output2 = streamGraph.getOutputStream("output2", null, null);
+    BiFunction msgBuilder = mock(BiFunction.class);
+    MessageStream m1 = streamGraph.getInputStream("input1", msgBuilder).map(m -> m);
+    MessageStream m2 = streamGraph.getInputStream("input2", msgBuilder).partitionBy(m -> "haha").filter(m -> true);
+    MessageStream m3 = streamGraph.getInputStream("input3", msgBuilder).filter(m -> true).partitionBy(m -> "hehe").map(m -> m);
+    Function mockFn = mock(Function.class);
+    OutputStream<Object, Object, Object> output1 = streamGraph.getOutputStream("output1", mockFn, mockFn);
+    OutputStream<Object, Object, Object> output2 = streamGraph.getOutputStream("output2", mockFn, mockFn);
 
     m1.join(m2, mock(JoinFunction.class), Duration.ofHours(2)).sendTo(output1);
     m3.join(m2, mock(JoinFunction.class), Duration.ofHours(1)).sendTo(output2);
@@ -214,11 +220,11 @@ public class TestExecutionPlanner {
     JobGraph jobGraph = planner.createJobGraph(streamGraph);
 
     ExecutionPlanner.updateExistingPartitions(jobGraph, streamManager);
-    assertTrue(jobGraph.getOrCreateEdge(input1).getPartitionCount() == 64);
-    assertTrue(jobGraph.getOrCreateEdge(input2).getPartitionCount() == 16);
-    assertTrue(jobGraph.getOrCreateEdge(input3).getPartitionCount() == 32);
-    assertTrue(jobGraph.getOrCreateEdge(output1).getPartitionCount() == 8);
-    assertTrue(jobGraph.getOrCreateEdge(output2).getPartitionCount() == 16);
+    assertTrue(jobGraph.getOrCreateStreamEdge(input1).getPartitionCount() == 64);
+    assertTrue(jobGraph.getOrCreateStreamEdge(input2).getPartitionCount() == 16);
+    assertTrue(jobGraph.getOrCreateStreamEdge(input3).getPartitionCount() == 32);
+    assertTrue(jobGraph.getOrCreateStreamEdge(output1).getPartitionCount() == 8);
+    assertTrue(jobGraph.getOrCreateStreamEdge(output2).getPartitionCount() == 16);
 
     jobGraph.getIntermediateStreamEdges().forEach(edge -> {
         assertTrue(edge.getPartitionCount() == -1);
@@ -258,11 +264,10 @@ public class TestExecutionPlanner {
   }
 
   @Test
-  public void testCalculateIntStreamPartitions() {
+  public void testCalculateIntStreamPartitions() throws Exception {
     ExecutionPlanner planner = new ExecutionPlanner(config, streamManager);
     StreamGraphImpl streamGraph = createSimpleGraph();
-    JobGraph jobGraph = planner.createJobGraph(streamGraph);
-    planner.calculatePartitions(streamGraph, jobGraph);
+    JobGraph jobGraph = (JobGraph) planner.plan(streamGraph);
 
     // the partitions should be the same as input1
     jobGraph.getIntermediateStreams().forEach(edge -> {
