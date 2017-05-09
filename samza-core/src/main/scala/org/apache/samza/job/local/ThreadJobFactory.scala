@@ -19,7 +19,6 @@
 
 package org.apache.samza.job.local
 
-
 import org.apache.samza.config.Config
 import org.apache.samza.config.JobConfig._
 import org.apache.samza.config.ShellCommandConfig._
@@ -70,7 +69,6 @@ class ThreadJobFactory extends StreamJobFactory with Logging {
         containerModel,
         config,
         jobModel.maxChangeLogStreamPartitions,
-        jmxServer,
         Map[String, MetricsReporter](),
         taskFactory)
       container.setContainerListener(containerListener)

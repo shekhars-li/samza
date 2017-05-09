@@ -27,17 +27,11 @@ public class ZkJobCoordinatorFactory implements JobCoordinatorFactory {
   /**
    * Method to instantiate an implementation of JobCoordinator
    *
-   * @param processorId - id of this processor
    * @param config - configs relevant for the JobCoordinator TODO: Separate JC related configs into a "JobCoordinatorConfig"
    * @return An instance of IJobCoordinator
    */
   @Override
-  public JobCoordinator getJobCoordinator(String processorId, Config config) {
-    ScheduleAfterDebounceTime debounceTimer = new ScheduleAfterDebounceTime();
-
-    return new ZkJobCoordinator(
-        processorId,
-        config,
-        debounceTimer);
+  public JobCoordinator getJobCoordinator(Config config) {
+    return new ZkJobCoordinator(config);
   }
 }

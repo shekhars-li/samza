@@ -21,7 +21,7 @@ package org.apache.samza.operators.triggers;
 /**
  * A {@link Trigger} that repeats its underlying trigger forever.
  */
-class RepeatingTrigger<M> implements Trigger<M> {
+public class RepeatingTrigger<M> implements Trigger<M> {
 
   private final Trigger<M> trigger;
 

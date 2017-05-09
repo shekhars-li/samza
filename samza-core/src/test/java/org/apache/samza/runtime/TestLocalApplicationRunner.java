@@ -153,8 +153,15 @@ public class TestLocalApplicationRunner {
 
     CoordinationUtils coordinationUtils = mock(CoordinationUtils.class);
     LeaderElector leaderElector = new LeaderElector() {
+      private LeaderElectorListener leaderElectorListener;
+
       @Override
-      public void tryBecomeLeader(LeaderElectorListener leaderElectorListener) {
+      public void setLeaderElectorListener(LeaderElectorListener listener) {
+        this.leaderElectorListener = listener;
+      }
+
+      @Override
+      public void tryBecomeLeader() {
         leaderElectorListener.onBecomingLeader();
       }
 
@@ -166,6 +173,7 @@ public class TestLocalApplicationRunner {
         return false;
       }
     };
+
     Latch latch = new Latch() {
       boolean done = false;
       @Override
@@ -182,7 +190,7 @@ public class TestLocalApplicationRunner {
     };
     when(coordinationUtils.getLeaderElector()).thenReturn(leaderElector);
     when(coordinationUtils.getLatch(anyInt(), anyString())).thenReturn(latch);
-    doReturn(coordinationUtils).when(spy).getCoordinationUtils();
+    doReturn(coordinationUtils).when(spy).createCoordinationUtils();
 
     try {
       spy.run(app);
@@ -199,7 +207,7 @@ public class TestLocalApplicationRunner {
   @Test
   public void testRunComplete() throws Exception {
     final Map<String, String> config = new HashMap<>();
-    config.put(ApplicationConfig.PROCESSOR_ID, "0");
+    config.put(ApplicationConfig.APP_PROCESSOR_ID_GENERATOR_CLASS, UUIDGenerator.class.getName());
     LocalApplicationRunner runner = new LocalApplicationRunner(new MapConfig(config));
     StreamApplication app = mock(StreamApplication.class);
     doNothing().when(app).init(anyObject(), anyObject());
@@ -235,13 +243,14 @@ public class TestLocalApplicationRunner {
     doAnswer(i ->
       {
         StreamProcessorLifecycleListener listener = captor.getValue();
+        listener.onStart();
         listener.onShutdown();
         return null;
       }).when(sp).start();
 
 
     LocalApplicationRunner spy = spy(runner);
-    doReturn(sp).when(spy).createStreamProcessor(anyString(), anyObject(), anyObject(), captor.capture());
+    doReturn(sp).when(spy).createStreamProcessor(anyObject(), anyObject(), captor.capture());
 
     spy.run(app);
 
@@ -293,7 +302,7 @@ public class TestLocalApplicationRunner {
 
 
     LocalApplicationRunner spy = spy(runner);
-    doReturn(sp).when(spy).createStreamProcessor(anyString(), anyObject(), anyObject(), captor.capture());
+    doReturn(sp).when(spy).createStreamProcessor(anyObject(), anyObject(), captor.capture());
 
     try {
       spy.run(app);

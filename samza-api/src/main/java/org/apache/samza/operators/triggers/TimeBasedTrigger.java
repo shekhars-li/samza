@@ -16,27 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.operators.functions;
+package org.apache.samza.operators.triggers;
 
 import org.apache.samza.annotation.InterfaceStability;
 
+import java.time.Duration;
 
 /**
- * Transforms an input message into another message, possibly of a different type.
+ * A {@link Trigger} whose firing logic is determined by a time duration.
  *
- * @param <M>  type of the input message
- * @param <OM>  type of the transformed message
+ * <p> Use the {@link Triggers} APIs to create a {@link Trigger}.
+ *
+ * @param <M> the type of the incoming message
  */
+
 @InterfaceStability.Unstable
-@FunctionalInterface
-public interface MapFunction<M, OM>  extends InitableFunction {
-
-  /**
-   * Transforms the provided message into another message.
-   *
-   * @param message  the input message to be transformed
-   * @return  the transformed message
-   */
-  OM apply(M message);
-
+public interface TimeBasedTrigger<M> extends Trigger<M> {
+  Duration getDuration();
 }

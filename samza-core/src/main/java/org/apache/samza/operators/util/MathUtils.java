@@ -16,27 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.operators.functions;
 
-import org.apache.samza.annotation.InterfaceStability;
+package org.apache.samza.operators.util;
 
+import java.util.List;
 
-/**
- * Transforms an input message into another message, possibly of a different type.
- *
- * @param <M>  type of the input message
- * @param <OM>  type of the transformed message
- */
-@InterfaceStability.Unstable
-@FunctionalInterface
-public interface MapFunction<M, OM>  extends InitableFunction {
+public class MathUtils {
 
-  /**
-   * Transforms the provided message into another message.
-   *
-   * @param message  the input message to be transformed
-   * @return  the transformed message
-   */
-  OM apply(M message);
+  public static long gcd(long a, long b) {
+    // use the euclid gcd algorithm
+    while (b > 0) {
+      long temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
+  }
 
+  public static long gcd(List<Long> numbers) {
+    if (numbers == null) {
+      throw new IllegalArgumentException("Null list provided");
+    }
+    if (numbers.size() == 0) {
+      throw new IllegalArgumentException("List of size 0 provided");
+    }
+
+    long result = numbers.get(0);
+    for (int i = 1; i < numbers.size(); i++) {
+      result = gcd(result, numbers.get(i));
+    }
+    return result;
+  }
 }

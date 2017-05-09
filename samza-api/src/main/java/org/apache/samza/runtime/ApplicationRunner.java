@@ -40,16 +40,6 @@ public abstract class ApplicationRunner {
   protected final Config config;
 
   /**
-   * Static method to create the local {@link ApplicationRunner}.
-   *
-   * @param config  configuration passed in to initialize the Samza local process
-   * @return  the local {@link ApplicationRunner} to run the user-defined stream applications
-   */
-  public static ApplicationRunner getLocalRunner(Config config) {
-    return null;
-  }
-
-  /**
    * Static method to load the {@link ApplicationRunner}
    *
    * @param config  configuration passed in to initialize the Samza processes
@@ -81,7 +71,8 @@ public abstract class ApplicationRunner {
   }
 
   /**
-   * Deploy and run the Samza jobs to execute {@link StreamApplication}
+   * Deploy and run the Samza jobs to execute {@link StreamApplication}.
+   * It is non-blocking so it doesn't wait for the application running.
    *
    * @param streamApp  the user-defined {@link StreamApplication} object
    */
@@ -89,6 +80,7 @@ public abstract class ApplicationRunner {
 
   /**
    * Kill the Samza jobs represented by {@link StreamApplication}
+   * It is non-blocking so it doesn't wait for the application stopping.
    *
    * @param streamApp  the user-defined {@link StreamApplication} object
    */
