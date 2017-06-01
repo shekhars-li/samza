@@ -47,6 +47,8 @@ object JobConfig {
   val JOB_CONTAINER_THREAD_POOL_SIZE = "job.container.thread.pool.size"
   val JOB_CONTAINER_SINGLE_THREAD_MODE = "job.container.single.thread.mode"
   val JOB_INTERMEDIATE_STREAM_PARTITIONS = "job.intermediate.stream.partitions"
+  val JOB_DEBOUNCE_TIME_MS = "job.debounce.time.ms"
+  val DEFAULT_DEBOUNCE_TIME_MS = 2000
 
   val SSP_GROUPER_FACTORY = "job.systemstreampartition.grouper.factory"
 
@@ -174,5 +176,8 @@ class JobConfig(config: Config) extends ScalaMapConfig(config) with Logging {
     case Some(mode) => mode.toBoolean
     case _ => false
   }
+
   def getContainerLifeCycleListener = getOption(JobConfig.JOB_CONTAINER_LIFE_CYCLE_LISTENER)
+
+  def getDebounceTimeMs = getInt(JobConfig.JOB_DEBOUNCE_TIME_MS, JobConfig.DEFAULT_DEBOUNCE_TIME_MS)
 }
