@@ -674,6 +674,7 @@ class SamzaContainer(
       info("Starting container.")
       lifeCycleListener.beforeStart(containerContext)
 
+      val startTime = System.nanoTime()
       status = SamzaContainerStatus.STARTING
 
       jmxServer = new JmxServer()
@@ -696,6 +697,7 @@ class SamzaContainer(
       if (containerListener != null) {
         containerListener.onContainerStart()
       }
+      metrics.containerStartupTime.update(System.nanoTime() - startTime)
       runLoop.run
     } catch {
       case e: Throwable =>
