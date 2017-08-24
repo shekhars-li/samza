@@ -63,7 +63,7 @@ public class ZkLeaderElector implements LeaderElector {
     this.hostName = getHostName();
     this.previousProcessorChangeListener = new PreviousProcessorChangeListener(zkUtils);
 
-    zkUtils.validatePaths(new String[]{keyBuilder.getProcessorsPath()});
+    zkUtils.makeSurePersistentPathsExists(new String[]{keyBuilder.getProcessorsPath()});
   }
 
   @VisibleForTesting

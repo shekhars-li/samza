@@ -83,7 +83,7 @@ public class ZkBarrierForVersionUpgrade {
   public void create(final String version, List<String> participants) {
     String barrierRoot = keyBuilder.getBarrierRoot();
     String barrierParticipantsPath = keyBuilder.getBarrierParticipantsPath(version);
-    zkUtils.validatePaths(new String[]{
+    zkUtils.makeSurePersistentPathsExists(new String[]{
         barrierRoot,
         keyBuilder.getBarrierPath(version),
         barrierParticipantsPath,
