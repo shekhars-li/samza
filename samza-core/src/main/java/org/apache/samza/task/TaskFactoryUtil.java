@@ -18,6 +18,7 @@
  */
 package org.apache.samza.task;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.Config;
@@ -59,10 +60,10 @@ public class TaskFactoryUtil {
   private static StreamTaskFactory createStreamOperatorTaskFactory(
       StreamApplication streamApp, ApplicationRunner runner, Config config) {
     return () -> {
-      if (config.containsKey(JobConfig.JOB_CONTAINER_LIFE_CYCLE_LISTENER())) {
+      String taskClassName = config.get(TaskConfig.TASK_CLASS(), "");
+      if (!StringUtils.isEmpty(taskClassName)) {
         // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
         // to a wrapper class extending StreamOperatorTask. If so, use that instead.
-        String taskClassName = config.get(TaskConfig.TASK_CLASS());
         try {
           return (StreamTask) Class.forName(taskClassName)
               .getConstructor(StreamApplication.class, ApplicationRunner.class)
@@ -190,7 +191,7 @@ public class TaskFactoryUtil {
       // if it's a subclass of StreamOperatorTask.
       try {
         if (taskClassName != null &&
-            !taskClassName.isEmpty() &&
+            !StringUtils.isEmpty(taskClassName) &&
             !StreamOperatorTask.class.isAssignableFrom(Class.forName(taskClassName))) {
           throw new ConfigException(String.format("High level StreamApplication API cannot be used "
               + "together with low-level API using task.class {}", taskClassName));
