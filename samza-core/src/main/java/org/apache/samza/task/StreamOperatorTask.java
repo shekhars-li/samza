@@ -36,7 +36,7 @@ import org.apache.samza.util.SystemClock;
  * A {@link StreamTask} implementation that brings all the operator API implementation components together and
  * feeds the input messages into the user-defined transformation chains in {@link StreamApplication}.
  */
-public final class StreamOperatorTask implements StreamTask, InitableTask, WindowableTask, ClosableTask {
+public class StreamOperatorTask implements StreamTask, InitableTask, WindowableTask, ClosableTask {
 
   private final StreamApplication streamApplication;
   private final ApplicationRunner runner;
@@ -101,7 +101,7 @@ public final class StreamOperatorTask implements StreamTask, InitableTask, Windo
    * @param coordinator the coordinator to request commits or shutdown
    */
   @Override
-  public final void process(IncomingMessageEnvelope ime, MessageCollector collector, TaskCoordinator coordinator) {
+  public void process(IncomingMessageEnvelope ime, MessageCollector collector, TaskCoordinator coordinator) {
     SystemStream systemStream = ime.getSystemStreamPartition().getSystemStream();
     InputOperatorImpl inputOpImpl = operatorImplGraph.getInputOperator(systemStream);
     if (inputOpImpl != null) {
@@ -116,7 +116,7 @@ public final class StreamOperatorTask implements StreamTask, InitableTask, Windo
   }
 
   @Override
-  public void close() throws Exception {
+  public final void close() throws Exception {
     if (this.contextManager != null) {
       this.contextManager.close();
     }

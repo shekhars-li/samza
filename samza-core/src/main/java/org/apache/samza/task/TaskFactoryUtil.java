@@ -23,6 +23,7 @@ import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigException;
 import org.apache.samza.application.StreamApplication;
+import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.TaskConfig;
 import org.apache.samza.runtime.ApplicationRunner;
 import org.slf4j.Logger;
@@ -50,11 +51,29 @@ public class TaskFactoryUtil {
    * @return  a task factory object, either a instance of {@link StreamTaskFactory} or {@link AsyncStreamTaskFactory}
    */
   public static Object createTaskFactory(Config config, StreamApplication streamApp, ApplicationRunner runner) {
-    return (streamApp != null) ? createStreamOperatorTaskFactory(streamApp, runner) : fromTaskClassConfig(config);
+    return (streamApp != null)
+        ? createStreamOperatorTaskFactory(streamApp, runner, config)
+        : fromTaskClassConfig(config);
   }
 
-  private static StreamTaskFactory createStreamOperatorTaskFactory(StreamApplication streamApp, ApplicationRunner runner) {
-    return () -> new StreamOperatorTask(streamApp, runner);
+  private static StreamTaskFactory createStreamOperatorTaskFactory(
+      StreamApplication streamApp, ApplicationRunner runner, Config config) {
+    return () -> {
+      if (config.containsKey(JobConfig.JOB_CONTAINER_LIFE_CYCLE_LISTENER())) {
+        // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
+        // to a wrapper class extending StreamOperatorTask. If so, use that instead.
+        String taskClassName = config.get(TaskConfig.TASK_CLASS());
+        try {
+          return (StreamTask) Class.forName(taskClassName)
+              .getConstructor(StreamApplication.class, ApplicationRunner.class)
+              .newInstance(streamApp, runner);
+        } catch (Exception e) {
+          throw new SamzaException("Could not instantiate wrapper task class for OffSpringHelper.", e);
+        }
+      } else {
+        return new StreamOperatorTask(streamApp, runner);
+      }
+    };
   }
 
   /**
@@ -165,8 +184,20 @@ public class TaskFactoryUtil {
     if (appConfig.getAppClass() != null && !appConfig.getAppClass().isEmpty()) {
       TaskConfig taskConfig = new TaskConfig(config);
       String taskClassName = taskConfig.getTaskClass().getOrElse(defaultValue(null));
-      if (taskClassName != null && !taskClassName.isEmpty()) {
-        throw new ConfigException("High level StreamApplication API cannot be used together with low-level API using task.class.");
+
+      // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
+      // to a wrapper class extending StreamOperatorTask. Only allow task.class to be set
+      // if it's a subclass of StreamOperatorTask.
+      try {
+        if (taskClassName != null &&
+            !taskClassName.isEmpty() &&
+            !StreamOperatorTask.class.isAssignableFrom(Class.forName(taskClassName))) {
+          throw new ConfigException(String.format("High level StreamApplication API cannot be used "
+              + "together with low-level API using task.class {}", taskClassName));
+        }
+      } catch (ClassNotFoundException e) {
+        throw new ConfigException(String.format("High level StreamApplication API cannot be used "
+            + "together with low-level API using invalid task.class {}", taskClassName), e);
       }
 
       String appClassName = appConfig.getAppClass();
