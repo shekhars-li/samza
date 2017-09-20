@@ -36,10 +36,6 @@ public class AzureCoordinationUtils implements CoordinationUtils {
   }
 
   @Override
-  public void reset() {}
-
-
-  @Override
   public LeaderElector getLeaderElector() throws UnsupportedOperationException {
     return null;
   }
@@ -49,9 +45,14 @@ public class AzureCoordinationUtils implements CoordinationUtils {
     return null;
   }
 
-  public DistributedLock getLock(String initLockName) {
+  @Override
+  public DistributedLockWithState getLockWithState(String lockId) {
     BlobUtils blob = new BlobUtils(client, azureConfig.getAzureContainerName(),
-        azureConfig.getAzureBlobName() + initLockName, azureConfig.getAzureBlobLength());
+        azureConfig.getAzureBlobName() + lockId, azureConfig.getAzureBlobLength());
     return new AzureLock(blob);
+  }
+
+  @Override
+  public void close() {
   }
 }

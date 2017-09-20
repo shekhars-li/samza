@@ -19,12 +19,24 @@
 
 package org.apache.samza.coordinator;
 
-import org.apache.samza.config.Config;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
-public class AzureCoordinationServiceFactory implements CoordinationServiceFactory {
 
-  @Override
-  public CoordinationUtils getCoordinationService(String groupId, String participantId, Config config) {
-    return new AzureCoordinationUtils(config);
-  }
+public interface DistributedLockWithState {
+
+  /**
+   * Trie to acquire the lock, but first check if the state flag is set. If it is set, return false.
+   * If the flag is not set, and lock is acquired - return true.
+   * Throw TimeOutException if could not acquire the lock.
+   * @param timeout Duration of lock acquiring timeout.
+   * @param unit Time Unit of the timeout defined above.
+   * @return true if lock is acquired successfully, false if state is already set.
+   */
+  boolean lockIfNotSet(long timeout, TimeUnit unit) throws TimeoutException;
+
+  /**
+   * Release the lock and set the state
+   */
+  void unlockAndSet();
 }
