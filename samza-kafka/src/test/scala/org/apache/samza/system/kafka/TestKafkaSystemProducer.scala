@@ -21,7 +21,7 @@ package org.apache.samza.system.kafka
 
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.errors.{RecordTooLargeException, SerializationException, TimeoutException}
-import org.apache.kafka.test.MockSerializer
+import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.samza.system.{OutgoingMessageEnvelope, SystemProducerException, SystemStream}
 import org.junit.Assert._
 import org.junit.Test
