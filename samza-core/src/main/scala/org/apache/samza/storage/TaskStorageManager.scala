@@ -25,14 +25,7 @@ import java.util
 import org.apache.samza.config.StorageConfig
 import org.apache.samza.{Partition, SamzaException}
 import org.apache.samza.container.TaskName
-import org.apache.samza.system.StreamMetadataCache
-import org.apache.samza.system.SystemAdmin
-import org.apache.samza.system.SystemConsumer
-import org.apache.samza.system.SystemStream
-import org.apache.samza.system.SystemStreamPartition
-import org.apache.samza.system.SystemStreamPartitionIterator
-import org.apache.samza.system.ExtendedSystemAdmin
-import org.apache.samza.system.SystemStreamMetadata
+import org.apache.samza.system._
 import org.apache.samza.util.Logging
 import org.apache.samza.util.Util
 import org.apache.samza.util.Clock
@@ -212,7 +205,7 @@ class TaskStorageManager(
   }
 
   private def validateChangelogStreams() = {
-    info("Validating change log streams")
+    info("Validating change log streams: " + changeLogSystemStreams)
 
     for ((storeName, systemStream) <- changeLogSystemStreams) {
       val systemAdmin = systemAdmins
