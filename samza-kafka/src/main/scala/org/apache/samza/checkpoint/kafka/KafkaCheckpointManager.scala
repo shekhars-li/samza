@@ -42,6 +42,9 @@ import scala.collection.mutable
  * keyed to that taskName. If there is no such message, no checkpoint data
  * exists.  The underlying log has a single partition into which all
  * checkpoints and TaskName to changelog partition mappings are written.
+ *
+ * This class is thread safe for writing but not for reading checkpoints.
+ * This is currently OK since checkpoints are only read on the main thread.
  */
 class KafkaCheckpointManager(
                               clientId: String,
@@ -102,7 +105,7 @@ class KafkaCheckpointManager(
 
         systemProducer.send(taskName.getTaskName, envelope)
         systemProducer.flush(taskName.getTaskName) // make sure it is written
-        info("Completed writing checkpoint=%s into %s topic for system %s." format(checkpoint, checkpointTopic, systemName) )
+        debug("Completed writing checkpoint=%s into %s topic for system %s." format(checkpoint, checkpointTopic, systemName) )
         loop.done
       },
 
@@ -115,8 +118,6 @@ class KafkaCheckpointManager(
 
   /**
    * Read the last checkpoint for specified TaskName
-   *
-   * This method is NOT thread safe
    *
    * @param taskName Specific Samza taskName for which to get the last checkpoint of.
    **/
@@ -185,10 +186,11 @@ class KafkaCheckpointManager(
     info("Reading from checkpoint system:%s topic:%s" format(systemName, checkpointTopic))
 
     val ssp: SystemStreamPartition = new SystemStreamPartition(systemName, checkpointTopic, new Partition(0))
-    val partitionMetadata = getSSPMetadata(checkpointTopic, new Partition(0))
-    val oldestOffset = partitionMetadata.getOldestOffset
 
     if (systemConsumer == null) {
+      val partitionMetadata = getSSPMetadata(checkpointTopic, new Partition(0))
+      val oldestOffset = partitionMetadata.getOldestOffset
+
       systemConsumer = getSystemConsumer()
       systemConsumer.register(ssp, oldestOffset)
       systemConsumer.start()
@@ -200,11 +202,11 @@ class KafkaCheckpointManager(
       val msg = iterator.next
       msgCount += 1
 
-      val key = msg.getKey.asInstanceOf[Array[Byte]]
       val offset = msg.getOffset
+      val key = msg.getKey.asInstanceOf[Array[Byte]]
       if (key == null) {
-        throw new KafkaUtilException("While reading checkpoint (currentOffset=%s) stream encountered message without key."
-                                             format offset)
+        throw new KafkaUtilException(
+          "While reading checkpoint (currentOffset=%s) stream encountered message without key." format offset)
       }
 
       val checkpointKey = KafkaCheckpointLogKey.fromBytes(key)
@@ -212,7 +214,6 @@ class KafkaCheckpointManager(
       if (!shouldHandleEntry(checkpointKey)) {
         info("Skipping checkpoint log entry at offset %s with key %s." format(offset, checkpointKey))
       } else {
-        // handleEntry requires ByteBuffer
         val checkpointPayload = ByteBuffer.wrap(msg.getMessage.asInstanceOf[Array[Byte]])
         handleEntry(checkpointPayload, checkpointKey)
       }
