@@ -21,26 +21,35 @@ package org.apache.samza.execution;
 
 import com.google.common.base.Joiner;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.MapConfig;
+import org.apache.samza.config.SerializerConfig;
+import org.apache.samza.config.StorageConfig;
 import org.apache.samza.config.StreamConfig;
 import org.apache.samza.config.TaskConfig;
 import org.apache.samza.operators.StreamGraphImpl;
+import org.apache.samza.operators.spec.InputOperatorSpec;
 import org.apache.samza.operators.spec.JoinOperatorSpec;
 import org.apache.samza.operators.spec.OperatorSpec;
+import org.apache.samza.operators.spec.OutputStreamImpl;
+import org.apache.samza.operators.spec.StatefulOperatorSpec;
 import org.apache.samza.operators.spec.WindowOperatorSpec;
 import org.apache.samza.operators.util.MathUtils;
+import org.apache.samza.serializers.Serde;
+import org.apache.samza.serializers.SerializableSerde;
 import org.apache.samza.system.StreamSpec;
 import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 /**
  * A JobNode is a physical execution unit. In RemoteExecutionEnvironment, it's a job that will be submitted
@@ -122,16 +131,122 @@ public class JobNode {
       }
     }
 
+    streamGraph.getAllOperatorSpecs().forEach(opSpec -> {
+        if (opSpec instanceof StatefulOperatorSpec) {
+          ((StatefulOperatorSpec) opSpec).getStoreDescriptors()
+              .forEach(sd -> configs.putAll(sd.getStorageConfigs()));
+          // store key and message serdes are configured separately in #addSerdeConfigs
+        }
+      });
+
     configs.put(CONFIG_INTERNAL_EXECUTION_PLAN, executionPlanJson);
 
     // write input/output streams to configs
-    inEdges.stream().filter(StreamEdge::isIntermediate).forEach(edge -> addStreamConfig(edge, configs));
+    inEdges.stream().filter(StreamEdge::isIntermediate).forEach(edge -> configs.putAll(edge.generateConfig()));
+
+    // write serialized serde instances and stream serde configs to configs
+    addSerdeConfigs(configs);
 
     log.info("Job {} has generated configs {}", jobName, configs);
 
     String configPrefix = String.format(CONFIG_JOB_PREFIX, jobName);
-    // TODO: Disallow user specifying job inputs/outputs. This info comes strictly from the pipeline.
-    return new JobConfig(Util.rewriteConfig(extractScopedConfig(config, new MapConfig(configs), configPrefix)));
+
+    // Disallow user specified job inputs/outputs. This info comes strictly from the user application.
+    Map<String, String> allowedConfigs = new HashMap<>(config);
+    if (allowedConfigs.containsKey(TaskConfig.INPUT_STREAMS())) {
+      log.warn("Specifying task inputs in configuration is not allowed with Fluent API. "
+          + "Ignoring configured value for " + TaskConfig.INPUT_STREAMS());
+      allowedConfigs.remove(TaskConfig.INPUT_STREAMS());
+    }
+
+    log.debug("Job {} has allowed configs {}", jobName, allowedConfigs);
+    return new JobConfig(
+        Util.rewriteConfig(
+            extractScopedConfig(new MapConfig(allowedConfigs), new MapConfig(configs), configPrefix)));
+  }
+
+  /**
+   * Serializes the {@link Serde} instances for operators, adds them to the provided config, and
+   * sets the serde configuration for the input/output/intermediate streams appropriately.
+   *
+   * We try to preserve the number of Serde instances before and after serialization. However we don't
+   * guarantee that references shared between these serdes instances (e.g. an Jackson ObjectMapper shared
+   * between two json serdes) are shared after deserialization too.
+   *
+   * Ideally all the user defined objects in the application should be serialized and de-serialized in one pass
+   * from the same output/input stream so that we can maintain reference sharing relationships.
+   *
+   * @param configs the configs to add serialized serde instances and stream serde configs to
+   */
+  void addSerdeConfigs(Map<String, String> configs) {
+    // collect all key and msg serde instances for streams
+    Map<String, Serde> streamKeySerdes = new HashMap<>();
+    Map<String, Serde> streamMsgSerdes = new HashMap<>();
+    Map<StreamSpec, InputOperatorSpec> inputOperators = streamGraph.getInputOperators();
+    inEdges.forEach(edge -> {
+        String streamId = edge.getStreamSpec().getId();
+        InputOperatorSpec inputOperatorSpec = inputOperators.get(edge.getStreamSpec());
+        streamKeySerdes.put(streamId, inputOperatorSpec.getKeySerde());
+        streamMsgSerdes.put(streamId, inputOperatorSpec.getValueSerde());
+      });
+    Map<StreamSpec, OutputStreamImpl> outputStreams = streamGraph.getOutputStreams();
+    outEdges.forEach(edge -> {
+        String streamId = edge.getStreamSpec().getId();
+        OutputStreamImpl outputStream = outputStreams.get(edge.getStreamSpec());
+        streamKeySerdes.put(streamId, outputStream.getKeySerde());
+        streamMsgSerdes.put(streamId, outputStream.getValueSerde());
+      });
+
+    // collect all key and msg serde instances for stores
+    Map<String, Serde> storeKeySerdes = new HashMap<>();
+    Map<String, Serde> storeMsgSerdes = new HashMap<>();
+    streamGraph.getAllOperatorSpecs().forEach(opSpec -> {
+        if (opSpec instanceof StatefulOperatorSpec) {
+          ((StatefulOperatorSpec) opSpec).getStoreDescriptors().forEach(storeDescriptor -> {
+              storeKeySerdes.put(storeDescriptor.getStoreName(), storeDescriptor.getKeySerde());
+              storeMsgSerdes.put(storeDescriptor.getStoreName(), storeDescriptor.getMsgSerde());
+            });
+        }
+      });
+
+    // for each unique stream or store serde instance, generate a unique name and serialize to config
+    HashSet<Serde> serdes = new HashSet<>(streamKeySerdes.values());
+    serdes.addAll(streamMsgSerdes.values());
+    serdes.addAll(storeKeySerdes.values());
+    serdes.addAll(storeMsgSerdes.values());
+    SerializableSerde<Serde> serializableSerde = new SerializableSerde<>();
+    Base64.Encoder base64Encoder = Base64.getEncoder();
+    Map<Serde, String> serdeUUIDs = new HashMap<>();
+    serdes.forEach(serde -> {
+        String serdeName = serdeUUIDs.computeIfAbsent(serde,
+            s -> serde.getClass().getSimpleName() + "-" + UUID.randomUUID().toString());
+        configs.putIfAbsent(String.format(SerializerConfig.SERDE_SERIALIZED_INSTANCE(), serdeName),
+            base64Encoder.encodeToString(serializableSerde.toBytes(serde)));
+      });
+
+    // set key and msg serdes for streams to the serde names generated above
+    streamKeySerdes.forEach((streamId, serde) -> {
+        String streamIdPrefix = String.format(StreamConfig.STREAM_ID_PREFIX(), streamId);
+        String keySerdeConfigKey = streamIdPrefix + StreamConfig.KEY_SERDE();
+        configs.put(keySerdeConfigKey, serdeUUIDs.get(serde));
+      });
+
+    streamMsgSerdes.forEach((streamId, serde) -> {
+        String streamIdPrefix = String.format(StreamConfig.STREAM_ID_PREFIX(), streamId);
+        String valueSerdeConfigKey = streamIdPrefix + StreamConfig.MSG_SERDE();
+        configs.put(valueSerdeConfigKey, serdeUUIDs.get(serde));
+      });
+
+    // set key and msg serdes for stores to the serde names generated above
+    storeKeySerdes.forEach((storeName, serde) -> {
+        String keySerdeConfigKey = String.format(StorageConfig.KEY_SERDE(), storeName);
+        configs.put(keySerdeConfigKey, serdeUUIDs.get(serde));
+      });
+
+    storeMsgSerdes.forEach((storeName, serde) -> {
+        String msgSerdeConfigKey = String.format(StorageConfig.MSG_SERDE(), storeName);
+        configs.put(msgSerdeConfigKey, serdeUUIDs.get(serde));
+      });
   }
 
   /**
@@ -188,18 +303,6 @@ public class JobNode {
     log.debug("Prefix '{}' has merged config {}", configPrefix, scopedConfig);
 
     return scopedConfig;
-  }
-
-  private static void addStreamConfig(StreamEdge edge, Map<String, String> config) {
-    StreamSpec spec = edge.getStreamSpec();
-    config.put(String.format(StreamConfig.SYSTEM_FOR_STREAM_ID(), spec.getId()), spec.getSystemName());
-    config.put(String.format(StreamConfig.PHYSICAL_NAME_FOR_STREAM_ID(), spec.getId()), spec.getPhysicalName());
-    if (edge.isIntermediate()) {
-      config.put(String.format(StreamConfig.IS_INTERMEDIATE_FROM_STREAM_ID(), spec.getId()), "true");
-    }
-    spec.getConfig().forEach((property, value) -> {
-        config.put(String.format(StreamConfig.STREAM_ID_PREFIX(), spec.getId()) + property, value);
-      });
   }
 
   static String createId(String jobName, String jobId) {

@@ -26,6 +26,8 @@ import org.apache.samza.operators.functions.MapFunction;
 import org.apache.samza.operators.functions.SinkFunction;
 import org.apache.samza.operators.windows.Window;
 import org.apache.samza.operators.windows.WindowPane;
+import org.apache.samza.serializers.KVSerde;
+import org.apache.samza.serializers.Serde;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -67,7 +69,7 @@ public interface MessageStream<M> {
    * Applies the provided function to messages in this {@link MessageStream} and returns the
    * filtered {@link MessageStream}.
    * <p>
-   * The {@link Function} is a predicate which determines whether a message in this {@link MessageStream}
+   * The {@link FilterFunction} is a predicate which determines whether a message in this {@link MessageStream}
    * should be retained in the filtered {@link MessageStream}.
    *
    * @param filterFn the predicate to filter messages from this {@link MessageStream}.
@@ -93,10 +95,8 @@ public interface MessageStream<M> {
    * Allows sending messages in this {@link MessageStream} to an {@link OutputStream}.
    *
    * @param outputStream the output stream to send messages to
-   * @param <K> the type of key in the outgoing message
-   * @param <V> the type of message in the outgoing message
    */
-  <K, V> void sendTo(OutputStream<K, V, M> outputStream);
+  void sendTo(OutputStream<M> outputStream);
 
   /**
    * Groups the messages in this {@link MessageStream} according to the provided {@link Window} semantics
@@ -129,13 +129,17 @@ public interface MessageStream<M> {
    * @param otherStream the other {@link MessageStream} to be joined with
    * @param joinFn the function to join messages from this and the other {@link MessageStream}
    * @param ttl the ttl for messages in each stream
+   * @param keySerde the serde for the join key
+   * @param messageSerde the serde for messages in this stream
+   * @param otherMessageSerde the serde for messages in the other stream
    * @param <K> the type of join key
-   * @param <JM> the type of messages in the other stream
-   * @param <OM> the type of messages resulting from the {@code joinFn}
+   * @param <OM> the type of messages in the other stream
+   * @param <JM> the type of messages resulting from the {@code joinFn}
    * @return the joined {@link MessageStream}
    */
-  <K, JM, OM> MessageStream<OM> join(MessageStream<JM> otherStream,
-      JoinFunction<? extends K, ? super M, ? super JM, ? extends OM> joinFn, Duration ttl);
+  <K, OM, JM> MessageStream<JM> join(MessageStream<OM> otherStream,
+      JoinFunction<? extends K, ? super M, ? super OM, ? extends JM> joinFn,
+      Serde<K> keySerde, Serde<M> messageSerde, Serde<OM> otherMessageSerde, Duration ttl);
 
   /**
    * Merges all {@code otherStreams} with this {@link MessageStream}.
@@ -171,8 +175,9 @@ public interface MessageStream<M> {
    * intermediate stream on the {@code job.default.system}. This intermediate stream is both an output and
    * input to the job.
    * <p>
-   * The key and message Serdes configured for the default system must be able to serialize and deserialize
-   * types K and M respectively.
+   * Uses the provided {@link KVSerde} for serialization of keys and values. If the provided {@code serde} is null,
+   * uses the default serde provided via {@link StreamGraph#setDefaultSerde}, which must be a KVSerde.
+   * If no default serde has been provided <b>before</b> calling this method, no-op serdes are used for keys and values.
    * <p>
    * The number of partitions for this intermediate stream is determined as follows:
    * If the stream is an eventual input to a {@link #join}, and the number of partitions for the other stream is known,
@@ -182,11 +187,25 @@ public interface MessageStream<M> {
    * Else, the number of partitions is set to to the max of number of partitions for all input and output streams
    * (excluding intermediate streams).
    *
-   * @param keyExtractor the {@link Function} to extract the output message key and partition key from
-   *                     the input message
-   * @param <K> the type of output message key and partition key
+   * @param <K> the type of output key
+   * @param <V> the type of output value
+   * @param keyExtractor the {@link Function} to extract the message and partition key from the input message
+   * @param valueExtractor the {@link Function} to extract the value from the input message
+   * @param serde the {@link KVSerde} to use for (de)serializing the key and value.
    * @return the repartitioned {@link MessageStream}
    */
-  <K> MessageStream<M> partitionBy(Function<? super M, ? extends K> keyExtractor);
+  <K, V> MessageStream<KV<K, V>> partitionBy(Function<? super M, ? extends K> keyExtractor,
+      Function<? super M, ? extends V> valueExtractor, KVSerde<K, V> serde);
 
+  /**
+   * Same as calling {@link #partitionBy(Function, Function, KVSerde)} with a null KVSerde.
+   *
+   * @param keyExtractor the {@link Function} to extract the message and partition key from the input message
+   * @param valueExtractor the {@link Function} to extract the value from the input message
+   * @param <K> the type of output key
+   * @param <V> the type of output value
+   * @return the repartitioned {@link MessageStream}
+   */
+  <K, V> MessageStream<KV<K, V>> partitionBy(Function<? super M, ? extends K> keyExtractor,
+      Function<? super M, ? extends V> valueExtractor);
 }

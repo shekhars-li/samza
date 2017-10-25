@@ -24,12 +24,14 @@ import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.TaskConfig;
+import org.apache.samza.operators.KV;
 import org.apache.samza.operators.MessageStream;
 import org.apache.samza.operators.OutputStream;
 import org.apache.samza.operators.StreamGraphImpl;
 import org.apache.samza.operators.functions.JoinFunction;
 import org.apache.samza.operators.windows.Windows;
 import org.apache.samza.runtime.ApplicationRunner;
+import org.apache.samza.serializers.Serde;
 import org.apache.samza.system.StreamSpec;
 import org.apache.samza.system.SystemAdmin;
 import org.apache.samza.system.SystemStreamMetadata;
@@ -45,8 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -68,6 +68,7 @@ public class TestExecutionPlanner {
   private StreamSpec input1;
   private StreamSpec input2;
   private StreamSpec input3;
+  private StreamSpec input4;
   private StreamSpec output1;
   private StreamSpec output2;
 
@@ -93,21 +94,6 @@ public class TestExecutionPlanner {
       }
 
       @Override
-      public void createChangelogStream(String streamName, int numOfPartitions) {
-
-      }
-
-      @Override
-      public void validateChangelogStream(String streamName, int numOfPartitions) {
-
-      }
-
-      @Override
-      public void createCoordinatorStream(String streamName) {
-
-      }
-
-      @Override
       public Integer offsetComparator(String offset1, String offset2) {
         return null;
       }
@@ -122,11 +108,11 @@ public class TestExecutionPlanner {
      *
      */
     StreamGraphImpl streamGraph = new StreamGraphImpl(runner, config);
-    Function mockFn = mock(Function.class);
-    OutputStream<Object, Object, Object> output1 = streamGraph.getOutputStream("output1", mockFn, mockFn);
-    BiFunction mockBuilder = mock(BiFunction.class);
-    streamGraph.getInputStream("input1", mockBuilder)
-        .partitionBy(m -> "yes!!!").map(m -> m)
+    MessageStream<KV<Object, Object>> input1 = streamGraph.getInputStream("input1");
+    OutputStream<KV<Object, Object>> output1 = streamGraph.getOutputStream("output1");
+    input1
+        .partitionBy(m -> m.key, m -> m.value)
+        .map(kv -> kv)
         .sendTo(output1);
     return streamGraph;
   }
@@ -145,16 +131,29 @@ public class TestExecutionPlanner {
      */
 
     StreamGraphImpl streamGraph = new StreamGraphImpl(runner, config);
-    BiFunction msgBuilder = mock(BiFunction.class);
-    MessageStream m1 = streamGraph.getInputStream("input1", msgBuilder).map(m -> m);
-    MessageStream m2 = streamGraph.getInputStream("input2", msgBuilder).partitionBy(m -> "haha").filter(m -> true);
-    MessageStream m3 = streamGraph.getInputStream("input3", msgBuilder).filter(m -> true).partitionBy(m -> "hehe").map(m -> m);
-    Function mockFn = mock(Function.class);
-    OutputStream<Object, Object, Object> output1 = streamGraph.getOutputStream("output1", mockFn, mockFn);
-    OutputStream<Object, Object, Object> output2 = streamGraph.getOutputStream("output2", mockFn, mockFn);
+    MessageStream<KV<Object, Object>> messageStream1 =
+        streamGraph.<KV<Object, Object>>getInputStream("input1")
+            .map(m -> m);
+    MessageStream<KV<Object, Object>> messageStream2 =
+        streamGraph.<KV<Object, Object>>getInputStream("input2")
+            .partitionBy(m -> m.key, m -> m.value)
+            .filter(m -> true);
+    MessageStream<KV<Object, Object>> messageStream3 =
+        streamGraph.<KV<Object, Object>>getInputStream("input3")
+            .filter(m -> true)
+            .partitionBy(m -> m.key, m -> m.value)
+            .map(m -> m);
+    OutputStream<KV<Object, Object>> output1 = streamGraph.getOutputStream("output1");
+    OutputStream<KV<Object, Object>> output2 = streamGraph.getOutputStream("output2");
 
-    m1.join(m2, mock(JoinFunction.class), Duration.ofHours(2)).sendTo(output1);
-    m3.join(m2, mock(JoinFunction.class), Duration.ofHours(1)).sendTo(output2);
+    messageStream1
+        .join(messageStream2, mock(JoinFunction.class),
+            mock(Serde.class), mock(Serde.class), mock(Serde.class), Duration.ofHours(2))
+        .sendTo(output1);
+    messageStream3
+        .join(messageStream2, mock(JoinFunction.class),
+            mock(Serde.class), mock(Serde.class), mock(Serde.class), Duration.ofHours(1))
+        .sendTo(output2);
 
     return streamGraph;
   }
@@ -162,25 +161,41 @@ public class TestExecutionPlanner {
   private StreamGraphImpl createStreamGraphWithJoinAndWindow() {
 
     StreamGraphImpl streamGraph = new StreamGraphImpl(runner, config);
-    BiFunction msgBuilder = mock(BiFunction.class);
-    MessageStream m1 = streamGraph.getInputStream("input1", msgBuilder).map(m -> m);
-    MessageStream m2 = streamGraph.getInputStream("input2", msgBuilder).partitionBy(m -> "haha").filter(m -> true);
-    MessageStream m3 = streamGraph.getInputStream("input3", msgBuilder).filter(m -> true).partitionBy(m -> "hehe").map(m -> m);
-    Function mockFn = mock(Function.class);
-    OutputStream<Object, Object, Object> output1 = streamGraph.getOutputStream("output1", mockFn, mockFn);
-    OutputStream<Object, Object, Object> output2 = streamGraph.getOutputStream("output2", mockFn, mockFn);
+    MessageStream<KV<Object, Object>> messageStream1 =
+        streamGraph.<KV<Object, Object>>getInputStream("input1")
+            .map(m -> m);
+    MessageStream<KV<Object, Object>> messageStream2 =
+        streamGraph.<KV<Object, Object>>getInputStream("input2")
+            .partitionBy(m -> m.key, m -> m.value)
+            .filter(m -> true);
+    MessageStream<KV<Object, Object>> messageStream3 =
+        streamGraph.<KV<Object, Object>>getInputStream("input3")
+            .filter(m -> true)
+            .partitionBy(m -> m.key, m -> m.value)
+            .map(m -> m);
+    OutputStream<KV<Object, Object>> output1 = streamGraph.getOutputStream("output1");
+    OutputStream<KV<Object, Object>> output2 = streamGraph.getOutputStream("output2");
 
-    m1.map(m -> m)
-        .filter(m->true)
-        .window(Windows.<Object, Object>keyedTumblingWindow(m -> m, Duration.ofMillis(8)));
+    messageStream1.map(m -> m)
+        .filter(m -> true)
+        .window(Windows.<KV<Object, Object>, Object>keyedTumblingWindow(m -> m, Duration.ofMillis(8), mock(Serde.class), mock(Serde.class)));
 
-    m2.map(m -> m)
-        .filter(m->true)
-        .window(Windows.<Object, Object>keyedTumblingWindow(m -> m, Duration.ofMillis(16)));
+    messageStream2.map(m -> m)
+        .filter(m -> true)
+        .window(Windows.<KV<Object, Object>, Object>keyedTumblingWindow(m -> m, Duration.ofMillis(16), mock(Serde.class), mock(Serde.class)));
 
-    m1.join(m2, mock(JoinFunction.class), Duration.ofMillis(1600)).sendTo(output1);
-    m3.join(m2, mock(JoinFunction.class), Duration.ofMillis(100)).sendTo(output2);
-    m3.join(m2, mock(JoinFunction.class), Duration.ofMillis(252)).sendTo(output2);
+    messageStream1
+        .join(messageStream2, mock(JoinFunction.class),
+            mock(Serde.class), mock(Serde.class), mock(Serde.class), Duration.ofMillis(1600))
+        .sendTo(output1);
+    messageStream3
+        .join(messageStream2, mock(JoinFunction.class),
+            mock(Serde.class), mock(Serde.class), mock(Serde.class), Duration.ofMillis(100))
+        .sendTo(output2);
+    messageStream3
+        .join(messageStream2, mock(JoinFunction.class),
+            mock(Serde.class), mock(Serde.class), mock(Serde.class), Duration.ofMillis(252))
+        .sendTo(output2);
 
     return streamGraph;
   }
@@ -196,6 +211,7 @@ public class TestExecutionPlanner {
     input1 = new StreamSpec("input1", "input1", "system1");
     input2 = new StreamSpec("input2", "input2", "system2");
     input3 = new StreamSpec("input3", "input3", "system2");
+    input4 = new StreamSpec("input4", "input4", "system1");
 
     output1 = new StreamSpec("output1", "output1", "system1");
     output2 = new StreamSpec("output2", "output2", "system2");
@@ -204,6 +220,7 @@ public class TestExecutionPlanner {
     Map<String, Integer> system1Map = new HashMap<>();
     system1Map.put("input1", 64);
     system1Map.put("output1", 8);
+    system1Map.put("input4", ExecutionPlanner.MAX_INFERRED_PARTITIONS * 2);
     Map<String, Integer> system2Map = new HashMap<>();
     system2Map.put("input2", 16);
     system2Map.put("input3", 32);
@@ -220,6 +237,7 @@ public class TestExecutionPlanner {
     when(runner.getStreamSpec("input1")).thenReturn(input1);
     when(runner.getStreamSpec("input2")).thenReturn(input2);
     when(runner.getStreamSpec("input3")).thenReturn(input3);
+    when(runner.getStreamSpec("input4")).thenReturn(input4);
     when(runner.getStreamSpec("output1")).thenReturn(output1);
     when(runner.getStreamSpec("output2")).thenReturn(output2);
 
@@ -318,10 +336,10 @@ public class TestExecutionPlanner {
     StreamGraphImpl streamGraph = createStreamGraphWithJoinAndWindow();
     ExecutionPlan plan = planner.plan(streamGraph);
     List<JobConfig> jobConfigs = plan.getJobConfigs();
-    assertEquals(jobConfigs.size(), 1);
+    assertEquals(1, jobConfigs.size());
 
     // GCD of 8, 16, 1600 and 252 is 4
-    assertEquals(jobConfigs.get(0).get(TaskConfig.WINDOW_MS()), "4");
+    assertEquals("4", jobConfigs.get(0).get(TaskConfig.WINDOW_MS()));
   }
 
   @Test
@@ -335,10 +353,10 @@ public class TestExecutionPlanner {
     StreamGraphImpl streamGraph = createStreamGraphWithJoinAndWindow();
     ExecutionPlan plan = planner.plan(streamGraph);
     List<JobConfig> jobConfigs = plan.getJobConfigs();
-    assertEquals(jobConfigs.size(), 1);
+    assertEquals(1, jobConfigs.size());
 
     // GCD of 8, 16, 1600 and 252 is 4
-    assertEquals(jobConfigs.get(0).get(TaskConfig.WINDOW_MS()), "4");
+    assertEquals("4", jobConfigs.get(0).get(TaskConfig.WINDOW_MS()));
   }
 
 
@@ -352,7 +370,7 @@ public class TestExecutionPlanner {
     StreamGraphImpl streamGraph = createSimpleGraph();
     ExecutionPlan plan = planner.plan(streamGraph);
     List<JobConfig> jobConfigs = plan.getJobConfigs();
-    assertEquals(jobConfigs.size(), 1);
+    assertEquals(1, jobConfigs.size());
     assertFalse(jobConfigs.get(0).containsKey(TaskConfig.WINDOW_MS()));
   }
 
@@ -367,8 +385,8 @@ public class TestExecutionPlanner {
     StreamGraphImpl streamGraph = createSimpleGraph();
     ExecutionPlan plan = planner.plan(streamGraph);
     List<JobConfig> jobConfigs = plan.getJobConfigs();
-    assertEquals(jobConfigs.size(), 1);
-    assertEquals(jobConfigs.get(0).get(TaskConfig.WINDOW_MS()), "2000");
+    assertEquals(1, jobConfigs.size());
+    assertEquals("2000", jobConfigs.get(0).get(TaskConfig.WINDOW_MS()));
   }
 
   @Test
@@ -379,26 +397,44 @@ public class TestExecutionPlanner {
 
     // the partitions should be the same as input1
     jobGraph.getIntermediateStreams().forEach(edge -> {
-        assertTrue(edge.getPartitionCount() == 64); // max of input1 and output1
+        assertEquals(64, edge.getPartitionCount()); // max of input1 and output1
       });
   }
 
   @Test
   public void testMaxPartition() {
     Collection<StreamEdge> edges = new ArrayList<>();
-    StreamEdge edge = new StreamEdge(input1);
+    StreamEdge edge = new StreamEdge(input1, config);
     edge.setPartitionCount(2);
     edges.add(edge);
-    edge = new StreamEdge(input2);
+    edge = new StreamEdge(input2, config);
     edge.setPartitionCount(32);
     edges.add(edge);
-    edge = new StreamEdge(input3);
+    edge = new StreamEdge(input3, config);
     edge.setPartitionCount(16);
     edges.add(edge);
 
-    assertEquals(ExecutionPlanner.maxPartition(edges), 32);
+    assertEquals(32, ExecutionPlanner.maxPartition(edges));
 
     edges = Collections.emptyList();
-    assertEquals(ExecutionPlanner.maxPartition(edges), StreamEdge.PARTITIONS_UNKNOWN);
+    assertEquals(StreamEdge.PARTITIONS_UNKNOWN, ExecutionPlanner.maxPartition(edges));
+  }
+
+  @Test
+  public void testMaxPartitionLimit() throws Exception {
+    int partitionLimit = ExecutionPlanner.MAX_INFERRED_PARTITIONS;
+
+    ExecutionPlanner planner = new ExecutionPlanner(config, streamManager);
+    StreamGraphImpl streamGraph = new StreamGraphImpl(runner, config);
+
+    MessageStream<KV<Object, Object>> input1 = streamGraph.getInputStream("input4");
+    OutputStream<KV<Object, Object>> output1 = streamGraph.getOutputStream("output1");
+    input1.partitionBy(m -> m.key, m -> m.value).map(kv -> kv).sendTo(output1);
+    JobGraph jobGraph = (JobGraph) planner.plan(streamGraph);
+
+    // the partitions should be the same as input1
+    jobGraph.getIntermediateStreams().forEach(edge -> {
+        assertEquals(partitionLimit, edge.getPartitionCount()); // max of input1 and output1
+      });
   }
 }

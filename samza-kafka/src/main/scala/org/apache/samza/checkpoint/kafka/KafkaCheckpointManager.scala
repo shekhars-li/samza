@@ -28,12 +28,11 @@ import org.apache.samza.checkpoint.{Checkpoint, CheckpointManager}
 import org.apache.samza.container.TaskName
 import org.apache.samza.serializers.CheckpointSerde
 import org.apache.samza.system.SystemStreamMetadata.SystemStreamPartitionMetadata
-import org.apache.samza.system.kafka.{KafkaSystemAdmin, KafkaStreamSpec}
+import org.apache.samza.system.kafka.KafkaStreamSpec
 import org.apache.samza.system.{StreamSpec, SystemAdmin, _}
 import org.apache.samza.util._
 import org.apache.samza.{Partition, SamzaException}
 
-import scala.collection.JavaConversions._
 import scala.collection.mutable
 
 /**
@@ -190,7 +189,6 @@ class KafkaCheckpointManager(
     if (systemConsumer == null) {
       val partitionMetadata = getSSPMetadata(checkpointTopic, new Partition(0))
       val oldestOffset = partitionMetadata.getOldestOffset
-
       systemConsumer = getSystemConsumer()
       systemConsumer.register(ssp, oldestOffset)
       systemConsumer.start()
@@ -244,10 +242,11 @@ class KafkaCheckpointManager(
     }
   }
 
-  def register(taskName: TaskName) {
+  override def register(taskName: TaskName) {
     debug("Adding taskName " + taskName + " to " + this)
     taskNames += taskName
   }
+
 
   def stop = {
     synchronized {
@@ -262,6 +261,12 @@ class KafkaCheckpointManager(
       }
     }
 
+  }
+
+  override def clearCheckpoints = {
+    info("Clear checkpoint stream %s in system %s" format (checkpointTopic, systemName))
+    val spec = StreamSpec.createCheckpointStreamSpec(checkpointTopic, systemName)
+    systemAdmin.clearStream(spec)
   }
 
   override def toString = "KafkaCheckpointManager [systemName=%s, checkpointTopic=%s]" format(systemName, checkpointTopic)
