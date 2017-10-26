@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
  * feeds the input messages into the user-defined transformation chains in {@link StreamApplication}.
  */
 public class StreamOperatorTask implements StreamTask, InitableTask, WindowableTask, ClosableTask {
-  
+
   private final StreamApplication streamApplication;
   private final ApplicationRunner runner;
   private final Clock clock;
