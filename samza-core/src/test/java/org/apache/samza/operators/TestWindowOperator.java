@@ -26,7 +26,11 @@ import junit.framework.Assert;
 import org.apache.samza.Partition;
 import org.apache.samza.application.StreamApplication;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.JobConfig;
+import org.apache.samza.container.TaskContextImpl;
 import org.apache.samza.metrics.MetricsRegistryMap;
+import org.apache.samza.operators.impl.store.TestInMemoryStore;
+import org.apache.samza.operators.impl.store.TimeSeriesKeySerde;
 import org.apache.samza.operators.triggers.FiringType;
 import org.apache.samza.operators.triggers.Trigger;
 import org.apache.samza.operators.triggers.Triggers;
@@ -34,6 +38,9 @@ import org.apache.samza.operators.windows.AccumulationMode;
 import org.apache.samza.operators.windows.WindowPane;
 import org.apache.samza.operators.windows.Windows;
 import org.apache.samza.runtime.ApplicationRunner;
+import org.apache.samza.serializers.IntegerSerde;
+import org.apache.samza.serializers.KVSerde;
+import org.apache.samza.serializers.Serde;
 import org.apache.samza.system.IncomingMessageEnvelope;
 import org.apache.samza.system.OutgoingMessageEnvelope;
 import org.apache.samza.system.StreamSpec;
@@ -41,7 +48,6 @@ import org.apache.samza.system.SystemStream;
 import org.apache.samza.system.SystemStreamPartition;
 import org.apache.samza.task.MessageCollector;
 import org.apache.samza.task.StreamOperatorTask;
-import org.apache.samza.task.TaskContext;
 import org.apache.samza.task.TaskCoordinator;
 import org.apache.samza.testUtils.TestClock;
 import org.junit.Before;
@@ -53,6 +59,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -60,17 +68,24 @@ public class TestWindowOperator {
   private final TaskCoordinator taskCoordinator = mock(TaskCoordinator.class);
   private final List<Integer> integers = ImmutableList.of(1, 2, 1, 2, 1, 2, 1, 2, 3);
   private Config config;
-  private TaskContext taskContext;
+  private TaskContextImpl taskContext;
   private ApplicationRunner runner;
 
   @Before
   public void setup() throws Exception {
     config = mock(Config.class);
-    taskContext = mock(TaskContext.class);
+    when(config.get(JobConfig.JOB_NAME())).thenReturn("jobName");
+    when(config.get(eq(JobConfig.JOB_ID()), anyString())).thenReturn("jobId");
+    taskContext = mock(TaskContextImpl.class);
     runner = mock(ApplicationRunner.class);
+    Serde storeKeySerde = new TimeSeriesKeySerde(new IntegerSerde());
+    Serde storeValSerde = new IntegerEnvelopeSerde();
+
     when(taskContext.getSystemStreamPartitions()).thenReturn(ImmutableSet
         .of(new SystemStreamPartition("kafka", "integers", new Partition(0))));
     when(taskContext.getMetricsRegistry()).thenReturn(new MetricsRegistryMap());
+    when(taskContext.getStore("jobName-jobId-window-w1"))
+        .thenReturn(new TestInMemoryStore<>(storeKeySerde, storeValSerde));
     when(runner.getStreamSpec("integers")).thenReturn(new StreamSpec("integers", "integers", "kafka"));
   }
 
@@ -84,7 +99,8 @@ public class TestWindowOperator {
     TestClock testClock = new TestClock();
     StreamOperatorTask task = new StreamOperatorTask(sgb, runner, testClock);
     task.init(config, taskContext);
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
     integers.forEach(n -> task.process(new IntegerEnvelope(n), messageCollector, taskCoordinator));
     testClock.advanceTime(Duration.ofSeconds(1));
 
@@ -117,7 +133,8 @@ public class TestWindowOperator {
     StreamOperatorTask task = new StreamOperatorTask(sgb, runner, testClock);
     task.init(config, taskContext);
 
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
     Assert.assertEquals(windowPanes.size(), 0);
 
     integers.forEach(n -> task.process(new IntegerEnvelope(n), messageCollector, taskCoordinator));
@@ -141,7 +158,8 @@ public class TestWindowOperator {
     StreamOperatorTask task = new StreamOperatorTask(sgb, runner, testClock);
     task.init(config, taskContext);
 
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
     integers.forEach(n -> task.process(new IntegerEnvelope(n), messageCollector, taskCoordinator));
     testClock.advanceTime(Duration.ofSeconds(1));
     task.window(messageCollector, taskCoordinator);
@@ -167,7 +185,8 @@ public class TestWindowOperator {
     List<WindowPane<Integer, Collection<IntegerEnvelope>>> windowPanes = new ArrayList<>();
     StreamOperatorTask task = new StreamOperatorTask(sgb, runner, testClock);
     task.init(config, taskContext);
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
     task.process(new IntegerEnvelope(1), messageCollector, taskCoordinator);
     task.process(new IntegerEnvelope(1), messageCollector, taskCoordinator);
     testClock.advanceTime(Duration.ofSeconds(1));
@@ -213,7 +232,8 @@ public class TestWindowOperator {
     StreamOperatorTask task = new StreamOperatorTask(sgb, runner, testClock);
     List<WindowPane<Integer, Collection<IntegerEnvelope>>> windowPanes = new ArrayList<>();
 
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
     task.init(config, taskContext);
 
     task.process(new IntegerEnvelope(1), messageCollector, taskCoordinator);
@@ -245,7 +265,8 @@ public class TestWindowOperator {
     task.init(config, taskContext);
 
     List<WindowPane<Integer, Collection<IntegerEnvelope>>> windowPanes = new ArrayList<>();
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
     task.process(new IntegerEnvelope(1), messageCollector, taskCoordinator);
     task.process(new IntegerEnvelope(1), messageCollector, taskCoordinator);
     Assert.assertEquals(windowPanes.size(), 1);
@@ -288,7 +309,8 @@ public class TestWindowOperator {
     task.init(config, taskContext);
 
     List<WindowPane<Integer, Collection<IntegerEnvelope>>> windowPanes = new ArrayList<>();
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
     task.process(new IntegerEnvelope(1), messageCollector, taskCoordinator);
     task.process(new IntegerEnvelope(1), messageCollector, taskCoordinator);
     //assert that the count trigger fired
@@ -342,7 +364,8 @@ public class TestWindowOperator {
         Triggers.repeat(Triggers.any(Triggers.count(2), Triggers.timeSinceFirstMessage(Duration.ofMillis(500)))));
     List<WindowPane<Integer, Collection<IntegerEnvelope>>> windowPanes = new ArrayList<>();
 
-    MessageCollector messageCollector = envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
+    MessageCollector messageCollector =
+        envelope -> windowPanes.add((WindowPane<Integer, Collection<IntegerEnvelope>>) envelope.getMessage());
 
     TestClock testClock = new TestClock();
     StreamOperatorTask task = new StreamOperatorTask(sgb, runner, testClock);
@@ -389,13 +412,15 @@ public class TestWindowOperator {
 
     @Override
     public void init(StreamGraph graph, Config config) {
-      MessageStream<IntegerEnvelope> inStream = graph.getInputStream("integers",
-          (k, m) -> new IntegerEnvelope((Integer) k));
+      MessageStream<IntegerEnvelope> inStream =
+          graph.getInputStream("integers", KVSerde.of(new IntegerSerde(), new IntegerSerde()))
+              .map(kv -> new IntegerEnvelope(kv.getKey()));
       Function<IntegerEnvelope, Integer> keyFn = m -> (Integer) m.getKey();
       inStream
-        .map(m -> m)
-        .window(Windows.keyedTumblingWindow(keyFn, duration).setEarlyTrigger(earlyTrigger)
-          .setAccumulationMode(mode))
+          .map(m -> m)
+          .window(Windows.keyedTumblingWindow(keyFn, duration, new IntegerSerde(), new IntegerEnvelopeSerde())
+              .setEarlyTrigger(earlyTrigger)
+              .setAccumulationMode(mode), "w1")
           .sink((message, messageCollector, taskCoordinator) -> {
               messageCollector.send(new OutgoingMessageEnvelope(outputSystemStream, message));
             });
@@ -418,13 +443,15 @@ public class TestWindowOperator {
 
     @Override
     public void init(StreamGraph graph, Config config) {
-      MessageStream<IntegerEnvelope> inStream = graph.getInputStream("integers",
-          (k, m) -> new IntegerEnvelope((Integer) k));
+      MessageStream<IntegerEnvelope> inStream =
+          graph.getInputStream("integers", KVSerde.of(new IntegerSerde(), new IntegerSerde()))
+              .map(kv -> new IntegerEnvelope(kv.getKey()));
       Function<IntegerEnvelope, Integer> keyFn = m -> (Integer) m.getKey();
       inStream
           .map(m -> m)
-          .window(Windows.<IntegerEnvelope>tumblingWindow(duration).setEarlyTrigger(earlyTrigger)
-              .setAccumulationMode(mode))
+          .window(Windows.tumblingWindow(duration, new IntegerEnvelopeSerde())
+              .setEarlyTrigger(earlyTrigger)
+              .setAccumulationMode(mode), "w1")
           .sink((message, messageCollector, taskCoordinator) -> {
               messageCollector.send(new OutgoingMessageEnvelope(outputSystemStream, message));
             });
@@ -444,14 +471,15 @@ public class TestWindowOperator {
 
     @Override
     public void init(StreamGraph graph, Config config) {
-      MessageStream<IntegerEnvelope> inStream = graph.getInputStream("integers",
-          (k, m) -> new IntegerEnvelope((Integer) k));
+      MessageStream<IntegerEnvelope> inStream =
+          graph.getInputStream("integers", KVSerde.of(new IntegerSerde(), new IntegerSerde()))
+              .map(kv -> new IntegerEnvelope(kv.getKey()));
       Function<IntegerEnvelope, Integer> keyFn = m -> (Integer) m.getKey();
 
       inStream
           .map(m -> m)
-          .window(Windows.keyedSessionWindow(keyFn, duration)
-              .setAccumulationMode(mode))
+          .window(Windows.keyedSessionWindow(keyFn, duration, new IntegerSerde(), new IntegerEnvelopeSerde())
+              .setAccumulationMode(mode), "w1")
           .sink((message, messageCollector, taskCoordinator) -> {
               messageCollector.send(new OutgoingMessageEnvelope(outputSystemStream, message));
             });
@@ -462,6 +490,20 @@ public class TestWindowOperator {
 
     IntegerEnvelope(Integer key) {
       super(new SystemStreamPartition("kafka", "integers", new Partition(0)), "1", key, key);
+    }
+  }
+
+  private class IntegerEnvelopeSerde implements Serde<IntegerEnvelope> {
+    private final IntegerSerde intSerde = new IntegerSerde();
+
+    @Override
+    public byte[] toBytes(IntegerEnvelope object) {
+      return intSerde.toBytes((Integer) object.getKey());
+    }
+
+    @Override
+    public IntegerEnvelope fromBytes(byte[] bytes) {
+      return new IntegerEnvelope(intSerde.fromBytes(bytes));
     }
   }
 }

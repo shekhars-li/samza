@@ -35,7 +35,7 @@ import org.apache.kafka.common.security.JaasUtils
 import org.apache.samza.Partition
 import org.apache.samza.config.KafkaProducerConfig
 import org.apache.samza.system.SystemStreamMetadata.SystemStreamPartitionMetadata
-import org.apache.samza.system.{SystemStreamMetadata, SystemStreamPartition}
+import org.apache.samza.system.{StreamSpec, SystemStreamMetadata, SystemStreamPartition}
 import org.apache.samza.util.{ClientUtilTopicMetadataStore, ExponentialSleepStrategy, KafkaUtil, TopicMetadataStore}
 import org.junit.Assert._
 import org.junit._
@@ -142,7 +142,8 @@ object TestKafkaSystemAdmin extends KafkaServerTestHarness {
   }
 
   def createSystemAdmin(coordinatorStreamProperties: Properties, coordinatorStreamReplicationFactor: Int, topicMetaInformation: Map[String, ChangelogInfo]): KafkaSystemAdmin = {
-    new KafkaSystemAdmin(SYSTEM, brokers, connectZk = () => ZkUtils(zkConnect, 6000, 6000, zkSecure), coordinatorStreamProperties, coordinatorStreamReplicationFactor, 10000, ConsumerConfig.SocketBufferSize, UUID.randomUUID.toString, topicMetaInformation)
+    new KafkaSystemAdmin(SYSTEM, brokers, connectZk = () => ZkUtils(zkConnect, 6000, 6000, zkSecure), coordinatorStreamProperties,
+      coordinatorStreamReplicationFactor, 10000, ConsumerConfig.SocketBufferSize, UUID.randomUUID.toString, topicMetaInformation, Map())
   }
 
 }
@@ -284,7 +285,8 @@ class TestKafkaSystemAdmin {
     val topic = "test-coordinator-stream"
     val systemAdmin = new KafkaSystemAdmin(SYSTEM, brokers, () => ZkUtils(zkConnect, 6000, 6000, zkSecure), coordinatorStreamReplicationFactor = 3)
 
-    systemAdmin.createCoordinatorStream(topic)
+    val spec = StreamSpec.createCoordinatorStreamSpec(topic, "kafka")
+    systemAdmin.createStream(spec)
     validateTopic(topic, 1)
     val topicMetadataMap = TopicMetadataCache.getTopicMetadata(Set(topic), "kafka", metadataStore.getTopicInfo)
     assertTrue(topicMetadataMap.contains(topic))
