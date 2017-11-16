@@ -16,30 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- ext {
-  apacheCommonsCollections4Version = "4.0"
-  commonsCodecVersion = "1.9"
-  commonsCollectionVersion = "3.2.1"
-  commonsHttpClientVersion = "3.1"
-  commonsLang3Version = "3.4"
-  elasticsearchVersion = "2.2.0"
-  guavaVersion = "17.0"
-  httpClientVersion = "4.4.1"
-  jacksonVersion = "1.9.13"
-  jerseyVersion = "2.22.1"
-  jodaTimeVersion = "2.2"
-  joptSimpleVersion = "3.2"
-  junitVersion = "4.8.1"
-  kafkaVersion = "0.10.1.1"
-  log4jVersion = "1.2.17"
-  metricsVersion = "2.2.0"
-  mockitoVersion = "1.10.19"
-  powerMockVersion = "1.6.6"
-  rocksdbVersion = "5.7.3"
-  scalaTestVersion = "3.0.1"
-  slf4jVersion = "1.6.2"
-  yarnVersion = "2.6.1"
-  zkClientVersion = "0.8"
-  zookeeperVersion = "3.4.6"
-  hamcrestVersion = "1.3"
+
+package org.apache.samza;
+
+
+/**
+  * Exception to indicate that the input {@link org.apache.samza.system.SystemStreamPartition} changed
+  */
+public class PartitionChangeException extends SamzaException {
+
+  public PartitionChangeException(String s) {
+    super(s);
+  }
 }
