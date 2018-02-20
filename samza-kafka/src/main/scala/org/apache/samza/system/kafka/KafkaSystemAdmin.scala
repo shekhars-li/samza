@@ -148,6 +148,17 @@ class KafkaSystemAdmin(
 
   import KafkaSystemAdmin._
 
+  @volatile var running = false
+
+  override def start() = {
+    running = true
+  }
+
+  override def stop() = {
+    running = false
+  }
+
+
   override def getSystemStreamPartitionCounts(streams: util.Set[String], cacheTTL: Long): util.Map[String, SystemStreamMetadata] = {
     getSystemStreamPartitionCounts(streams, new ExponentialSleepStrategy(initialDelayMs = 500), cacheTTL)
   }
@@ -164,7 +175,7 @@ class KafkaSystemAdmin(
           metadataTTL)
         val result = metadata.map {
           case (topic, topicMetadata) => {
-            KafkaUtil.maybeThrowException(topicMetadata.errorCode)
+            KafkaUtil.maybeThrowException(topicMetadata.error.exception())
             val partitionsMap = topicMetadata.partitionsMetadata.map {
               pm =>
                 new Partition(pm.partitionId) -> new SystemStreamPartitionMetadata("", "", "")
@@ -350,7 +361,7 @@ class KafkaSystemAdmin(
       .values
       // Convert the topic metadata to a Seq[(Broker, TopicAndPartition)]
       .flatMap(topicMetadata => {
-        KafkaUtil.maybeThrowException(topicMetadata.errorCode)
+        KafkaUtil.maybeThrowException(topicMetadata.error.exception())
         topicMetadata
           .partitionsMetadata
           // Convert Seq[PartitionMetadata] to Seq[(Broker, TopicAndPartition)]
@@ -390,7 +401,7 @@ class KafkaSystemAdmin(
       .getOffsetsBefore(new OffsetRequest(partitionOffsetInfo))
       .partitionErrorAndOffsets
       .mapValues(partitionErrorAndOffset => {
-        KafkaUtil.maybeThrowException(partitionErrorAndOffset.error)
+        KafkaUtil.maybeThrowException(partitionErrorAndOffset.error.exception())
         partitionErrorAndOffset.offsets.head
       })
 
@@ -452,9 +463,11 @@ class KafkaSystemAdmin(
     if (spec.isChangeLogStream) {
       val topicName = spec.getPhysicalName
       val topicMeta = topicMetaInformation.getOrElse(topicName, throw new StreamValidationException("Unable to find topic information for topic " + topicName))
-      new KafkaStreamSpec(spec.getId, topicName, systemName, spec.getPartitionCount, topicMeta.replicationFactor, topicMeta.kafkaProps)
+      new KafkaStreamSpec(spec.getId, topicName, systemName, spec.getPartitionCount, topicMeta.replicationFactor,
+        spec.isBroadcast, topicMeta.kafkaProps)
     } else if (spec.isCoordinatorStream){
-      new KafkaStreamSpec(spec.getId, spec.getPhysicalName, systemName, 1, coordinatorStreamReplicationFactor, coordinatorStreamProperties)
+      new KafkaStreamSpec(spec.getId, spec.getPhysicalName, systemName, 1, coordinatorStreamReplicationFactor,
+        spec.isBroadcast, coordinatorStreamProperties)
     } else if (intermediateStreamProperties.contains(spec.getId)) {
       KafkaStreamSpec.fromSpec(spec).copyWithProperties(intermediateStreamProperties(spec.getId))
     } else {
@@ -480,7 +493,7 @@ class KafkaSystemAdmin(
         val metadataStore = new ClientUtilTopicMetadataStore(brokerListString, clientId, timeout)
         val topicMetadataMap = TopicMetadataCache.getTopicMetadata(Set(topicName), systemName, metadataStore.getTopicInfo, metadataTTL)
         val topicMetadata = topicMetadataMap(topicName)
-        KafkaUtil.maybeThrowException(topicMetadata.errorCode)
+        KafkaUtil.maybeThrowException(topicMetadata.error.exception())
 
         val partitionCount = topicMetadata.partitionsMetadata.length
         if (partitionCount != spec.getPartitionCount) {

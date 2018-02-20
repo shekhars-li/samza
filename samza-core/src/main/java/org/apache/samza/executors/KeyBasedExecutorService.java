@@ -57,7 +57,7 @@ public class KeyBasedExecutorService extends AbstractExecutorService {
    * @param numThreads Total number of threads required, mainly dependent on the key set size and the degree of
    *                   parallelism. Highest level of parallelism can be achieved by setting the
    *                   number of threads = key set size.
-   * @throws IllegalArgumentException if numThreads <= 0
+   * @throws IllegalArgumentException if numThreads {@literal <}= 0
    */
   public KeyBasedExecutorService(String threadPoolNamePrefix,
                                  int numThreads) {

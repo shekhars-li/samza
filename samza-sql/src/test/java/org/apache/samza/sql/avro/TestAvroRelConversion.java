@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
@@ -137,6 +136,19 @@ public class TestAvroRelConversion {
     LOG.info(Joiner.on(",").join(message.getFieldNames()));
   }
 
+  @Test
+  public void testEmptyRecordConversion() {
+    GenericData.Record record = new GenericData.Record(SimpleRecord.SCHEMA$);
+    SamzaSqlRelMessage message = simpleRecordAvroRelConverter.convertToRelMessage(new KV<>("key", record));
+    Assert.assertEquals(message.getFieldNames().size(), message.getFieldValues().size());
+  }
+
+  @Test
+  public void testNullRecordConversion() {
+    SamzaSqlRelMessage message = simpleRecordAvroRelConverter.convertToRelMessage(new KV<>("key", null));
+    Assert.assertEquals(message.getFieldNames().size(), message.getFieldValues().size());
+  }
+
   public static <T> byte[] encodeAvroSpecificRecord(Class<T> clazz, T record) throws IOException {
     DatumWriter<T> msgDatumWriter = new SpecificDatumWriter<>(clazz);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -204,8 +216,7 @@ public class TestAvroRelConversion {
     RelDataType dataType = complexRecordSchemProvider.getRelationalSchema();
 
     SamzaSqlRelMessage message = complexRecordAvroRelConverter.convertToRelMessage(new KV<>("key", complexRecordValue));
-    Assert.assertEquals(message.getFieldNames().size(),
-        ComplexRecord.SCHEMA$.getFields().size());
+    Assert.assertEquals(message.getFieldNames().size(), ComplexRecord.SCHEMA$.getFields().size() + 1);
 
     Assert.assertEquals(message.getField("id").get(), id);
     Assert.assertEquals(message.getField("bool_value").get(), boolValue);

@@ -85,10 +85,13 @@ public class SamzaSqlApplicationRunner extends AbstractApplicationRunner {
         SqlSystemStreamConfig inputSystemStreamConfig = sourceResolver.fetchSourceInfo(inputSource);
         newConfig.put(String.format(CFG_FMT_SAMZA_STREAM_SYSTEM, inputSystemStreamConfig.getStreamName()),
             inputSystemStreamConfig.getSystemName());
+        newConfig.putAll(inputSystemStreamConfig.getConfig());
       }
+
       SqlSystemStreamConfig outputSystemStreamConfig = sourceResolver.fetchSourceInfo(query.getOutputSource());
       newConfig.put(String.format(CFG_FMT_SAMZA_STREAM_SYSTEM, outputSystemStreamConfig.getStreamName()),
           outputSystemStreamConfig.getSystemName());
+      newConfig.putAll(outputSystemStreamConfig.getConfig());
     }
 
     if (localRunner) {
@@ -117,6 +120,7 @@ public class SamzaSqlApplicationRunner extends AbstractApplicationRunner {
 
   @Override
   public void run(StreamApplication streamApp) {
+    super.run(streamApp);
     Validate.isInstanceOf(SamzaSqlApplication.class, streamApp);
     appRunner.run(streamApp);
   }
@@ -124,6 +128,7 @@ public class SamzaSqlApplicationRunner extends AbstractApplicationRunner {
   @Override
   public void kill(StreamApplication streamApp) {
     appRunner.kill(streamApp);
+    super.kill(streamApp);
   }
 
   @Override

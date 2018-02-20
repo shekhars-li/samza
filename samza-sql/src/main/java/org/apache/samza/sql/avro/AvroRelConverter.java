@@ -134,7 +134,6 @@ public class AvroRelConverter implements SamzaRelConverter {
   private final Schema mapSchema = Schema.parse(
       "{\"type\":\"map\",\"values\":{\"type\":\"record\",\"name\":\"Object\",\"namespace\":\"java.lang\",\"fields\":[]}}");
 
-
   public AvroRelConverter(SystemStream systemStream, AvroRelSchemaProvider schemaProvider, Config config) {
     this.config = config;
     this.relationalSchema = schemaProvider.getRelationalSchema();
@@ -155,7 +154,7 @@ public class AvroRelConverter implements SamzaRelConverter {
           .collect(Collectors.toList()));
     } else if (value == null) {
       fieldNames.addAll(relationalSchema.getFieldNames());
-      IntStream.range(0, fieldNames.size() - 1).forEach(x -> values.add(null));
+      IntStream.range(0, fieldNames.size()).forEach(x -> values.add(null));
     } else {
       String msg = "Avro message converter doesn't support messages of type " + value.getClass();
       LOG.error(msg);
@@ -175,7 +174,9 @@ public class AvroRelConverter implements SamzaRelConverter {
     List<String> fieldNames = relMessage.getFieldNames();
     List<Object> values = relMessage.getFieldValues();
     for (int index = 0; index < fieldNames.size(); index++) {
-      record.put(fieldNames.get(index), values.get(index));
+      if (!fieldNames.get(index).equalsIgnoreCase(SamzaSqlRelMessage.KEY_NAME)) {
+        record.put(fieldNames.get(index), values.get(index));
+      }
     }
 
     return new KV<>(relMessage.getKey(), record);
