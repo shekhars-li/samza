@@ -376,7 +376,7 @@ class TestOffsetManager {
   // mock OffsetManager class
   class SafeOffsetOffsetManager(
       startingOffsets1: Map[TaskName, Map[SystemStreamPartition, String]],
-      override val systemAdmins: Map[String, SystemAdmin]
+      override val systemAdmins: SystemAdmins
     ) extends OffsetManager {
 
     startingOffsets = startingOffsets1
@@ -401,7 +401,7 @@ class TestOffsetManager {
     val startingOffsets  = Map(taskName -> Map(ssp -> "11", ssp1 -> "19", ssp2 -> null))  // 11 actually means 10 was read from checkpoint
 
     // "mock" class for OffsetManager; doesn't implement full functionality, only the part that is needed by getSafeOffset
-    val offsetManagerWithSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsWithSafeCheckpoint)
+    val offsetManagerWithSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, new SystemAdmins(systemAdminsWithSafeCheckpoint.asJava))
 
     val offsetsToCheckpoint = Map(ssp->"10", ssp1->"20", ssp2->"30", ssp3->"40")
     val safeOffsetsWithSafeCheckpoint = offsetManagerWithSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
@@ -411,7 +411,7 @@ class TestOffsetManager {
     assertEquals(safeOffsetsWithSafeCheckpoint(ssp3), "45") // there is no valid starting offset - should just get safe offset
 
     // now same tests with a system that doesn't support safeCheckpoint
-    val offsetManagerNoSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsNoSafeCheckpoint)
+    val offsetManagerNoSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, new SystemAdmins(systemAdminsNoSafeCheckpoint.asJava))
     val safeOffsetsNoSafeCheckpoint = offsetManagerNoSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
 
     // since safeCheckpoint is not enabled - there should be no change

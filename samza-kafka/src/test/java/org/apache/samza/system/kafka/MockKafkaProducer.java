@@ -159,7 +159,6 @@ public class MockKafkaProducer implements Producer<byte[], byte[]> {
     return this._cluster.partitionsForTopic(topic);
   }
 
-  @Override
   public Map<String, List<PartitionInfo>> partitionsFor(Set<String> topics) {
     return null;
   }
