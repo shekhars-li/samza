@@ -373,7 +373,6 @@ class TestOffsetManager {
     }
   }
 
-<<<<<<< HEAD
   // mock OffsetManager class
   class SafeOffsetOffsetManager(
       startingOffsets1: Map[TaskName, Map[SystemStreamPartition, String]],
