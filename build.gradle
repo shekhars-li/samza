@@ -100,7 +100,7 @@ allprojects {
   // For all scala compilation, add extra compiler options, taken from version-specific
   // dependency-versions-scala file applied above.
   tasks.withType(ScalaCompile) {
-    scalaCompileOptions.additionalParameters = [ scalaOptions ]
+    scalaCompileOptions.additionalParameters = scalaOptions
   }
 }
 
@@ -118,8 +118,6 @@ subprojects {
   tasks.withType(ScalaCompile) {
     // show compile errors in console output
     logging.setLevel LogLevel.WARN
-    scalaCompileOptions.fork = false
-    scalaCompileOptions.useAnt = true
   }
 
   tasks.withType(Test) {
