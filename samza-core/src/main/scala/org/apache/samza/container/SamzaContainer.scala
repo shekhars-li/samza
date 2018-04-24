@@ -288,7 +288,7 @@ object SamzaContainer extends Logging {
 
     val intermediateStreams = config
       .getStreamIds
-      .filter(config.getIsIntermediate(_))
+      .filter(config.getIsIntermediateStream(_))
       .toList
 
     info("Got intermediate streams: %s" format intermediateStreams)
@@ -1008,7 +1008,6 @@ class SamzaContainer(
 
   def shutdownTask {
     info("Shutting down task instance stream tasks.")
-
 
     if (taskThreadPool != null) {
       info("Shutting down task thread pool")
