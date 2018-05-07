@@ -20,6 +20,7 @@
 package org.apache.samza.storage.kv
 
 import java.io.File
+import java.util
 import java.util.Comparator
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -204,6 +205,30 @@ class RocksDbKeyValueStore(
     new RocksDbIterator(iter)
   }
 
+  def iterate(from: Array[Byte], to: Array[Byte]): KeyValueIterable[Array[Byte], Array[Byte]] = {
+    //snapshot the iterator
+    val snapshotIter : RocksDbRangeIterator = range(from, to).asInstanceOf[RocksDbRangeIterator]
+    new KeyValueIterable[Array[Byte], Array[Byte]] {
+      var iter:RocksDbRangeIterator = null
+
+      def iterator(): KeyValueIterator[Array[Byte], Array[Byte]] = {
+        this.synchronized {
+          if (iter == null) {
+            iter = snapshotIter
+            iter
+          } else if(iter.isOpen() && !iter.hasNext()) {
+            // use the cached iterator and reset the position to the beginning
+            iter.seek(from)
+            iter
+          } else {
+            // we need to create a new iterator since the cached one is still in use or already closed
+            range(from, to)
+          }
+        }
+      }
+    }
+  }
+
   def flush(): Unit = ifOpen {
     metrics.flushes.inc
     trace("Flushing store: %s" format storeName)
@@ -247,6 +272,10 @@ class RocksDbKeyValueStore(
     override def close() = ifOpen {
       open = false
       iter.close()
+    }
+
+    def isOpen() = ifOpen {
+      open
     }
 
     override def remove() = throw new UnsupportedOperationException("RocksDB iterator doesn't support remove")
@@ -301,6 +330,10 @@ class RocksDbKeyValueStore(
 
     override def hasNext() = ifOpen {
       super.hasNext() && comparator.compare(peekKey(), to) < 0
+    }
+
+    def seek(key: Array[Byte]) = {
+      iter.seek(key)
     }
   }
 
