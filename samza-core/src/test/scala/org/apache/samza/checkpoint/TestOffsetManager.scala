@@ -401,14 +401,17 @@ class TestOffsetManager {
     val ssp3 = new SystemStreamPartition(systemName, "stream1", new Partition(3))
 
     // this system/systemAdmin supports SafeOffset, it makes the offset "safe" by adding 5.
-    val systemAdminsWithSafeCheckpoint: Map[String, SystemAdmin] = Map(systemName -> getSystemAdminWithSafeOffset)
-    val systemAdminsNoSafeCheckpoint: Map[String, SystemAdmin] = Map(systemName -> getSystemAdmin)
+    val systemAdminsWithSafeCheckpoint = mock(classOf[SystemAdmins])
+    when(systemAdminsWithSafeCheckpoint.getSystemAdmin(systemName)).thenReturn(getSystemAdminWithSafeOffset)
+
+    val systemAdminsNoSafeCheckpoint = mock(classOf[SystemAdmins])
+    when(systemAdminsNoSafeCheckpoint.getSystemAdmin(systemName)).thenReturn(getSystemAdmin)
 
     // starting offsets are (checkpointed_offset + 1)
     val startingOffsets  = Map(taskName -> Map(ssp -> "11", ssp1 -> "19", ssp2 -> null))  // 11 actually means 10 was read from checkpoint
 
     // "mock" class for OffsetManager; doesn't implement full functionality, only the part that is needed by getSafeOffset
-    val offsetManagerWithSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, new SystemAdmins(systemAdminsWithSafeCheckpoint.asJava))
+    val offsetManagerWithSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsWithSafeCheckpoint)
 
     val offsetsToCheckpoint = Map(ssp->"10", ssp1->"20", ssp2->"30", ssp3->"40")
     val safeOffsetsWithSafeCheckpoint = offsetManagerWithSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
@@ -418,7 +421,7 @@ class TestOffsetManager {
     assertEquals(safeOffsetsWithSafeCheckpoint(ssp3), "45") // there is no valid starting offset - should just get safe offset
 
     // now same tests with a system that doesn't support safeCheckpoint
-    val offsetManagerNoSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, new SystemAdmins(systemAdminsNoSafeCheckpoint.asJava))
+    val offsetManagerNoSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsNoSafeCheckpoint)
     val safeOffsetsNoSafeCheckpoint = offsetManagerNoSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
 
     // since safeCheckpoint is not enabled - there should be no change
