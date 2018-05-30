@@ -481,7 +481,6 @@ project(":samza-yarn_$scalaVersion") {
     }
     compile "joda-time:joda-time:$jodaTimeVersion"
     compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
-    testCompile "org.hamcrest:hamcrest-all:$hamcrestVersion"
     testCompile "junit:junit:$junitVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
     testCompile project(":samza-core_$scalaVersion").sourceSets.test.output

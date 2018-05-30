@@ -30,7 +30,6 @@ import org.apache.samza.config.Config
 import org.apache.samza.util.Logging
 import org.rocksdb.{TtlDB, _}
 
-
 object RocksDbKeyValueStore extends Logging {
 
   def openDB(dir: File, options: Options, storeConfig: Config, isLoggedStore: Boolean,

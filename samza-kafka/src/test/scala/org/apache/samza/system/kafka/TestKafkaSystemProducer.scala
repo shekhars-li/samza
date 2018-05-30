@@ -21,7 +21,7 @@ package org.apache.samza.system.kafka
 
 import org.apache.kafka.clients.producer._
 import org.apache.kafka.common.errors.{RecordTooLargeException, SerializationException, TimeoutException}
-import org.apache.kafka.common.serialization.ByteArraySerializer
+import org.apache.kafka.test.MockSerializer
 import org.apache.samza.system.{OutgoingMessageEnvelope, SystemProducerException, SystemStream}
 import org.junit.Assert._
 import org.junit.Test
@@ -34,7 +34,7 @@ class TestKafkaSystemProducer {
 
   @Test
   def testKafkaProducer {
-    val mockProducer = new MockProducer(true, new ByteArraySerializer, new ByteArraySerializer)
+    val mockProducer = new MockProducer(true, new MockSerializer, new MockSerializer)
     val systemProducer = new KafkaSystemProducer(systemName = "test",
                                                  getProducer = () => mockProducer,
                                                  metrics = new KafkaSystemProducerMetrics)

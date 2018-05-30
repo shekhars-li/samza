@@ -33,8 +33,6 @@ import org.apache.samza.system.SystemStream;
 import org.apache.samza.system.WatermarkMessage;
 import org.apache.samza.util.Clock;
 import org.apache.samza.util.SystemClock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**

@@ -24,7 +24,6 @@ package org.apache.samza.system.kafka
 import java.util.{Properties, UUID}
 
 import kafka.admin.AdminUtils
-import kafka.api.FixedPortTestUtils
 import org.apache.kafka.common.errors.LeaderNotAvailableException
 import org.apache.kafka.common.protocol.Errors
 import kafka.consumer.{Consumer, ConsumerConfig, ConsumerConnector}
