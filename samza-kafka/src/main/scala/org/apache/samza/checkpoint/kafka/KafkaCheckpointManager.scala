@@ -292,4 +292,3 @@ class KafkaCheckpointManager(checkpointSpec: KafkaStreamSpec,
     return partitionMetaData.getOldestOffset
   }
 }
-

@@ -26,13 +26,9 @@ import org.apache.samza.util.{Logging, Util}
 
 object TaskConfig {
   // task config constants
-  val INPUT_STREAMS = "task.inputs"
+  val INPUT_STREAMS = "task.inputs" // streaming.input-streams
   val WINDOW_MS = "task.window.ms" // window period in milliseconds
-  val DEFAULT_WINDOW_MS = -1L     // negative integer disables windowing
-
   val COMMIT_MS = "task.commit.ms" // commit period in milliseconds
-  val DEFAULT_COMMIT_MS = 60000L
-
   val SHUTDOWN_MS = "task.shutdown.ms" // how long to wait for a clean shutdown
   val DEFAULT_SHUTDOWN_MS = 5000L
 
@@ -51,7 +47,11 @@ object TaskConfig {
   val CALLBACK_TIMEOUT_MS = "task.callback.timeout.ms"  // timeout period for triggering a callback
   val ASYNC_COMMIT = "task.async.commit" // to enable async commit in a AsyncStreamTask
   val MAX_IDLE_MS = "task.max.idle.ms"  // maximum time to wait for a task worker to complete when there are no new messages to handle
+  // LinkedIn specific config for invocation context when tasks are using OffspringHelper
+  val SERVICECALL_WRAPPER_TASK_CLASS = "task.wrappertask.class" // the wrapper class to provide IC for original task class
 
+  val DEFAULT_WINDOW_MS: Long = -1L
+  val DEFAULT_COMMIT_MS = 60000L
   val DEFAULT_CALLBACK_TIMEOUT_MS: Long = -1L
   val DEFAULT_MAX_CONCURRENCY: Int = 1
   val DEFAULT_MAX_IDLE_MS: Long = 10
@@ -128,6 +128,13 @@ class TaskConfig(config: Config) extends ScalaMapConfig(config) with Logging {
   def getPollIntervalMs = getOption(TaskConfig.POLL_INTERVAL_MS)
 
   def getIgnoredExceptions = getOption(TaskConfig.IGNORED_EXCEPTIONS)
+
+  def getServiceCallWrapperTaskClass = {
+    getOption(TaskConfig.SERVICECALL_WRAPPER_TASK_CLASS) match {
+      case Some(className) => className
+      case None => ""
+    }
+  }
 
   def getTaskNameGrouperFactory = {
     getOption(TaskConfig.GROUPER_FACTORY) match {

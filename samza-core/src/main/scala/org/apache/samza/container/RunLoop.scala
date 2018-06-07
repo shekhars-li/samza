@@ -73,21 +73,18 @@ class RunLoop (
    * unhandled exception is thrown.
    */
   def run {
-    while (!shutdownNow)
-    {
+    while (!shutdownNow) {
       val loopStartTime = clock()
 
       trace("Attempting to choose a message to process.")
 
       // Exclude choose time from activeNs. Although it includes deserialization time,
       // it most closely captures idle time.
-      val envelope = updateTimer(metrics.chooseNs)
-      {
+      val envelope = updateTimer(metrics.chooseNs) {
         consumerMultiplexer.choose()
       }
 
-      executor.execute(new Runnable()
-      {
+      executor.execute(new Runnable() {
         override def run(): Unit = process(envelope)
       })
 

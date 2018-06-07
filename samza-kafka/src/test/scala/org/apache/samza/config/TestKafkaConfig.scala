@@ -139,7 +139,6 @@ class TestKafkaConfig {
     assertEquals("mychangelog2", storeToChangelog1.get("test2").getOrElse(""))
     assertEquals("otherstream", storeToChangelog1.get("test3").getOrElse(""))
 
-
     props.setProperty(ApplicationConfig.APP_MODE, ApplicationConfig.ApplicationMode.BATCH.name())
     val batchMapConfig = new MapConfig(props.asScala.asJava)
     val batchKafkaConfig = new KafkaConfig(batchMapConfig)

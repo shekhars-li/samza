@@ -659,6 +659,7 @@ object SamzaContainer extends Logging {
     }
 
     info("Samza container setup complete.")
+
     new SamzaContainer(
       containerContext = containerContext,
       taskInstances = taskInstances,

@@ -24,9 +24,10 @@ import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigException;
 import org.apache.samza.application.StreamApplication;
-import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.TaskConfig;
-import org.apache.samza.runtime.ApplicationRunner;
+import org.apache.samza.operators.ContextManager;
+import org.apache.samza.operators.OperatorSpecGraph;
+import org.apache.samza.task.wrapper.SubTaskWrapperTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,44 +37,38 @@ import static org.apache.samza.util.ScalaJavaUtil.toScalaFunction;
 import static org.apache.samza.util.ScalaJavaUtil.defaultValue;
 
 /**
- * This class provides utility functions to load task factory classes based on config, and to wrap {@link StreamTaskFactory} in {@link AsyncStreamTaskFactory}
- * when running {@link StreamTask}s in multi-thread mode
+ * This class provides utility functions to load task factory classes based on config, and to wrap
+ * {@link StreamTaskFactory} in {@link AsyncStreamTaskFactory} when running {@link StreamTask}s in multi-thread mode
  */
 public class TaskFactoryUtil {
   private static final Logger log = LoggerFactory.getLogger(TaskFactoryUtil.class);
 
   /**
-   * This method creates a task factory class based on the configuration and {@link StreamApplication}
+   * This method creates a task factory class based on the {@link StreamApplication}
    *
-   * @param config  the {@link Config} for this job
-   * @param streamApp the {@link StreamApplication}
-   * @param runner  the {@link ApplicationRunner} to run this job
+   * @param specGraph the {@link OperatorSpecGraph}
+   * @param contextManager the {@link ContextManager} to set up initial context for {@code specGraph}
    * @return  a task factory object, either a instance of {@link StreamTaskFactory} or {@link AsyncStreamTaskFactory}
    */
-  public static Object createTaskFactory(Config config, StreamApplication streamApp, ApplicationRunner runner) {
-    return (streamApp != null)
-        ? createStreamOperatorTaskFactory(streamApp, runner, config)
-        : fromTaskClassConfig(config);
+  // LinkedIn specific change: we will still need the config object to support IC task wrapper class
+  public static Object createTaskFactory(OperatorSpecGraph specGraph, ContextManager contextManager, Config config) {
+    StreamTaskFactory streamTaskFactory = createStreamOperatorTaskFactory(specGraph, contextManager);
+    return maybeWrappedStreamOperatorTaskFactory(config, streamTaskFactory);
   }
 
-  private static StreamTaskFactory createStreamOperatorTaskFactory(
-      StreamApplication streamApp, ApplicationRunner runner, Config config) {
-    return () -> {
-      String taskClassName = config.get(TaskConfig.TASK_CLASS(), "");
-      if (!StringUtils.isEmpty(taskClassName)) {
-        // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
-        // to a wrapper class extending StreamOperatorTask. If so, use that instead.
-        try {
-          return (StreamTask) Class.forName(taskClassName)
-              .getConstructor(StreamApplication.class, ApplicationRunner.class)
-              .newInstance(streamApp, runner);
-        } catch (Exception e) {
-          throw new SamzaException("Could not instantiate wrapper task class for OffSpringHelper.", e);
-        }
-      } else {
-        return new StreamOperatorTask(streamApp, runner);
-      }
-    };
+  /**
+   * This method creates a task factory class based on the configuration
+   *
+   * @param config  the {@link Config} for this job
+   * @return  a task factory object, either a instance of {@link StreamTaskFactory} or {@link AsyncStreamTaskFactory}
+   */
+  public static Object createTaskFactory(Config config) {
+    return fromTaskClassConfig(config);
+  }
+
+  private static StreamTaskFactory createStreamOperatorTaskFactory(OperatorSpecGraph specGraph,
+      ContextManager contextManager) {
+    return () -> new StreamOperatorTask(specGraph, contextManager);
   }
 
   /**
@@ -181,16 +176,13 @@ public class TaskFactoryUtil {
     if (appConfig.getAppClass() != null && !appConfig.getAppClass().isEmpty()) {
       TaskConfig taskConfig = new TaskConfig(config);
       String taskClassName = taskConfig.getTaskClass().getOrElse(defaultValue(null));
-
-      // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
-      // to a wrapper class extending StreamOperatorTask. Only allow task.class to be set
-      // if it's a subclass of StreamOperatorTask.
       try {
-        if (taskClassName != null &&
-            !StringUtils.isEmpty(taskClassName) &&
-            !StreamOperatorTask.class.isAssignableFrom(Class.forName(taskClassName))) {
+        // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
+        // to a wrapper class extending SubTaskWrapperTask. That's a valid configuration for high-level API.
+        if (taskClassName != null && !StringUtils.isEmpty(taskClassName) && !SubTaskWrapperTask.class.isAssignableFrom(
+            Class.forName(taskClassName))) {
           throw new ConfigException(String.format("High level StreamApplication API cannot be used "
-              + "together with low-level API using task.class {}", taskClassName));
+                  + "together with low-level API using task.class {}", taskClassName));
         }
       } catch (ClassNotFoundException e) {
         throw new ConfigException(String.format("High level StreamApplication API cannot be used "
@@ -211,4 +203,32 @@ public class TaskFactoryUtil {
       return null;
     }
   }
+
+  /**
+   * LinkedIn specific methods to wrap the task class to provide invocation context when using OffspringHelper
+   *
+   * @param config the job configuration
+   * @param streamTaskFactory the {@link StreamTaskFactory} created for the job
+   * @return if there is no wrapper task class defined, return the original task factory; otherwise, return the wrapped
+   *         task factory
+   */
+  private static StreamTaskFactory maybeWrappedStreamOperatorTaskFactory(Config config, StreamTaskFactory streamTaskFactory) {
+    String wrapperTaskClassName = new TaskConfig(config).getTaskClass().getOrElse(defaultValue(null));
+    if (!StringUtils.isEmpty(wrapperTaskClassName)) {
+      // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
+      // to a wrapper class extending SubTaskWrapperTask. If so, use that instead.
+      return () -> {
+        try {
+          return (StreamTask) Class.forName(wrapperTaskClassName).getConstructor(StreamTask.class)
+              .newInstance(streamTaskFactory.createInstance());
+        } catch (Throwable t) {
+          throw new SamzaException(String.format("Error creating wrapper StreamTaskFactory: %s", wrapperTaskClassName),
+              t);
+        }
+      };
+    } else {
+      return streamTaskFactory;
+    }
+  }
+
 }
