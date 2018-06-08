@@ -306,7 +306,8 @@ public class LocalApplicationRunner extends AbstractApplicationRunner {
       Config config,
       StreamGraphSpec graphBuilder,
       StreamProcessorLifecycleListener listener) {
-    Object taskFactory = TaskFactoryUtil.createTaskFactory(graphBuilder.getOperatorSpecGraph(), graphBuilder.getContextManager());
+    // LinkedIn specific change: we will still need the config object to support IC task wrapper class
+    Object taskFactory = TaskFactoryUtil.createTaskFactory(graphBuilder.getOperatorSpecGraph(), graphBuilder.getContextManager(), config);
     return getStreamProcessorInstance(config, taskFactory, listener);
   }
 

@@ -83,7 +83,7 @@ public class TestTaskFactoryUtil {
     assertNotNull(streamApp);
     StreamGraphSpec graph = new StreamGraphSpec(mockRunner, config);
     streamApp.init(graph, config);
-    Object retFactory = TaskFactoryUtil.createTaskFactory(graph.getOperatorSpecGraph(), null);
+    Object retFactory = TaskFactoryUtil.createTaskFactory(graph.getOperatorSpecGraph(), null, config);
     assertTrue(retFactory instanceof StreamTaskFactory);
     assertTrue(((StreamTaskFactory) retFactory).createInstance() instanceof StreamOperatorTask);
 

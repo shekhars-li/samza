@@ -101,7 +101,7 @@ public class LocalContainerRunner extends AbstractApplicationRunner {
     startContainerHeartbeatMonitor();
     container.run();
     stopContainerHeartbeatMonitor();
-    
+
     if (containerRunnerException != null) {
       log.error("Container stopped with Exception. Exiting process now.", containerRunnerException);
       System.exit(1);
@@ -111,7 +111,8 @@ public class LocalContainerRunner extends AbstractApplicationRunner {
   private Object getTaskFactory(StreamApplication streamApp) {
     if (streamApp != null) {
       streamApp.init(graphSpec, config);
-      return TaskFactoryUtil.createTaskFactory(graphSpec.getOperatorSpecGraph(), graphSpec.getContextManager());
+      // LinkedIn specific change: we will still need the config object to support IC task wrapper class
+      return TaskFactoryUtil.createTaskFactory(graphSpec.getOperatorSpecGraph(), graphSpec.getContextManager(), config);
     }
     return TaskFactoryUtil.createTaskFactory(config);
   }

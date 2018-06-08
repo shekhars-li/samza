@@ -77,7 +77,8 @@ class ThreadJobFactory extends StreamJobFactory with Logging {
     val taskFactory = if (streamApp != null) {
       val graphSpec = new StreamGraphSpec(appRunner, config)
       streamApp.init(graphSpec, config)
-      TaskFactoryUtil.createTaskFactory(graphSpec.getOperatorSpecGraph(), graphSpec.getContextManager)
+      // LinkedIn specific change: we will still need the config object to support IC task wrapper class
+      TaskFactoryUtil.createTaskFactory(graphSpec.getOperatorSpecGraph(), graphSpec.getContextManager, config)
     } else {
       TaskFactoryUtil.createTaskFactory(config)
     }
