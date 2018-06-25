@@ -457,8 +457,8 @@ class OffsetManager(
     val taskNameToSSPs: Map[TaskName, Set[SystemStreamPartition]] = systemStreamPartitions
 
     taskNameToSSPs.foreach {
-      case (taskName, systemStreamPartitions) => {
-        systemStreamPartitions.foreach { systemStreamPartition =>
+      case (taskName, systemStreamPartitionsSet) => {
+        systemStreamPartitionsSet.foreach { systemStreamPartition =>
           if (!startingOffsets.contains(taskName) || !startingOffsets(taskName).contains(systemStreamPartition)) {
             val systemStream = systemStreamPartition.getSystemStream
             val partition = systemStreamPartition.getPartition
@@ -490,7 +490,7 @@ class OffsetManager(
               }
 
             } else {
-              throw new SamzaException("No metadata available for partition %s." format systemStreamPartitionMetadata)
+              throw new SamzaException("No metadata available for partition %s." format systemStreamPartition)
             }
           }
         }
