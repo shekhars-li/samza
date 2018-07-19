@@ -59,8 +59,7 @@ public class KeyBasedExecutorService extends AbstractExecutorService {
    *                   number of threads = key set size.
    * @throws IllegalArgumentException if numThreads {@literal <}= 0
    */
-  public KeyBasedExecutorService(String threadPoolNamePrefix,
-                                 int numThreads) {
+  public KeyBasedExecutorService(String threadPoolNamePrefix, int numThreads) {
     if (numThreads <= 0) {
       throw new IllegalArgumentException("numThreads has to be greater than 0 in KeyBasedExecutor!");
     }
@@ -72,9 +71,9 @@ public class KeyBasedExecutorService extends AbstractExecutorService {
     for (int i = 0; i < numThreads; i++) {
       final ExecutorService threadPoolExecutorPerQueue = Executors.newSingleThreadExecutor(
           new ThreadFactoryBuilder()
-            .setThreadFactory(defaultThreadFactory)
-            .setNameFormat(this.threadPoolNamePrefix + "-" + i + "-%d")
-            .build()
+              .setThreadFactory(defaultThreadFactory)
+              .setNameFormat(this.threadPoolNamePrefix + "-" + i + "-%d")
+              .build()
       );
       executors[i] = threadPoolExecutorPerQueue;
     }
