@@ -16,28 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.operators.functions;
 
-import java.io.Serializable;
-import org.apache.samza.annotation.InterfaceStability;
+package org.apache.samza.serializers;
+
+import org.apache.samza.config.Config;
+import org.apache.samza.metrics.reporter.MetricsSnapshot;
 
 
-/**
- * Transforms an input message into another message, possibly of a different type.
- *
- * @param <M>  type of the input message
- * @param <OM>  type of the transformed message
- */
-@InterfaceStability.Unstable
-@FunctionalInterface
-public interface MapFunction<M, OM> extends InitableFunction, ClosableFunction, Serializable {
-
-  /**
-   * Transforms the provided message into another message.
-   *
-   * @param message  the input message to be transformed
-   * @return  the transformed message
-   */
-  OM apply(M message);
-
+public class MetricsSnapshotSerdeV2Factory implements SerdeFactory<MetricsSnapshot> {
+  @Override
+  public Serde<MetricsSnapshot> getSerde(String name, Config config) {
+    return new MetricsSnapshotSerdeV2();
+  }
 }
