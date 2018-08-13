@@ -50,7 +50,7 @@ public class IncomingMessageEnvelope {
     this(systemStreamPartition, offset, key, message, 0);
   }
 
-  /**
+  /**˜
    * Constructs a new IncomingMessageEnvelope from specified components.
    * @param systemStreamPartition The aggregate object representing the incoming stream name, the name of the cluster
    * from which the stream came, and the partition of the stream from which the message was received.

@@ -23,6 +23,7 @@ package org.apache.samza.config
 import java.io.File
 
 import org.apache.samza.container.grouper.stream.GroupByPartitionFactory
+import org.apache.samza.runtime.DefaultLocationIdProviderFactory
 import org.apache.samza.util.Logging
 
 object JobConfig {
@@ -78,6 +79,7 @@ object JobConfig {
   val JOB_SECURITY_MANAGER_FACTORY = "job.security.manager.factory"
 
   val JOB_CONTAINER_LIFE_CYCLE_LISTENER = "job.container.lifecycle-listener.class"
+  val LOCATION_ID_PROVIDER_FACTORY = "locationid.provider.factory"
 
   // Processor Config Constants
   val PROCESSOR_ID = "processor.id"
@@ -169,6 +171,8 @@ class JobConfig(config: Config) extends ScalaMapConfig(config) with Logging {
   def getConfigRewriterClass(name: String) = getOption(JobConfig.CONFIG_REWRITER_CLASS format name)
 
   def getSystemStreamPartitionGrouperFactory = getOption(JobConfig.SSP_GROUPER_FACTORY).getOrElse(classOf[GroupByPartitionFactory].getCanonicalName)
+
+  def getLocationIdProviderFactory = getOption(JobConfig.LOCATION_ID_PROVIDER_FACTORY).getOrElse(classOf[DefaultLocationIdProviderFactory].getCanonicalName)
 
   def getSecurityManagerFactory = getOption(JobConfig.JOB_SECURITY_MANAGER_FACTORY)
 
