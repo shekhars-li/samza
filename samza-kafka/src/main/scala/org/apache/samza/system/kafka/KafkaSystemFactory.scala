@@ -37,15 +37,6 @@ import org.apache.samza.config.SystemConfig.Config2System
 import org.apache.samza.system.SystemConsumer
 import kafka.utils.ZkUtils
 
-object KafkaSystemFactory extends Logging {
-
-  def getInjectedProducerProperties(systemName: String, config: Config) = {
-    if (config.isChangelogSystem(systemName)) {
-      info("System name '%s' is being used as a changelog. " format systemName)
-    }
-    Map[String, String]()
-  }
-}
 
 class KafkaSystemFactory extends SystemFactory with Logging {
   def getConsumer(systemName: String, config: Config, registry: MetricsRegistry): SystemConsumer = {
@@ -88,7 +79,7 @@ class KafkaSystemFactory extends SystemFactory with Logging {
 
   def getProducer(systemName: String, config: Config, registry: MetricsRegistry): SystemProducer = {
     val clientId = KafkaUtil.getClientId(systemName + "samza-producer", config)
-    val injectedProps = KafkaSystemFactory.getInjectedProducerProperties(systemName, config)
+    val injectedProps = Map[String, String]()
     val producerConfig = config.getKafkaSystemProducerConfig(systemName, clientId, injectedProps)
     val getProducer = () => { new KafkaProducer[Array[Byte], Array[Byte]](producerConfig.getProducerProperties) }
     val metrics = new KafkaSystemProducerMetrics(systemName, registry)
