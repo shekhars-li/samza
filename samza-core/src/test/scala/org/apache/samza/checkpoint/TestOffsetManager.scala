@@ -28,7 +28,8 @@ import org.junit.Assert._
 import org.junit.Test
 import org.apache.samza.SamzaException
 import org.apache.samza.config.MapConfig
-import org.mockito.Mockito.{mock, when}
+import org.mockito.Matchers.any
+import org.mockito.Mockito.{mock, when, spy, verify, times}
 import org.scalatest.Assertions.intercept
 
 import scala.collection.JavaConverters._
@@ -378,6 +379,30 @@ class TestOffsetManager {
       // Only for testing purposes - not present in actual checkpoint manager
       def getOffets = Map(taskName -> checkpoint.getOffsets.asScala.toMap)
     }
+  }
+
+  /**
+    * Verify that OffsetManager uses the concept of Kafka "safe offsets" for checkpoints while writing them. This is needed for large message support with Kafka.
+    */
+  @Test
+  def testGetSafeOffsetUsage: Unit = {
+    val taskName = new TaskName("c")
+    val systemStream = new SystemStream("test-system", "test-stream")
+    val partition = new Partition(0)
+    val systemStreamPartition = new SystemStreamPartition(systemStream, partition)
+    val testStreamMetadata = new SystemStreamMetadata(systemStream.getStream, Map(partition -> new SystemStreamPartitionMetadata("0", "1", "2")).asJava)
+    val systemStreamMetadata = Map(systemStream -> testStreamMetadata)
+    val config = new MapConfig
+    val checkpointManager = getCheckpointManager(systemStreamPartition, taskName)
+    val systemAdmins = mock(classOf[SystemAdmins])
+    when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
+    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, systemAdmins, Map(), new OffsetManagerMetrics)
+    offsetManager.register(taskName, Set(systemStreamPartition))
+    offsetManager.start
+
+    val spyOffsetManager = spy(offsetManager)
+    spyOffsetManager.buildCheckpoint(taskName)
+    verify(spyOffsetManager, times(1)).getSafeOffset(any(), any())
   }
 
   // mock OffsetManager class

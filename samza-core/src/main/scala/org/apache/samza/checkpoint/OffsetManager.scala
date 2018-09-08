@@ -242,7 +242,8 @@ class OffsetManager(
         Map[SystemStreamPartition, String]()
       }
 
-      new Checkpoint(new HashMap(partitionOffsets.asJava)) // Copy into new Map to prevent mutation
+      val safePartitionOffsets = getSafeOffset(taskName, partitionOffsets)
+      new Checkpoint(new HashMap(safePartitionOffsets.asJava)) // Copy into new Map to prevent mutation
     } else {
       debug("Returning null checkpoint for taskName %s because no checkpoint manager/callback is defined." format taskName)
       null
