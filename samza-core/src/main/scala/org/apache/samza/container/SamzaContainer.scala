@@ -124,7 +124,7 @@ object SamzaContainer extends Logging {
     jobModel: JobModel,
     config: Config,
     customReporters: Map[String, MetricsReporter] = Map[String, MetricsReporter](),
-    taskFactory: Object) = {
+    taskFactory: TaskFactory[_]) = {
     val containerModel = jobModel.getContainers.get(containerId)
     val containerName = "samza-container-%s" format containerId
     val maxChangeLogStreamPartitions = jobModel.maxChangeLogStreamPartitions
@@ -795,6 +795,10 @@ class SamzaContainer(
       info("Starting container.")
       lifeCycleListener.beforeStart(containerContext)
 
+      if (containerListener != null) {
+        containerListener.beforeStart()
+      }
+
       val startTime = System.nanoTime()
       status = SamzaContainerStatus.STARTING
 
@@ -819,7 +823,7 @@ class SamzaContainer(
       info("Entering run loop.")
       status = SamzaContainerStatus.STARTED
       if (containerListener != null) {
-        containerListener.onContainerStart()
+        containerListener.afterStart()
       }
       metrics.containerStartupTime.update(System.nanoTime() - startTime)
       runLoop.run
@@ -872,11 +876,11 @@ class SamzaContainer(
     status match {
       case SamzaContainerStatus.STOPPED =>
         if (containerListener != null) {
-          containerListener.onContainerStop()
+          containerListener.afterStop()
         }
       case SamzaContainerStatus.FAILED =>
         if (containerListener != null) {
-          containerListener.onContainerFailed(exceptionSeen)
+          containerListener.afterFailure(exceptionSeen)
         }
     }
   }
@@ -888,8 +892,8 @@ class SamzaContainer(
    * <br>
    * <b>Implementation</b>: Stops the [[RunLoop]], which will eventually transition the container from
    * [[SamzaContainerStatus.STARTED]] to either [[SamzaContainerStatus.STOPPED]] or [[SamzaContainerStatus.FAILED]]].
-   * Based on the final `status`, [[SamzaContainerListener#onContainerStop(boolean)]] or
-   * [[SamzaContainerListener#onContainerFailed(Throwable)]] will be invoked respectively.
+   * Based on the final `status`, [[SamzaContainerListener#afterStop()]] or
+    * [[SamzaContainerListener#afterFailure(Throwable]] will be invoked respectively.
    *
    * @throws SamzaException, Thrown when the container has already been stopped or failed
    */
