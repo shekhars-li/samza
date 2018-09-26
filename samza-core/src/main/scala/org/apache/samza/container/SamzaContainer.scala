@@ -832,8 +832,9 @@ class SamzaContainer(
     }
 
     try {
-      info("Shutting down.")
+      info("Shutting down SamzaContainer.")
       lifeCycleListener.beforeShutdown()
+
       removeShutdownHook
 
       jmxServer.stop
