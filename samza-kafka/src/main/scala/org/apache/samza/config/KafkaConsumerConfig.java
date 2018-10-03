@@ -162,7 +162,9 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
       jobId = (String) jobIdOption.get();
     }
 
-    return String.format("%s-%s-%s", id.replaceAll("\\W", "_"), jobName.replaceAll("\\W", "_"),
+    return String.format("%s-%s-%s",
+        id.replaceAll("\\W", "_"),
+        jobName.replaceAll("\\W", "_"),
         jobId.replaceAll("\\W", "_"));
   }
 
