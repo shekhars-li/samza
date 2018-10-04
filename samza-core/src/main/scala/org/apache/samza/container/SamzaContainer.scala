@@ -101,7 +101,7 @@ object SamzaContainer extends Logging {
     if(System.getenv(ShellCommandConfig.ENV_LOGGED_STORE_BASE_DIR) != null) {
       val jobNameAndId = (
         config.getName.getOrElse(throw new ConfigException("Missing required config: job.name")),
-        config.getJobId.getOrElse("1")
+        config.getJobId
       )
 
       loggedStorageBaseDir = new File(System.getenv(ShellCommandConfig.ENV_LOGGED_STORE_BASE_DIR)
@@ -834,9 +834,7 @@ class SamzaContainer(
     try {
       info("Shutting down SamzaContainer.")
       lifeCycleListener.beforeShutdown()
-
       removeShutdownHook
-
       jmxServer.stop
 
       shutdownConsumers
@@ -891,9 +889,11 @@ class SamzaContainer(
    * @throws SamzaException, Thrown when the container has already been stopped or failed
    */
   def shutdown(): Unit = {
-    if (status == SamzaContainerStatus.STOPPED || status == SamzaContainerStatus.FAILED) {
-      throw new IllegalContainerStateException("Cannot shutdown a container with status " + status)
+    if (status == SamzaContainerStatus.FAILED || status == SamzaContainerStatus.STOPPED) {
+      warn("Shutdown is no-op since the container is already in state: " + status)
+      return
     }
+
     shutdownRunLoop()
   }
 
@@ -1194,15 +1194,4 @@ class SamzaContainer(
       hostStatisticsMonitor.stop()
     }
   }
-}
-
-/**
- * Exception thrown when the SamzaContainer tries to transition to an illegal state.
- * {@link SamzaContainerStatus} has more details on the state transitions.
- *
- * @param s String, Message associated with the exception
- * @param t Throwable, Wrapped error/exception thrown, if any.
- */
-class IllegalContainerStateException(s: String, t: Throwable) extends SamzaException(s, t) {
-  def this(s: String) = this(s, null)
 }

@@ -28,7 +28,7 @@ import org.apache.samza.config.ApplicationConfig.ApplicationMode
 import org.apache.samza.config.KafkaConfig.Config2Kafka
 import org.apache.samza.config.StorageConfig._
 import org.apache.samza.config.SystemConfig.Config2System
-import org.apache.samza.system.SystemConsumer
+
 import kafka.utils.ZkUtils
 import org.apache.samza.config.TaskConfig.Config2Task
 import org.apache.samza.config._
@@ -36,9 +36,16 @@ import org.apache.samza.metrics.MetricsRegistry
 import org.apache.samza.system.{SystemAdmin, SystemConsumer, SystemFactory, SystemProducer}
 import org.apache.samza.util._
 
+object KafkaSystemFactory extends Logging {
+  def getInjectedProducerProperties(systemName: String, config: Config) = if (config.isChangelogSystem(systemName)) {
+    warn("System name '%s' is being used as a changelog. Disabling compression since Kafka does not support compression for log compacted topics." format systemName)
+    Map[String, String]("compression.type" -> "none")
+  } else {
+    Map[String, String]()
+  }
+}
 
 class KafkaSystemFactory extends SystemFactory with Logging {
-  
   def getConsumer(systemName: String, config: Config, registry: MetricsRegistry): SystemConsumer = {
     val clientId = KafkaConsumerConfig.getConsumerClientId( config)
     val metrics = new KafkaSystemConsumerMetrics(systemName, registry)
@@ -54,13 +61,7 @@ class KafkaSystemFactory extends SystemFactory with Logging {
 
   def getProducer(systemName: String, config: Config, registry: MetricsRegistry): SystemProducer = {
     val clientId = KafkaConsumerConfig.getProducerClientId(config)
-    val injectedProps = if (config.isChangelogSystem(systemName)) {
-      warn("System name '%s' is being used as a changelog. Disabling compression since Kafka does not support compression for log compacted topics." format systemName)
-      Map[String, String]("compression.type" -> "none")
-    } else {
-      Map[String, String]()
-    }
-
+    val injectedProps = KafkaSystemFactory.getInjectedProducerProperties(systemName, config)
     val producerConfig = config.getKafkaSystemProducerConfig(systemName, clientId, injectedProps)
     val getProducer = () => {
       new KafkaProducer[Array[Byte], Array[Byte]](producerConfig.getProducerProperties)

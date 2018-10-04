@@ -53,7 +53,7 @@ public class KafkaSystemConsumer<K, V> extends BlockingEnvelopeMap implements Sy
   private static final long FETCH_THRESHOLD = 50000;
   private static final long FETCH_THRESHOLD_BYTES = -1L;
 
-  protected final Consumer<K, V> kafkaConsumer;
+  private final Consumer<K, V> kafkaConsumer;
   private final String systemName;
   private final String clientId;
   private final AtomicBoolean stopped = new AtomicBoolean(false);
