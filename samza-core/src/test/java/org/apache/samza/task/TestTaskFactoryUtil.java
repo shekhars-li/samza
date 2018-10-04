@@ -22,8 +22,10 @@ import java.lang.reflect.Field;
 import java.util.concurrent.ExecutorService;
 import org.apache.samza.SamzaException;
 import org.apache.samza.application.ApplicationDescriptorImpl;
+import org.apache.samza.application.LegacyTaskApplication;
 import org.apache.samza.application.StreamApplicationDescriptorImpl;
 import org.apache.samza.application.TaskApplicationDescriptorImpl;
+import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigException;
 import org.apache.samza.operators.OperatorSpecGraph;
 import org.junit.Test;
@@ -110,6 +112,7 @@ public class TestTaskFactoryUtil {
     StreamApplicationDescriptorImpl mockStreamApp = mock(StreamApplicationDescriptorImpl.class);
     OperatorSpecGraph mockSpecGraph = mock(OperatorSpecGraph.class);
     when(mockStreamApp.getOperatorSpecGraph()).thenReturn(mockSpecGraph);
+    when(mockStreamApp.getConfig()).thenReturn(mock(Config.class));
     TaskFactory streamTaskFactory = TaskFactoryUtil.getTaskFactory(mockStreamApp);
     assertTrue(streamTaskFactory instanceof StreamTaskFactory);
     StreamTask streamTask = ((StreamTaskFactory) streamTaskFactory).createInstance();
@@ -123,6 +126,8 @@ public class TestTaskFactoryUtil {
     TaskApplicationDescriptorImpl mockTaskApp = mock(TaskApplicationDescriptorImpl.class);
     TaskFactory mockTaskFactory = mock(TaskFactory.class);
     when(mockTaskApp.getTaskFactory()).thenReturn(mockTaskFactory);
+    when(mockTaskApp.getConfig()).thenReturn(mock(Config.class));
+    when(mockTaskApp.getAppClass()).thenReturn((Class) LegacyTaskApplication.class);
     TaskFactory taskFactory = TaskFactoryUtil.getTaskFactory(mockTaskApp);
     assertEquals(mockTaskFactory, taskFactory);
   }
