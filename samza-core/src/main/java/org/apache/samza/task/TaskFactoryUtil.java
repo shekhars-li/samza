@@ -49,10 +49,10 @@ public class TaskFactoryUtil {
    */
   public static TaskFactory getTaskFactory(ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc) {
     if (appDesc instanceof TaskApplicationDescriptorImpl) {
-      // NOTE: LinkedIn only: for users using OffspringHelper, we may need to instantiate wrapper task class.
+      // NOTE: LinkedIn only: for users using Offspring, we may need to instantiate wrapper task class.
       return maybeWrapperTaskApplicationTaskFactory((TaskApplicationDescriptorImpl) appDesc);
     } else if (appDesc instanceof StreamApplicationDescriptorImpl) {
-      // NOTE: LinkedIn only: for users using OffspringHelper, we may need to instantiate wrapper task class.
+      // NOTE: LinkedIn only: for users using Offspring, we may need to instantiate wrapper task class.
       return maybeWrapperStreamApplicationTaskFactory((StreamApplicationDescriptorImpl) appDesc);
     }
     throw new IllegalArgumentException(String.format("ApplicationDescriptorImpl has to be either TaskApplicationDescriptorImpl or "
@@ -140,7 +140,7 @@ public class TaskFactoryUtil {
     }
   }
 
-  // NOTE: LinkedIn only. For users using OffspringHelper and the high-level API, we may need to create wrapper task factory.
+  // NOTE: LinkedIn only. For users using Offspring and the high-level API, we may need to create wrapper task factory.
   private static TaskFactory maybeWrapperStreamApplicationTaskFactory(StreamApplicationDescriptorImpl streamAppDesc) {
     StreamTaskFactory taskFactory = (StreamTaskFactory) () ->
         new StreamOperatorTask(streamAppDesc.getOperatorSpecGraph(), streamAppDesc.getContextManager());
@@ -151,7 +151,7 @@ public class TaskFactoryUtil {
     return taskFactory;
   }
 
-  // NOTE: LinkedIn only. For users using OffspringHelper and the high-level API, we may need to create wrapper task factory.
+  // NOTE: LinkedIn only. For users using Offspring and the low-level API, we may need to create wrapper task factory.
   private static TaskFactory maybeWrapperTaskApplicationTaskFactory(TaskApplicationDescriptorImpl taskAppDesc) {
     TaskFactory taskFactory = taskAppDesc.getTaskFactory();
     if (LegacyTaskApplication.class.isAssignableFrom(taskAppDesc.getAppClass())) {
@@ -173,8 +173,8 @@ public class TaskFactoryUtil {
     return taskFactory;
   }
 
-  // NOTE: LinkedIn only. For users using OffspringHelper and the high-level API, we need to validate the wrapper task class
-  // from task.class is a sub-class of SubTaskWrapperTask.
+  // NOTE: LinkedIn only. For users using Offspring, we need to validate the wrapper task class from task.class is a
+  // sub-class of SubTaskWrapperTask.
   private static String getWrapperTaskClassName(ApplicationDescriptorImpl appDesc, boolean isStreamTask) {
     Config config = appDesc.getConfig();
     String wrapperClassName = isStreamTask ? config.get(SubTaskWrapperTask.STREAM_TASK_WRAPPER_CLASS_CFG) :
@@ -192,12 +192,12 @@ public class TaskFactoryUtil {
     return wrapperClassName;
   }
 
-  // NOTE: LinkedIn only. For users using OffspringHelper and the high-level API, we need to create a wrapper task factory
-  // with task class StreamTaskSubTaskServiceCallWrapper.
+  // NOTE: LinkedIn only. For users using Offspring and StreamTaskFactory, we need to create a wrapper task factory with
+  // task class StreamTaskSubTaskServiceCallWrapper.
   private static StreamTaskFactory createStreamTaskWrapperTaskFactory(
       StreamTaskFactory streamTaskFactory, String wrapperClassName) {
     return () -> {
-      // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
+      // If the job is using Offspring, LiSamzaRewriter sets task.class
       // to a wrapper class StreamTaskSubTaskServiceCallWrapper. If so, use that instead.
       try {
         return (StreamTask) Class.forName(wrapperClassName)
@@ -209,12 +209,12 @@ public class TaskFactoryUtil {
     };
   }
 
-  // NOTE: LinkedIn only. For users using OffspringHelper and the high-level API, we need to create a wrapper task factory
+  // NOTE: LinkedIn only. For users using Offspring and AsyncStreamTaskFactory, we need to create a wrapper task factory
   // with task class StreamTaskSubTaskServiceCallWrapper.
   private static AsyncStreamTaskFactory createAsyncStreamTaskWrapperTaskFactory(
       AsyncStreamTaskFactory asyncStreamTaskFactory, String wrapperClassName) {
     return () -> {
-      // If the job is using OffspringHelper, LiSamzaRewriter sets task.class
+      // If the job is using Offspring, LiSamzaRewriter sets task.class
       // to a wrapper class StreamTaskSubTaskServiceCallWrapper. If so, use that instead.
       try {
         return (AsyncStreamTask) Class.forName(wrapperClassName)
