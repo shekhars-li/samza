@@ -143,7 +143,7 @@ public class TaskFactoryUtil {
   // NOTE: LinkedIn only. For users using Offspring and the high-level API, we may need to create wrapper task factory.
   private static TaskFactory maybeWrapperStreamApplicationTaskFactory(StreamApplicationDescriptorImpl streamAppDesc) {
     StreamTaskFactory taskFactory = (StreamTaskFactory) () ->
-        new StreamOperatorTask(streamAppDesc.getOperatorSpecGraph(), streamAppDesc.getContextManager());
+        new StreamOperatorTask(streamAppDesc.getOperatorSpecGraph());
     String wrapperTaskClassName = getWrapperTaskClassName(streamAppDesc, true /* is StreamTask */);
     if (StringUtils.isNotBlank(wrapperTaskClassName)) {
       return createStreamTaskWrapperTaskFactory(taskFactory, wrapperTaskClassName);
@@ -184,10 +184,10 @@ public class TaskFactoryUtil {
       if (StringUtils.isNotBlank(wrapperClassName) &&
           !SubTaskWrapperTask.class.isAssignableFrom(Class.forName(wrapperClassName))) {
         throw new ConfigException(String.format("SamzaApplication cannot be wrapped by "
-            + "a wrapper class {}", wrapperClassName));
+            + "a wrapper class %s", wrapperClassName));
       }
     } catch (ClassNotFoundException e) {
-      throw new ConfigException(String.format("Can't find the wrapper class {}", wrapperClassName), e);
+      throw new ConfigException(String.format("Can't find the wrapper class %s", wrapperClassName), e);
     }
     return wrapperClassName;
   }

@@ -20,8 +20,7 @@
 package org.apache.samza.container;
 
 import org.apache.samza.config.Config;
-import org.apache.samza.container.SamzaContainerContext;
-import org.apache.samza.task.TaskContext;
+import org.apache.samza.context.Context;
 
 
 /**
@@ -33,10 +32,10 @@ public interface SamzaContainerLifeCycleListener {
 
   /**
    * Called before starting any component of a container, including
-   * metrics, system producers/consumers, {@link org.apache.samza.task.InitableTask#init(Config, TaskContext)}, etc.
-   * @param context Context for the container
+   * metrics, system producers/consumers, {@link org.apache.samza.task.InitableTask#init(Context)}, etc.
+   * @param config config for the job
    */
-  void beforeStart(SamzaContainerContext context);
+  void beforeStart(Config config);
 
   /**
    * Called after all components are started and immediately before running the tasks.

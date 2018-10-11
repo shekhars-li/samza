@@ -18,13 +18,12 @@
  */
 package org.apache.samza.task.wrapper;
 
-import org.apache.samza.config.Config;
+import org.apache.samza.context.Context;
 import org.apache.samza.task.ClosableTask;
 import org.apache.samza.task.EndOfStreamListenerTask;
 import org.apache.samza.task.InitableTask;
 import org.apache.samza.task.MessageCollector;
 import org.apache.samza.task.StreamTask;
-import org.apache.samza.task.TaskContext;
 import org.apache.samza.task.TaskCoordinator;
 import org.apache.samza.task.WindowableTask;
 
@@ -37,10 +36,10 @@ public abstract class TaskWrapperBase<T> implements InitableTask, WindowableTask
   protected abstract T getTask();
 
   @Override
-  public void init(Config config, TaskContext context) throws Exception {
+  public void init(Context context) throws Exception {
     T task = getTask();
     if (task instanceof InitableTask) {
-      ((InitableTask) task).init(config, context);
+      ((InitableTask) task).init(context);
     }
   }
 

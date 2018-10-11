@@ -801,7 +801,7 @@ class SamzaContainer(
   def run {
     try {
       info("Starting container.")
-      lifeCycleListener.beforeStart(containerContext)
+      lifeCycleListener.beforeStart(config)
 
       if (containerListener != null) {
         containerListener.beforeStart()

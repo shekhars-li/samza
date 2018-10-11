@@ -19,9 +19,12 @@
 
 package org.apache.samza.container;
 
+import org.apache.samza.config.Config;
+
+
 public class DefaultLifeCycleListener implements SamzaContainerLifeCycleListener {
   @Override
-  public void beforeStart(SamzaContainerContext context) {
+  public void beforeStart(Config config) {
   }
 
   @Override
