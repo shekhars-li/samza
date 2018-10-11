@@ -19,14 +19,6 @@
 package org.apache.samza.execution;
 
 import com.google.common.base.Joiner;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.samza.application.StreamApplicationDescriptorImpl;
 import org.apache.samza.application.TaskApplicationDescriptorImpl;
 import org.apache.samza.config.Config;
@@ -36,7 +28,7 @@ import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.SerializerConfig;
 import org.apache.samza.config.TaskConfig;
 import org.apache.samza.config.TaskConfigJava;
-import org.apache.samza.container.SamzaContainerContext;
+import org.apache.samza.context.Context;
 import org.apache.samza.operators.BaseTableDescriptor;
 import org.apache.samza.operators.KV;
 import org.apache.samza.operators.TableDescriptor;
@@ -52,8 +44,16 @@ import org.apache.samza.table.Table;
 import org.apache.samza.table.TableProvider;
 import org.apache.samza.table.TableProviderFactory;
 import org.apache.samza.table.TableSpec;
-import org.apache.samza.task.TaskContext;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -154,28 +154,6 @@ public class TestJobNodeConfigurationGenerator extends ExecutionPlannerTestBase 
     Map<String, Serde> deserializedSerdes = validateAndGetDeserializedSerdes(jobConfig, 2);
     validateStreamSerdeConfigure(broadcastInputDesriptor.getStreamId(), jobConfig, deserializedSerdes);
     validateIntermediateStreamConfigure(broadcastInputDesriptor.getStreamId(), broadcastInputDesriptor.getPhysicalName().get(), jobConfig);
-  }
-
-  @Test
-  public void testBroadcastStreamApplicationWithoutSerde() {
-    // set the application to BroadcastStreamApplication withoutSerde
-    mockStreamAppDesc = new StreamApplicationDescriptorImpl(getBroadcastOnlyStreamApplication(null), mockConfig);
-    configureJobNode(mockStreamAppDesc);
-
-    // create the JobGraphConfigureGenerator and generate the jobConfig for the jobNode
-    JobNodeConfigurationGenerator configureGenerator = new JobNodeConfigurationGenerator();
-    JobConfig jobConfig = configureGenerator.generateJobConfig(mockJobNode, "testJobGraphJson");
-    Config expectedJobConfig = getExpectedJobConfig(mockConfig, mockJobNode.getInEdges());
-    validateJobConfig(expectedJobConfig, jobConfig);
-    Map<String, Serde> deserializedSerdes = validateAndGetDeserializedSerdes(jobConfig, 2);
-    validateIntermediateStreamConfigure(broadcastInputDesriptor.getStreamId(), broadcastInputDesriptor.getPhysicalName().get(), jobConfig);
-
-    String keySerde = jobConfig.get(String.format("streams.%s.samza.key.serde", broadcastInputDesriptor.getStreamId()));
-    String msgSerde = jobConfig.get(String.format("streams.%s.samza.msg.serde", broadcastInputDesriptor.getStreamId()));
-    assertTrue("Serialized serdes should not contain intermediate stream key serde",
-        !deserializedSerdes.containsKey(keySerde));
-    assertTrue("Serialized serdes should not contain intermediate stream msg serde",
-        !deserializedSerdes.containsKey(msgSerde));
   }
 
   @Test
@@ -467,7 +445,7 @@ public class TestJobNodeConfigurationGenerator extends ExecutionPlannerTestBase 
     }
 
     @Override
-    public void init(SamzaContainerContext containerContext, TaskContext taskContext) {
+    public void init(Context context) {
 
     }
 

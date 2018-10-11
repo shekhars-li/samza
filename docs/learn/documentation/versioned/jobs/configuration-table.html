@@ -448,9 +448,11 @@
                 </tr>
                  <tr>
                     <td class="property" id="job.coordinator.factory">job.coordinator.factory</td>
-                    <td class="default"></td>
+                    <td class="default">org.apache.samza.zk.ZkJobCoordinatorFactory</td>
                     <td class="description">
-			Class to use for job coordination. Currently available values are:
+                        The fully-qualified name of the Java class which determines the factory class which will build the JobCoordinator.
+                        The user can specify a custom implementation of the JobCoordinatorFactory where a custom logic is implemented for distributed coordination of stream processors. <br>
+                        Samza supports the following coordination modes out of the box.
                        <dl>
                             <dt><code>org.apache.samza.standalone.PassthroughJobCoordinatorFactory</code></dt>
                             <dd>Fixed partition mapping. No Zoookeeper. </dd>
@@ -459,20 +461,6 @@
                            <dt><code>org.apache.samza.AzureJobCoordinatorFactory</code></dt>
                            <dd>Azure-based coordination</dl>
                         Required only for non-cluster-managed applications. Please see the required value for <a href=#task-name-grouper-factory>task-name-grouper-factory </a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="property" id="job.coordination.utils.factory">job.coordination.utils.factory</td>
-                    <td class="default">org.apache.samza.zk.ZkCoordinationUtilsFactory</td>
-                    <td class="description">
-                        Class to use to create CoordinationUtils. Currently available values are:
-                        <dl>
-                            <dt><code>org.apache.samza.zk.ZkCoordinationUtilsFactory</code></dt>
-                            <dd>ZooKeeper based coordination utils.</dd>
-                            <dt><code>org.apache.samza.coordinator.AzureCoordinationUtilsFactory</code></dt>
-                            <dd>Azure based coordination utils.</dd>
-                        These coordination utils are currently used for intermediate stream creation.
-                        </dl>
                     </td>
                 </tr>
 
@@ -539,7 +527,7 @@
                 </tr>
                 <tr>
                     <td class="property" id="job.debounce.time.ms">job.debounce.time.ms</td>
-                    <td class="default"> 2000 </td>
+                    <td class="default"> 20000 </td>
                     <td class="description">
                         How long the Leader processor will wait before recalculating the JobModel on change of registered processors.
                     </td>
@@ -1638,9 +1626,9 @@
                         store any <span class="store">store-name</span> except <em>default</em> (the <span class="store">store-name</span>
                         <em>default</em> is reserved for defining default store parameters), and use that name to get a
                         reference to the store in your stream task (call
-                        <a href="../api/javadocs/org/apache/samza/task/TaskContext.html#getStore(java.lang.String)">TaskContext.getStore()</a>
+                        <a href="../api/javadocs/org/apache/samza/context/TaskContext.html#getStore(java.lang.String)">TaskContext.getStore()</a>
                         in your task's
-                        <a href="../api/javadocs/org/apache/samza/task/InitableTask.html#init(org.apache.samza.config.Config, org.apache.samza.task.TaskContext)">init()</a>
+                        <a href="../api/javadocs/org/apache/samza/task/InitableTask.html#init(org.apache.samza.context.Context)">init()</a>
                         method). The value of this property is the fully-qualified name of a Java class that implements
                         <a href="../api/javadocs/org/apache/samza/storage/StorageEngineFactory.html">StorageEngineFactory</a>.
                         Samza currently ships with one storage engine implementation:
@@ -2334,7 +2322,7 @@
 
                 <tr>
                     <th colspan="3" class="section" id="eventhub">
-                        Using <a href="https://azure.microsoft.com/en-us/services/event-hubs/">EventHubs</a> for input and output streams<br>
+                        Using <a href="https://azure.microsoft.com/en-us/services/event-hubs/">Event Hubs</a> for input and output streams<br>
                         <span class="subtitle">
                             (This section applies if you have set
                             <a href="#systems-samza-factory" class="property">systems.*.samza.factory</a>
@@ -2346,31 +2334,31 @@
                 <tr>
                     <td class="property" id="eventhub-stream-list">systems.<span class="system">system-name</span>.<br>stream.list</td>
                     <td class="default"></td>
-                    <td class="description">List of Samza <span class="stream">stream-ids</span> used for the Eventhub system</td>
+                    <td class="description">List of Samza <span class="stream">stream-ids</span> used for the Event Hubs system. Required if not using input/output system descriptors.</td>
                 </tr>
 
                 <tr>
                     <td class="property" id="eventhub-stream-namespace">streams.<span class="stream">stream-id</span>.<br>eventhubs.namespace</td>
                     <td class="default"></td>
-                    <td class="description">Namespace of the associated <span class="stream">stream-ids</span>. Required to access the Eventhubs entity per stream.</td>
+                    <td class="description">Namespace of the associated <span class="stream">stream-ids</span>. Required to access the Event Hubs entity per stream.</td>
                 </tr>
 
                 <tr>
                     <td class="property" id="eventhub-stream-entity">streams.<span class="stream">stream-id</span>.<br>eventhubs.entitypath</td>
                     <td class="default"></td>
-                    <td class="description">Entity of the associated <span class="stream">stream-ids</span>. Required to access the Eventhubs entity per stream.</td>
+                    <td class="description">Entity of the associated <span class="stream">stream-ids</span>. Required to access the Event Hubs entity per stream.</td>
                 </tr>
 
                 <tr>
                     <td class="property" id="eventhub-stream-sas-keyname">sensitive.streams.<span class="stream">stream-id</span>.<br>eventhubs.sas.keyname</td>
                     <td class="default"></td>
-                    <td class="description">SAS Keyname of the associated <span class="stream">stream-ids</span>. Required to access the Eventhubs entity per stream.</td>
+                    <td class="description">SAS Keyname of the associated <span class="stream">stream-ids</span>. Required to access the Event Hubs entity per stream.</td>
                 </tr>
 
                 <tr>
                     <td class="property" id="eventhub-stream-sas-token">sensitive.streams.<span class="stream">stream-id</span>.<br>eventhubs.sas.token</td>
                     <td class="default"></td>
-                    <td class="description">SAS Token the associated <span class="stream">stream-ids</span>. Required to access the Eventhubs entity per stream.</td>
+                    <td class="description">SAS Token of the associated <span class="stream">stream-ids</span>. Required to access the Event Hubs entity per stream.</td>
                 </tr>
 
                 <tr>
@@ -2382,33 +2370,33 @@
                 <tr>
                     <td class="property" id="eventhub-prefetch-count">systems.<span class="system">system-name</span>.<br>eventhubs.prefetchCount</td>
                     <td class="default">999</td>
-                    <td class="description">Number of events that EventHub client should prefetch from the server. See <a href="https://docs.microsoft.com/en-us/java/api/com.microsoft.azure.eventhubs._partition_receiver.setprefetchcount">here </a> for more details.</td>
+                    <td class="description">Number of events that Event Hubs client should prefetch from the server. See <a href="https://docs.microsoft.com/en-us/java/api/com.microsoft.azure.eventhubs._partition_receiver.setprefetchcount">here </a> for more details.</td>
                 </tr>
 
                 <tr>
                     <td class="property" id="eventhub-max-event-count">systems.<span class="system">system-name</span>.<br>eventhubs.maxEventCountPerPoll</td>
                     <td class="default">50</td>
-                    <td class="description">Maximum number of events that EventHub client can return in a receive call. See <a href="https://docs.microsoft.com/en-us/java/api/com.microsoft.azure.eventhubs._partition_receive_handler.getmaxeventcount#com_microsoft_azure_eventhubs__partition_receive_handler_getMaxEventCount__">here </a> for more details.</td>
+                    <td class="description">Maximum number of events that Event Hubs client can return in a receive call. See <a href="https://docs.microsoft.com/en-us/java/api/com.microsoft.azure.eventhubs._partition_receive_handler.getmaxeventcount#com_microsoft_azure_eventhubs__partition_receive_handler_getMaxEventCount__">here </a> for more details.</td>
                 </tr>
 
                 <tr>
                     <td class="property" id="eventhub-runtime-timeout">systems.<span class="system">system-name</span>.<br>eventhubs.runtime.info.timeout</td>
                     <td class="default">60000</td>
-                    <td class="description">Timeout for fetching the runtime metadata from an Eventhub entity on startup in millis.</td>
+                    <td class="description">Timeout for fetching the runtime metadata from an Event Hubs entity on startup in millis.</td>
                 </tr>
 
                 <tr>
                     <td class="property" id="eventhub-send-partition-method">systems.<span class="system">system-name</span>.<br>eventhubs.partition.method</td>
                     <td class="default"><code>EVENT_HUB_HASHING</code></td>
                     <td class="description">
-                        Producer only config. Configure the method that the message is partitioned for the downstream Eventhub in one of the following ways:
+                        Producer only config. Configure the method that the message is partitioned for the downstream Event Hubs entity in one of the following ways:
                         <dl>
                             <dt><code>ROUND_ROBIN</code></dt>
-                            <dd>The message key and partition key are ignored and the message will be distributed in a round-robin fashion amongst all the partitions in the downstream EventHub.</dd>
+                            <dd>The message key and partition key are ignored and the message will be distributed in a round-robin fashion amongst all the partitions in the downstream Event Hubs entity.</dd>
                             <dt><code>EVENT_HUB_HASHING</code></dt>
-                            <dd>Employs the hashing mechanism in EventHubs to determine, based on the key of the message, which partition the message should go. Using this method still ensures that all the events with the same key are sent to the same partition in the event hub. If this option is chosen, the partition key used for the hash should be a string. If the partition key is not set, the message key is used instead.</dd>
+                            <dd>Employs the hashing mechanism in Event Hubs to determine, based on the key of the message, which partition the message should go. Using this method still ensures that all the events with the same key are sent to the same partition in the event hub. If this option is chosen, the partition key used for the hash should be a string. If the partition key is not set, the message key is used instead.</dd>
                             <dt><code>PARTITION_KEY_AS_PARTITION</code></dt>
-                            <dd>Use the integer key specified by the partition key or key of the message to a specific partition on Eventhub. If the integer key is greater than the number of partitions in the destination Eventhub, a modulo operation will be performed to determine the resulting paritition. ie. if there are 6 partitions and the key is 9, the message will end up in partition 3. Similarly to EVENT_HUB_HASHING, if the partition key is not set the message key is used instead.</dd>
+                            <dd>Use the integer key specified by the partition key or key of the message to a specific partition on Event Hubs. If the integer key is greater than the number of partitions in the destination Event Hubs entity, a modulo operation will be performed to determine the resulting partition. ie. if there are 6 partitions and the key is 9, the message will end up in partition 3. Similarly to EVENT_HUB_HASHING, if the partition key is not set the message key is used instead.</dd>
                         </dl>
                     </td>
                 </tr>
@@ -2417,7 +2405,7 @@
                     <td class="property" id="eventhub-send-key">systems.<span class="system">system-name</span>.<br>eventhubs.send.key</td>
                     <td class="default">true</td>
                     <td class="description">
-                        Producer only config. Sending each message key to the eventhub in the properties of the AMQP message. If the Samza Eventhub consumer is used, this field is used as the message key if the partition key is not present.
+                        Producer only config. If set to true, the key of the Samza message will be included as the 'key' property in the outgoing EventData message for Event Hubs. The Samza message key will not be sent otherwise. Note: If the Samza Event Hubs consumer is used, the Samza key is the partition key of the received EventData, or the message key if the partition key is not present.
                     </td>
                 </tr>
 
@@ -2425,7 +2413,7 @@
                     <td class="property" id="eventhub-consumer-group">streams.<span class="stream">stream-id</span>.<br>eventhubs.consumer.group</td>
                     <td class="default"><code>$Default</code></td>
                     <td class="description">
-                        Consumer only config. Set the consumer group from the upstream Eventhub that the consumer is part of. Defaults to the <code>$Default</code> group that is initially present in all Eventhub entities (unless removed)
+                        Consumer only config. Set the consumer group from the upstream Event Hubs that the consumer is part of. Defaults to the <code>$Default</code> group that is initially present in all Event Hubs entities (unless removed)
                     </td>
                 </tr>
 
@@ -2433,7 +2421,7 @@
                     <td class="property" id="eventhub-consumer-buffer-capacity">systems.<span class="system">system-name</span>.<br>eventhubs.receive.queue.size</td>
                     <td class="default">100</td>
                     <td class="description">
-                        Consumer only config. Per partition capacity of the eventhubs consumer buffer - the blocking queue used for storing messages. Larger buffer capacity typically leads to better throughput but consumes more memory.
+                        Consumer only config. Per partition capacity of the Event Hubs consumer buffer - the blocking queue used for storing messages. Larger buffer capacity typically leads to better throughput but consumes more memory.
                     </td>
                 </tr>
 
