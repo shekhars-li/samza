@@ -100,7 +100,6 @@ public class GroupByContainerCount implements BalancingTaskNameGrouper {
     }
 
     TaskAssignmentManager taskAssignmentManager =  new TaskAssignmentManager(config, new MetricsRegistryMap());
-    taskAssignmentManager.init();
     try {
       List<TaskGroup> containers = getPreviousContainers(taskAssignmentManager, tasks.size());
       if (containers == null || containers.size() == 1 || containerCount == 1) {

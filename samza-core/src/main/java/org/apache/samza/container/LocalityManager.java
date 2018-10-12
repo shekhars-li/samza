@@ -92,7 +92,9 @@ public class LocalityManager {
     metadataStore.all().forEach((keyBytes, valueBytes) -> {
         if (valueBytes != null) {
           String locationId = valueSerde.fromBytes(valueBytes);
-          allMappings.put(keySerde.fromBytes(keyBytes), ImmutableMap.of(SetContainerHostMapping.HOST_KEY, locationId));
+          if (locationId != null) {
+            allMappings.put(keySerde.fromBytes(keyBytes), ImmutableMap.of(SetContainerHostMapping.HOST_KEY, locationId));
+          }
         }
       });
     if (LOG.isDebugEnabled()) {
@@ -121,6 +123,16 @@ public class LocalityManager {
     }
 
     metadataStore.put(keySerde.toBytes(containerId), valueSerde.toBytes(hostName));
+  }
+
+  /**
+   * Method to delete locality information from the {@link MetadataStore}.
+   *
+   * @param containerId  the {@link SamzaContainer} ID
+   */
+  public void deleteContainerLocality(String containerId) {
+    metadataStore.delete(keySerde.toBytes(containerId));
+    LOG.info("Container {} locality deleted", containerId);
   }
 
   public void close() {

@@ -53,7 +53,6 @@ public class TestGroupByContainerCount {
     taskAssignmentManager = mock(TaskAssignmentManager.class);
     localityManager = mock(LocalityManager.class);
     PowerMockito.whenNew(TaskAssignmentManager.class).withAnyArguments().thenReturn(taskAssignmentManager);
-    Mockito.doNothing().when(taskAssignmentManager).init();
   }
 
   @Test(expected = IllegalArgumentException.class)
