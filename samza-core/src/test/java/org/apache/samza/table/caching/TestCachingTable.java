@@ -28,15 +28,17 @@ import org.apache.samza.metrics.Counter;
 import org.apache.samza.metrics.Gauge;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.metrics.Timer;
-import org.apache.samza.operators.BaseTableDescriptor;
-import org.apache.samza.operators.TableDescriptor;
+import org.apache.samza.table.descriptors.BaseTableDescriptor;
+import org.apache.samza.table.descriptors.TableDescriptor;
 import org.apache.samza.storage.kv.Entry;
 import org.apache.samza.table.ReadWriteTable;
 import org.apache.samza.table.ReadableTable;
 import org.apache.samza.table.TableSpec;
 import org.apache.samza.table.caching.guava.GuavaCacheTable;
-import org.apache.samza.table.caching.guava.GuavaCacheTableDescriptor;
-import org.apache.samza.table.caching.guava.GuavaCacheTableProvider;
+import org.apache.samza.table.caching.descriptors.CachingTableDescriptor;
+import org.apache.samza.table.caching.descriptors.CachingTableProvider;
+import org.apache.samza.table.caching.guava.descriptors.GuavaCacheTableDescriptor;
+import org.apache.samza.table.caching.guava.descriptors.GuavaCacheTableProvider;
 import org.apache.samza.table.remote.RemoteReadWriteTable;
 import org.apache.samza.table.remote.TableRateLimiter;
 import org.apache.samza.table.remote.TableReadFunction;
@@ -82,14 +84,15 @@ public class TestCachingTable {
   }
 
   private void doTestSerialize(TableDescriptor cache) {
-    CachingTableDescriptor desc = new CachingTableDescriptor("1");
-    desc.withTable(createDummyTableDescriptor("2"));
+    CachingTableDescriptor desc;
+    TableDescriptor table = createDummyTableDescriptor("2");
     if (cache == null) {
+      desc = new CachingTableDescriptor("1", table);
       desc.withReadTtl(Duration.ofMinutes(3));
       desc.withWriteTtl(Duration.ofMinutes(3));
       desc.withCacheSize(1000);
     } else {
-      desc.withCache(cache);
+      desc = new CachingTableDescriptor("1", table, cache);
     }
 
     desc.withWriteAround();
@@ -150,9 +153,9 @@ public class TestCachingTable {
   }
 
   private void doTestCacheOps(boolean isWriteAround) {
-    CachingTableDescriptor desc = new CachingTableDescriptor("1");
-    desc.withTable(createDummyTableDescriptor("realTable"));
-    desc.withCache(createDummyTableDescriptor("cacheTable"));
+    CachingTableDescriptor desc = new CachingTableDescriptor("1",
+        createDummyTableDescriptor("realTable"),
+        createDummyTableDescriptor("cacheTable"));
     if (isWriteAround) {
       desc.withWriteAround();
     }

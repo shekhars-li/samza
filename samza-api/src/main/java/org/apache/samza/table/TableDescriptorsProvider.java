@@ -22,7 +22,7 @@ import java.util.List;
 
 import org.apache.samza.annotation.InterfaceStability;
 import org.apache.samza.config.Config;
-import org.apache.samza.operators.TableDescriptor;
+import org.apache.samza.table.descriptors.TableDescriptor;
 
 
 /**
@@ -91,7 +91,7 @@ import org.apache.samza.operators.TableDescriptor;
 public interface TableDescriptorsProvider {
   /**
    * Constructs instances of the table descriptors
-   * @param config
+   * @param config the job config
    * @return list of table descriptors
    */
   List<TableDescriptor> getTableDescriptors(Config config);
