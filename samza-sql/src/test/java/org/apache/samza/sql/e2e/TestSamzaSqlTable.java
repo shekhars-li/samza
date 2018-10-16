@@ -38,21 +38,9 @@ import org.junit.Test;
 
 
 public class TestSamzaSqlTable {
-  /**
-   * Initializes Linkedin-specific required configurations for Offspring.
-   * This does not leverage any helper from samza-test to get these configs since this module should not depend on
-   * samza-test. It might be better to eventually move this test to samza-test anyways, since it is more of an
-   * integration test.
-   */
   @Before
   public void setup() {
-    Map<String, String> configs = new HashMap<>();
-    configs.put("serviceCallHelper.notificationType", "log");
-    configs.put("serviceCallHelper.notificationLogRate", "1m");
-    configs.put("com.linkedin.app.env", "dev");
-    configs.put("com.linkedin.app.name", getClass().getSimpleName());
-    configs.put("com.linkedin.app.instance", "i001");
-    ProcessGeneratorHolder.getInstance().createGenerator(new MapConfig(configs));
+    ProcessGeneratorHolder.getInstance().createGenerator(new MapConfig(buildOffspringConfigs()));
     ProcessGeneratorHolder.getInstance().start();
   }
 
@@ -71,6 +59,7 @@ public class TestSamzaSqlTable {
     TestIOResolverFactory.TestTable.records.clear();
 
     Map<String, String> staticConfigs = SamzaSqlTestConfig.fetchStaticConfigsWithFactories(numMessages);
+    staticConfigs.putAll(buildOffspringConfigs());
 
     String sql1 = "Insert into testDb.testTable.`$table`(id,name) select id, name from testavro.SIMPLE1";
     List<String> sqlStmts = Arrays.asList(sql1);
@@ -87,6 +76,7 @@ public class TestSamzaSqlTable {
 
     TestIOResolverFactory.TestTable.records.clear();
     Map<String, String> staticConfigs = SamzaSqlTestConfig.fetchStaticConfigsWithFactories(numMessages);
+    staticConfigs.putAll(buildOffspringConfigs());
 
     String sql1 = "Insert into testDb.testTable.`$table`(id,name) select id __key__, name from testavro.SIMPLE1";
     List<String> sqlStmts = Arrays.asList(sql1);
@@ -95,5 +85,21 @@ public class TestSamzaSqlTable {
     appRunnable.runAndWaitForFinish();
 
     Assert.assertEquals(numMessages, TestIOResolverFactory.TestTable.records.size());
+  }
+
+  /**
+   * Builds Linkedin-specific required configurations for Offspring.
+   * This does not leverage any helper from samza-test to get these configs since this module should not depend on
+   * samza-test. It might be better to eventually move this test to samza-test anyways, since it is more of an
+   * integration test.
+   */
+  private Map<String, String> buildOffspringConfigs() {
+    Map<String, String> configs = new HashMap<>();
+    configs.put("serviceCallHelper.notificationType", "log");
+    configs.put("serviceCallHelper.notificationLogRate", "1m");
+    configs.put("com.linkedin.app.env", "dev");
+    configs.put("com.linkedin.app.name", getClass().getSimpleName());
+    configs.put("com.linkedin.app.instance", "i001");
+    return configs;
   }
 }
