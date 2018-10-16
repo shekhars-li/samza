@@ -22,6 +22,8 @@ package org.apache.samza.clustermanager;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.samza.Partition;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.MapConfig;
@@ -43,16 +45,21 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link ClusterBasedJobCoordinator}
  */
 @RunWith(PowerMockRunner.class)
-@PrepareForTest(CoordinatorStreamUtil.class)
+@PrepareForTest({CoordinatorStreamUtil.class, ProcessGeneratorHolder.class})
 public class TestClusterBasedJobCoordinator {
 
   Map<String, String> configMap;
+  /**
+   * Linkedin-only test variable
+   */
+  private ProcessGeneratorHolder processGeneratorHolder;
 
   @Before
   public void setUp() throws NoSuchFieldException, NoSuchMethodException {
@@ -71,6 +78,16 @@ public class TestClusterBasedJobCoordinator {
     when(CoordinatorStreamUtil.getCoordinatorSystemFactory(anyObject())).thenReturn(new MockCoordinatorStreamSystemFactory());
     when(CoordinatorStreamUtil.getCoordinatorSystemStream(anyObject())).thenReturn(new SystemStream("kafka", "test"));
     when(CoordinatorStreamUtil.getCoordinatorStreamName(anyObject(), anyObject())).thenReturn("test");
+
+    /*
+     * Linkedin-only test setup for ProcessGeneratorHolder
+     * Unfortunately, we need powermock due to how ProcessGeneratorHolder needs to be set up in the constructor. Since
+     * the ProcessGeneratorHolder usage is in the constructor, we can't use spy to mock it out, since we don't have an
+     * object to spy while still in the constructor.
+     */
+    processGeneratorHolder = mock(ProcessGeneratorHolder.class);
+    PowerMockito.mockStatic(ProcessGeneratorHolder.class);
+    when(ProcessGeneratorHolder.getInstance()).thenReturn(processGeneratorHolder);
   }
 
   @After
@@ -113,5 +130,22 @@ public class TestClusterBasedJobCoordinator {
     StreamPartitionCountMonitor monitor = clusterCoordinator.getPartitionMonitor();
     monitor.updatePartitionCountMetric();
     assertEquals(clusterCoordinator.getAppStatus(), SamzaApplicationState.SamzaAppStatus.UNDEFINED);
+  }
+
+  /**
+   * Linkedin-only test for ProcessGeneratorHolder setup
+   */
+  @Test
+  public void testProcessGeneratorHolderSetup() {
+    Config config = new MapConfig(configMap);
+
+    // mimic job runner code to write the config to coordinator stream
+    CoordinatorStreamSystemProducer producer = new CoordinatorStreamSystemProducer(config, mock(MetricsRegistry.class));
+    producer.writeConfig("test-job", config);
+
+    new ClusterBasedJobCoordinator(config);
+    // make sure it gets the config in the coordinator stream
+    verify(processGeneratorHolder).createGenerator(config);
+    verify(processGeneratorHolder).start();
   }
 }

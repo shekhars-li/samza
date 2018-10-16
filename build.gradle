@@ -175,6 +175,8 @@ project(":samza-core_$scalaVersion") {
 
   dependencies {
     compile project(':samza-api')
+    // Linkedin-specific components to inject into samza-core open source code
+    compile project(':samza-li-core-adapters')
     compile("com.101tec:zkclient:$zkClientVersion") {
       exclude module: 'junit:junit'
     }

@@ -22,6 +22,7 @@ package org.apache.samza.container
 import java.util
 import java.util.concurrent.atomic.AtomicReference
 
+import com.linkedin.samza.generator.internal.ContainerGeneratorHolder
 import org.apache.samza.config.{Config, MapConfig}
 import org.apache.samza.context.{ApplicationContainerContext, ContainerContext}
 import org.apache.samza.coordinator.JobModelManager
@@ -274,6 +275,9 @@ class TestSamzaContainer extends AssertionsForJUnit with MockitoSugar {
   }
 
   private def setupSamzaContainer(applicationContainerContext: Option[ApplicationContainerContext]) {
+    // Linkedin-only Offspring setup
+    ContainerGeneratorHolder.getInstance().createGenerator(this.config)
+
     this.samzaContainer = new SamzaContainer(
       this.config,
       Map(TASK_NAME -> this.taskInstance),

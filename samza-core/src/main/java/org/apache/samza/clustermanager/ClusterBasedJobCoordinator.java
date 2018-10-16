@@ -22,6 +22,8 @@ import com.google.common.annotations.VisibleForTesting;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.samza.SamzaException;
 import org.apache.samza.PartitionChangeException;
 import org.apache.samza.checkpoint.CheckpointManager;
@@ -172,6 +174,16 @@ public class ClusterBasedJobCoordinator {
     // bootstrap current configuration.
     coordinatorStreamManager.bootstrap();
 
+    /*
+     * Linkedin-only Offspring setup: It would be nice to do this outside of the constructor, but it's the best place to
+     * put it now given how this class currently sets components up and manages their lifecycles. This needs to be put
+     * here because the creation of the Generator in ProcessGeneratorHolder requires the full configuration, but that is
+     * not available until the coordinator stream is read to get the configuration. This also means that
+     * ProcessGeneratorHolder cannot be used to build any components needed by the coordinator stream consumer.
+     */
+    ProcessGeneratorHolder.getInstance().createGenerator(coordinatorStreamManager.getConfig());
+    ProcessGeneratorHolder.getInstance().start();
+
     // build a JobModelManager and ChangelogStreamManager and perform partition assignments.
     changelogStreamManager = new ChangelogStreamManager(coordinatorStreamManager);
     jobModelManager = JobModelManager.apply(coordinatorStreamManager.getConfig(), changelogStreamManager.readPartitionMapping());
@@ -273,6 +285,10 @@ public class ClusterBasedJobCoordinator {
       partitionMonitor.stop();
       systemAdmins.stop();
       containerProcessManager.stop();
+
+      // Linkedin-only Offspring shutdown
+      ProcessGeneratorHolder.getInstance().stop();
+
       coordinatorStreamManager.stop();
     } catch (Throwable e) {
       log.error("Exception while stopping task manager {}", e);

@@ -22,6 +22,8 @@ package org.apache.samza.runtime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.slf4j.MDC;
 import org.apache.samza.SamzaException;
 import org.apache.samza.application.descriptors.ApplicationDescriptor;
@@ -73,6 +75,7 @@ public class LocalContainerRunner {
     int delay = new Random().nextInt(SamzaContainer.DEFAULT_READ_JOBMODEL_DELAY_MS()) + 1;
     JobModel jobModel = SamzaContainer.readJobModel(coordinatorUrl, delay);
     Config config = jobModel.getConfig();
+
     JobConfig jobConfig = new JobConfig(config);
     if (jobConfig.getName().isEmpty()) {
       throw new SamzaException("can not find the job name");
@@ -83,9 +86,18 @@ public class LocalContainerRunner {
     MDC.put("jobName", jobName);
     MDC.put("jobId", jobId);
 
-    ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc =
-        ApplicationDescriptorUtil.getAppDescriptor(ApplicationUtil.fromConfig(config), config);
-    run(appDesc, containerId, jobModel, config);
+    // Linkedin-only Offspring setup
+    ProcessGeneratorHolder.getInstance().createGenerator(config);
+    ProcessGeneratorHolder.getInstance().start();
+
+    try {
+      ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc =
+          ApplicationDescriptorUtil.getAppDescriptor(ApplicationUtil.fromConfig(config), config);
+      run(appDesc, containerId, jobModel, config);
+    } finally {
+      // Linkedin-only Offspring shutdown
+      ProcessGeneratorHolder.getInstance().stop();
+    }
 
     System.exit(0);
   }

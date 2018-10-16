@@ -31,6 +31,7 @@ import java.util.concurrent.{ExecutorService, Executors, ScheduledExecutorServic
 
 import com.google.common.annotations.VisibleForTesting
 import com.google.common.util.concurrent.ThreadFactoryBuilder
+import com.linkedin.samza.generator.internal.ContainerGeneratorHolder
 import org.apache.samza.checkpoint.{CheckpointListener, CheckpointManagerFactory, OffsetManager, OffsetManagerMetrics}
 import org.apache.samza.config.JobConfig.Config2Job
 import org.apache.samza.config.MetricsConfig.Config2Metrics
@@ -130,6 +131,10 @@ object SamzaContainer extends Logging {
     applicationTaskContextFactoryOption: Option[ApplicationTaskContextFactory[ApplicationTaskContext]]
   ) = {
     val config = jobContext.getConfig
+
+    // Linkedin-only Offspring Generator creation; create a new one for each SamzaContainer
+    ContainerGeneratorHolder.getInstance().createGenerator(config)
+
     val containerModel = jobModel.getContainers.get(containerId)
     val containerName = "samza-container-%s" format containerId
     val maxChangeLogStreamPartitions = jobModel.maxChangeLogStreamPartitions
@@ -829,6 +834,10 @@ class SamzaContainer(
       startSecurityManger
 
       lifeCycleListener.afterStart()
+
+      // Linkedin-only Offspring start
+      ContainerGeneratorHolder.getInstance().start()
+
       addShutdownHook
       info("Entering run loop.")
       status = SamzaContainerStatus.STARTED
@@ -855,6 +864,9 @@ class SamzaContainer(
       if (jmxServer != null) {
         jmxServer.stop
       }
+
+      // Linkedin-only Offspring shutdown
+      ContainerGeneratorHolder.getInstance().stop()
 
       shutdownConsumers
       shutdownTask
