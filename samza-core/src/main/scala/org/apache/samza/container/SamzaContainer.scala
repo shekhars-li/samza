@@ -809,8 +809,9 @@ class SamzaContainer(
 
       val startTime = System.nanoTime()
       status = SamzaContainerStatus.STARTING
-
-      jmxServer = new JmxServer()
+      if (config.getJMXEnabled) {
+        jmxServer = new JmxServer()
+      }
       applicationContainerContextOption.foreach(_.start)
 
       startMetrics
@@ -851,7 +852,9 @@ class SamzaContainer(
       info("Shutting down SamzaContainer.")
       lifeCycleListener.beforeShutdown()
       removeShutdownHook
-      jmxServer.stop
+      if (jmxServer != null) {
+        jmxServer.stop
+      }
 
       shutdownConsumers
       shutdownTask
