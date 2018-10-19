@@ -720,12 +720,6 @@ object SamzaContainer extends Logging {
     } else {
       info(s"Disk quotas disabled because polling interval is not set ($DISK_POLL_INTERVAL_KEY)")
     }
-
-    val lifeCycleListener = config.getContainerLifeCycleListener match {
-      case Some(className) => Class.forName(className).newInstance.asInstanceOf[SamzaContainerLifeCycleListener]
-      case _ => new DefaultLifeCycleListener
-    }
-
     info("Samza container setup complete.")
 
     new SamzaContainer(
@@ -745,8 +739,7 @@ object SamzaContainer extends Logging {
       taskThreadPool = taskThreadPool,
       timerExecutor = timerExecutor,
       containerContext = containerContext,
-      applicationContainerContextOption = applicationContainerContextOption,
-      lifeCycleListener = lifeCycleListener)
+      applicationContainerContextOption = applicationContainerContextOption)
   }
 
   /**
@@ -781,8 +774,7 @@ class SamzaContainer(
   taskThreadPool: ExecutorService = null,
   timerExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor,
   containerContext: ContainerContext,
-  applicationContainerContextOption: Option[ApplicationContainerContext],
-  lifeCycleListener: SamzaContainerLifeCycleListener = new DefaultLifeCycleListener) extends Runnable with Logging {
+  applicationContainerContextOption: Option[ApplicationContainerContext]) extends Runnable with Logging {
 
   val shutdownMs = config.getShutdownMs.getOrElse(TaskConfigJava.DEFAULT_TASK_SHUTDOWN_MS)
   var shutdownHookThread: Thread = null
@@ -806,7 +798,6 @@ class SamzaContainer(
   def run {
     try {
       info("Starting container.")
-      lifeCycleListener.beforeStart(config)
 
       if (containerListener != null) {
         containerListener.beforeStart()
@@ -833,8 +824,6 @@ class SamzaContainer(
       startConsumers
       startSecurityManger
 
-      lifeCycleListener.afterStart()
-
       // Linkedin-only Offspring start
       ContainerGeneratorHolder.getInstance().start()
 
@@ -859,7 +848,6 @@ class SamzaContainer(
 
     try {
       info("Shutting down SamzaContainer.")
-      lifeCycleListener.beforeShutdown()
       removeShutdownHook
       if (jmxServer != null) {
         jmxServer.stop
@@ -895,7 +883,6 @@ class SamzaContainer(
         }
         status = SamzaContainerStatus.FAILED
     }
-    lifeCycleListener.afterShutdown()
 
     status match {
       case SamzaContainerStatus.STOPPED =>
