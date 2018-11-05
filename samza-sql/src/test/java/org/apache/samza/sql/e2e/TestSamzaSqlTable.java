@@ -20,19 +20,50 @@
 package org.apache.samza.sql.e2e;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.sql.runner.SamzaSqlApplicationConfig;
 import org.apache.samza.sql.runner.SamzaSqlApplicationRunner;
 import org.apache.samza.sql.testutil.JsonUtil;
 import org.apache.samza.sql.testutil.SamzaSqlTestConfig;
 import org.apache.samza.sql.testutil.TestIOResolverFactory;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 
 public class TestSamzaSqlTable {
+  /**
+   * Initializes Linkedin-specific required configurations for Offspring.
+   * This does not leverage any helper from samza-test to get these configs since this module should not depend on
+   * samza-test. It might be better to eventually move this test to samza-test anyways, since it is more of an
+   * integration test.
+   */
+  @Before
+  public void setup() {
+    Map<String, String> configs = new HashMap<>();
+    configs.put("serviceCallHelper.notificationType", "log");
+    configs.put("serviceCallHelper.notificationLogRate", "1m");
+    configs.put("com.linkedin.app.env", "dev");
+    configs.put("com.linkedin.app.name", getClass().getSimpleName());
+    configs.put("com.linkedin.app.instance", "i001");
+    ProcessGeneratorHolder.getInstance().createGenerator(new MapConfig(configs));
+    ProcessGeneratorHolder.getInstance().start();
+  }
+
+  /**
+   * Stops Linkedin-specific Offspring Generator.
+   */
+  @After
+  public void teardown() {
+    ProcessGeneratorHolder.getInstance().stop();
+  }
+
   @Test
   public void testEndToEnd() throws Exception {
     int numMessages = 20;

@@ -20,10 +20,14 @@ package org.apache.samza.test.harness
 
 import java.util.Properties
 
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder
 import kafka.server.KafkaConfig
 import kafka.utils.TestUtils
 import org.apache.samza.config.{JobConfig, KafkaConsumerConfig, MapConfig}
 import org.apache.samza.system.kafka.{KafkaSystemAdmin, KafkaSystemConsumer}
+import org.junit.{After, Before}
+
+import scala.collection.JavaConverters._
 
 /**
   * Integration test harness for Kafka
@@ -31,6 +35,18 @@ import org.apache.samza.system.kafka.{KafkaSystemAdmin, KafkaSystemConsumer}
   * abstract class so that user's java test class can extend it.
   */
 abstract class AbstractIntegrationTestHarness extends AbstractKafkaServerTestHarness {
+  @Before
+  override def setUp(): Unit = {
+    super.setUp()
+    ProcessGeneratorHolder.getInstance().createGenerator(new MapConfig(buildRequiredOffspringConfigs().asJava))
+    ProcessGeneratorHolder.getInstance().start()
+  }
+
+  @After
+  override def tearDown(): Unit = {
+    super.tearDown()
+    ProcessGeneratorHolder.getInstance().stop()
+  }
 
   def generateConfigs() =
     TestUtils.createBrokerConfigs(clusterSize(), zkConnect, enableControlledShutdown = false).map(KafkaConfig.fromProps(_, overridingProps()))
@@ -81,6 +97,19 @@ abstract class AbstractIntegrationTestHarness extends AbstractKafkaServerTestHar
     val consumerConfig = KafkaConsumerConfig.getKafkaSystemConsumerConfig(config, system, KafkaConsumerConfig.createClientId("kafka-admin-consumer", config))
 
     new KafkaSystemAdmin(system, new MapConfig(map), KafkaSystemConsumer.createKafkaConsumerImpl(system, consumerConfig));
+  }
+
+  /**
+    * Build Linkedin-specific required configs for Offspring.
+    */
+  def buildRequiredOffspringConfigs(): Map[String, String] = {
+    Map(
+      "serviceCallHelper.notificationType" -> "log",
+      "serviceCallHelper.notificationLogRate" -> "1m",
+      "com.linkedin.app.env" -> "dev",
+      "com.linkedin.app.name" -> getClass.getSimpleName,
+      "com.linkedin.app.instance" -> "i001"
+    )
   }
 
 }
