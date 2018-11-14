@@ -32,10 +32,12 @@ import org.apache.samza.sql.testutil.JsonUtil;
 import org.apache.samza.sql.testutil.SamzaSqlTestConfig;
 import org.apache.samza.sql.testutil.RemoteStoreIOResolverTestFactory;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 
 public class TestSamzaSqlRemoteTable {
+  @Ignore("Flaky test")
   @Test
   public void testSinkEndToEndWithKey() throws Exception {
     int numMessages = 20;
@@ -68,7 +70,7 @@ public class TestSamzaSqlRemoteTable {
 
     Assert.assertEquals(numMessages, RemoteStoreIOResolverTestFactory.records.size());
   }
-
+  @Ignore("Flaky test")
   @Test
   public void testSourceEndToEndWithKey() throws Exception {
     int numMessages = 20;
