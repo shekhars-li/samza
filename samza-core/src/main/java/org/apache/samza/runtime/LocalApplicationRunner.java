@@ -63,6 +63,11 @@ public class LocalApplicationRunner implements ApplicationRunner {
   private final AtomicReference<Throwable> failure = new AtomicReference<>();
 
   private ApplicationStatus appStatus = ApplicationStatus.New;
+  /**
+   * LinkedIn only change to plug in the sensor registry reporters when launching
+   * the LocalApplicationRunner.
+   */
+  private final Map<String, MetricsReporter> reporters;
 
   /**
    * Constructors a {@link LocalApplicationRunner} to run the {@code app} with the {@code config}.
@@ -73,6 +78,20 @@ public class LocalApplicationRunner implements ApplicationRunner {
   public LocalApplicationRunner(SamzaApplication app, Config config) {
     this.appDesc = ApplicationDescriptorUtil.getAppDescriptor(app, config);
     this.planner = new LocalJobPlanner(appDesc);
+    this.reporters = new HashMap<>();
+  }
+
+  /**
+   * Constructors a {@link LocalApplicationRunner} to run the {@code app} with the {@code config}.
+   *
+   * @param app application to run
+   * @param config configuration for the application
+   * NOTE: LinkedIn only change to plugin sensor-registry reporters when creating LocalApplicationRunner.
+   */
+  public LocalApplicationRunner(SamzaApplication app, Config config, Map<String, MetricsReporter> reporters) {
+    this.appDesc = ApplicationDescriptorUtil.getAppDescriptor(app, config);
+    this.planner = new LocalJobPlanner(appDesc);
+    this.reporters = reporters;
   }
 
   /**
@@ -82,6 +101,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
   LocalApplicationRunner(ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc, LocalJobPlanner planner) {
     this.appDesc = appDesc;
     this.planner = planner;
+    this.reporters = new HashMap<>();
   }
 
   @Override
@@ -163,7 +183,8 @@ public class LocalApplicationRunner implements ApplicationRunner {
   StreamProcessor createStreamProcessor(Config config, ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc,
       StreamProcessor.StreamProcessorLifecycleListenerFactory listenerFactory) {
     TaskFactory taskFactory = TaskFactoryUtil.getTaskFactory(appDesc);
-    Map<String, MetricsReporter> reporters = new HashMap<>();
+    // NOTE: LinkedIn only change to plugin sensor-registry reporters before launching the StreamProcessor.
+    Map<String, MetricsReporter> reporters = new HashMap<>(this.reporters);
     // TODO: the null processorId has to be fixed after SAMZA-1835
     appDesc.getMetricsReporterFactories().forEach((name, factory) ->
         reporters.put(name, factory.getMetricsReporter(name, null, config)));
