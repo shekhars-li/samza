@@ -53,6 +53,8 @@ import static org.apache.samza.sql.testutil.RemoteStoreIOResolverTestFactory.TES
 public class SamzaSqlTestConfig {
 
   public static final String SAMZA_SYSTEM_TEST_AVRO = "testavro";
+  public static final String SAMZA_SYSTEM_TEST_AVRO2 = "testavro2";
+  public static final String SAMZA_SYSTEM_TEST_DB = "testDb";
 
   public static Map<String, String> fetchStaticConfigsWithFactories(int numberOfMessages) {
     return fetchStaticConfigsWithFactories(new HashMap<>(), numberOfMessages, false);
@@ -64,11 +66,16 @@ public class SamzaSqlTestConfig {
 
   public static Map<String, String> fetchStaticConfigsWithFactories(Map<String, String> props, int numberOfMessages,
       boolean includeNullForeignKeys) {
-    return fetchStaticConfigsWithFactories(props, numberOfMessages, includeNullForeignKeys, 0);
+    return fetchStaticConfigsWithFactories(props, numberOfMessages, includeNullForeignKeys, false, 0);
   }
 
   public static Map<String, String> fetchStaticConfigsWithFactories(Map<String, String> props, int numberOfMessages,
-      boolean includeNullForeignKeys, long windowDurationMs) {
+      boolean includeNullForeignKeys, boolean includeNullSimpleRecords) {
+    return fetchStaticConfigsWithFactories(props, numberOfMessages, includeNullForeignKeys, includeNullSimpleRecords, 0);
+  }
+
+  public static Map<String, String> fetchStaticConfigsWithFactories(Map<String, String> props, int numberOfMessages,
+      boolean includeNullForeignKeys, boolean includeNullSimpleRecords, long windowDurationMs) {
     HashMap<String, String> staticConfigs = new HashMap<>();
 
     staticConfigs.put(JobConfig.JOB_NAME(), "sql-job");
@@ -98,6 +105,8 @@ public class SamzaSqlTestConfig {
         String.valueOf(numberOfMessages));
     staticConfigs.put(avroSystemConfigPrefix + TestAvroSystemFactory.CFG_INCLUDE_NULL_FOREIGN_KEYS,
         includeNullForeignKeys ? "true" : "false");
+    staticConfigs.put(avroSystemConfigPrefix + TestAvroSystemFactory.CFG_INCLUDE_NULL_SIMPLE_RECORDS,
+        includeNullSimpleRecords ? "true" : "false");
     staticConfigs.put(avroSystemConfigPrefix + TestAvroSystemFactory.CFG_SLEEP_BETWEEN_POLLS_MS,
         String.valueOf(windowDurationMs / 2));
     staticConfigs.put(SamzaSqlApplicationConfig.CFG_GROUPBY_WINDOW_DURATION_MS, String.valueOf(windowDurationMs));
@@ -108,6 +117,24 @@ public class SamzaSqlTestConfig {
     staticConfigs.put(testRemoteStoreSamzaSqlConfigPrefix + SqlIOConfig.CFG_SAMZA_REL_CONVERTER, "avro");
     staticConfigs.put(testRemoteStoreSamzaSqlConfigPrefix + SqlIOConfig.CFG_SAMZA_REL_TABLE_KEY_CONVERTER, "sample");
     staticConfigs.put(testRemoteStoreSamzaSqlConfigPrefix + SqlIOConfig.CFG_REL_SCHEMA_PROVIDER, "config");
+
+    String avro2SystemConfigPrefix =
+            String.format(ConfigBasedIOResolverFactory.CFG_FMT_SAMZA_PREFIX, SAMZA_SYSTEM_TEST_AVRO2);
+    String avro2SamzaSqlConfigPrefix = configIOResolverDomain + String.format("%s.", SAMZA_SYSTEM_TEST_AVRO2);
+    staticConfigs.put(avro2SystemConfigPrefix + "samza.factory", TestAvroSystemFactory.class.getName());
+    staticConfigs.put(avro2SystemConfigPrefix + TestAvroSystemFactory.CFG_NUM_MESSAGES,
+            String.valueOf(numberOfMessages));
+    staticConfigs.put(avro2SystemConfigPrefix + TestAvroSystemFactory.CFG_INCLUDE_NULL_FOREIGN_KEYS,
+            includeNullForeignKeys ? "true" : "false");
+    staticConfigs.put(avro2SystemConfigPrefix + TestAvroSystemFactory.CFG_SLEEP_BETWEEN_POLLS_MS,
+            String.valueOf(windowDurationMs / 2));
+    staticConfigs.put(SamzaSqlApplicationConfig.CFG_GROUPBY_WINDOW_DURATION_MS, String.valueOf(windowDurationMs));
+    staticConfigs.put(avro2SamzaSqlConfigPrefix + SqlIOConfig.CFG_SAMZA_REL_CONVERTER, "avro");
+    staticConfigs.put(avro2SamzaSqlConfigPrefix + SqlIOConfig.CFG_REL_SCHEMA_PROVIDER, "config");
+
+    String testDbSamzaSqlConfigPrefix = configIOResolverDomain + String.format("%s.", SAMZA_SYSTEM_TEST_DB);
+    staticConfigs.put(testDbSamzaSqlConfigPrefix + SqlIOConfig.CFG_SAMZA_REL_CONVERTER, "avro");
+    staticConfigs.put(testDbSamzaSqlConfigPrefix + SqlIOConfig.CFG_REL_SCHEMA_PROVIDER, "config");
 
     String avroSamzaToRelMsgConverterDomain =
         String.format(SamzaSqlApplicationConfig.CFG_FMT_SAMZA_REL_CONVERTER_DOMAIN, "avro");
@@ -131,6 +158,9 @@ public class SamzaSqlTestConfig {
 
     staticConfigs.put(configAvroRelSchemaProviderDomain + String.format(ConfigBasedAvroRelSchemaProviderFactory.CFG_SOURCE_SCHEMA,
         "testavro", "SIMPLE1"), SimpleRecord.SCHEMA$.toString());
+
+    staticConfigs.put(configAvroRelSchemaProviderDomain + String.format(ConfigBasedAvroRelSchemaProviderFactory.CFG_SOURCE_SCHEMA,
+        "testavro2", "SIMPLE1"), SimpleRecord.SCHEMA$.toString());
 
     staticConfigs.put(configAvroRelSchemaProviderDomain + String.format(ConfigBasedAvroRelSchemaProviderFactory.CFG_SOURCE_SCHEMA,
         "testavro", "SIMPLE2"), SimpleRecord.SCHEMA$.toString());
@@ -172,6 +202,13 @@ public class SamzaSqlTestConfig {
             TEST_REMOTE_STORE_SYSTEM, "Profile"), Profile.SCHEMA$.toString());
 
     staticConfigs.putAll(props);
+
+    // Add required offspring configs in LinkedIn
+    staticConfigs.put("serviceCallHelper.notificationType", "log");
+    staticConfigs.put("serviceCallHelper.notificationLogRate", "1m");
+    staticConfigs.put("com.linkedin.app.env", "dev");
+    staticConfigs.put("com.linkedin.app.name", "test");
+    staticConfigs.put("com.linkedin.app.instance", "i001");
 
     return staticConfigs;
   }
