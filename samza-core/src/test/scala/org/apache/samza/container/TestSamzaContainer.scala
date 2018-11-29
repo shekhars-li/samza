@@ -22,7 +22,6 @@ package org.apache.samza.container
 import java.util
 import java.util.concurrent.atomic.AtomicReference
 
-import com.linkedin.samza.generator.internal.ContainerGeneratorHolder
 import org.apache.samza.config.{ClusterManagerConfig, Config, MapConfig}
 import org.apache.samza.context.{ApplicationContainerContext, ContainerContext, JobContext}
 import org.apache.samza.coordinator.JobModelManager
@@ -34,7 +33,7 @@ import org.apache.samza.system._
 import org.apache.samza.task.{StreamTaskFactory, TaskFactory}
 import org.apache.samza.{Partition, SamzaContainerStatus}
 import org.junit.Assert._
-import org.junit.{After, Before, Test}
+import org.junit.{Before, Test}
 import org.mockito.Matchers.{any, notNull}
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
@@ -80,24 +79,8 @@ class TestSamzaContainer extends AssertionsForJUnit with MockitoSugar {
   @Before
   def setup(): Unit = {
     MockitoAnnotations.initMocks(this)
-    // Linkedin-only Offspring setup: most tests will stop the ContainerGeneratorHolder on their own since they call run
-    ContainerGeneratorHolder.getInstance().createGenerator(this.config)
     setupSamzaContainer(Some(this.applicationContainerContext))
     when(this.metrics.containerStartupTime).thenReturn(mock[Timer])
-  }
-
-  @After
-  def teardown(): Unit = {
-    try {
-      // clean up so that other tests can re-init the ContainerGeneratorHolder
-      ContainerGeneratorHolder.getInstance().stop()
-    } catch {
-      /*
-       * Some tests might stop the ContainerGeneratorHolder through SamzaContainer.run, so an exception will get thrown
-       * when calling stop again. Just ignore that exception.
-       */
-      case e: Exception => // ignore
-    }
   }
 
   @Test
@@ -143,9 +126,6 @@ class TestSamzaContainer extends AssertionsForJUnit with MockitoSugar {
     verify(this.samzaContainerListener, never()).afterStop()
     verify(this.samzaContainerListener).afterFailure(notNull(classOf[Exception]))
     verify(this.runLoop).run()
-
-    // Linkedin-specific: create another generator to make sure the previous one was stopped
-    ContainerGeneratorHolder.getInstance().createGenerator(this.config)
   }
 
   @Test
@@ -161,9 +141,6 @@ class TestSamzaContainer extends AssertionsForJUnit with MockitoSugar {
     verify(this.samzaContainerListener).afterStop()
     verify(this.samzaContainerListener, never()).afterFailure(any())
     verify(this.runLoop).run()
-
-    // Linkedin-specific: create another generator to make sure the previous one was stopped
-    ContainerGeneratorHolder.getInstance().createGenerator(this.config)
   }
 
   @Test

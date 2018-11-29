@@ -19,6 +19,7 @@
 
 package org.apache.samza.runtime;
 
+import com.linkedin.samza.context.ExternalContextUtil;
 import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.samza.SamzaException;
 import org.apache.samza.application.ApplicationUtil;
@@ -88,13 +89,14 @@ public class LocalContainerRunner {
     MDC.put("jobName", jobName);
     MDC.put("jobId", jobId);
 
+    ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc =
+        ApplicationDescriptorUtil.getAppDescriptor(ApplicationUtil.fromConfig(config), config);
+
     // Linkedin-only Offspring setup
     ProcessGeneratorHolder.getInstance().createGenerator(config);
     ProcessGeneratorHolder.getInstance().start();
 
     try {
-      ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc =
-          ApplicationDescriptorUtil.getAppDescriptor(ApplicationUtil.fromConfig(config), config);
       run(appDesc, containerId, jobModel, config, buildExternalContext(config));
     } finally {
       // Linkedin-only Offspring shutdown
@@ -166,12 +168,8 @@ public class LocalContainerRunner {
   }
 
   private static Optional<ExternalContext> buildExternalContext(Config config) {
-    /*
-     * By default, use an empty ExternalContext here. In a custom fork of Samza, this can be implemented to pass
-     * a non-empty ExternalContext to SamzaContainer. Only config should be used to build the external context. In the
-     * future, components like the application descriptor may not be available to LocalContainerRunner.
-     */
-    return Optional.empty();
+    // Linkedin-specific loading of ExternalContext
+    return ExternalContextUtil.buildExternalContext(config);
   }
 
   // TODO: this is going away when SAMZA-1168 is done and the initialization of metrics reporters are done via

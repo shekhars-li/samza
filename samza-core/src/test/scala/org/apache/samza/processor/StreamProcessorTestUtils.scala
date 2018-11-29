@@ -20,7 +20,6 @@ package org.apache.samza.processor
 
 import java.util
 
-import com.linkedin.samza.generator.internal.ContainerGeneratorHolder
 import org.apache.samza.Partition
 import org.apache.samza.config.MapConfig
 import org.apache.samza.container._
@@ -60,9 +59,6 @@ object StreamProcessorTestUtils {
       applicationContainerContextOption = None,
       applicationTaskContextFactoryOption = None,
       externalContextOption = None)
-
-    // Linkedin-only Offspring setup
-    ContainerGeneratorHolder.getInstance().createGenerator(config)
 
     val container = new SamzaContainer(
       config = config,

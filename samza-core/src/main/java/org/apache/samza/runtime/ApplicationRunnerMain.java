@@ -54,14 +54,14 @@ public class ApplicationRunnerMain {
     Config config = Util.rewriteConfig(orgConfig);
     ApplicationRunnerOperation op = cmdLine.getOperation(options);
 
+    ApplicationRunner appRunner =
+        ApplicationRunners.getApplicationRunner(ApplicationUtil.fromConfig(config), config);
+
     // Linkedin-only Offspring setup
     ProcessGeneratorHolder.getInstance().createGenerator(config);
     ProcessGeneratorHolder.getInstance().start();
 
     try {
-      ApplicationRunner appRunner =
-          ApplicationRunners.getApplicationRunner(ApplicationUtil.fromConfig(config), config);
-
       switch (op) {
         case RUN:
           appRunner.run(null);
