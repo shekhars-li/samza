@@ -89,11 +89,11 @@ public class LocalityManager {
    */
   public Map<String, Map<String, String>> readContainerLocality() {
     Map<String, Map<String, String>> allMappings = new HashMap<>();
-    metadataStore.all().forEach((keyBytes, valueBytes) -> {
+    metadataStore.all().forEach((containerId, valueBytes) -> {
         if (valueBytes != null) {
           String locationId = valueSerde.fromBytes(valueBytes);
           if (locationId != null) {
-            allMappings.put(keySerde.fromBytes(keyBytes), ImmutableMap.of(SetContainerHostMapping.HOST_KEY, locationId));
+            allMappings.put(containerId, ImmutableMap.of(SetContainerHostMapping.HOST_KEY, locationId));
           }
         }
       });
@@ -122,7 +122,7 @@ public class LocalityManager {
       LOG.info("Container {} started at {}", containerId, hostName);
     }
 
-    metadataStore.put(keySerde.toBytes(containerId), valueSerde.toBytes(hostName));
+    metadataStore.put(containerId, valueSerde.toBytes(hostName));
   }
 
   /**
@@ -131,7 +131,7 @@ public class LocalityManager {
    * @param containerId  the {@link SamzaContainer} ID
    */
   public void deleteContainerLocality(String containerId) {
-    metadataStore.delete(keySerde.toBytes(containerId));
+    metadataStore.delete(containerId);
     LOG.info("Container {} locality deleted", containerId);
   }
 
