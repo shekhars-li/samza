@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -39,6 +40,7 @@ import org.apache.samza.application.SamzaApplication;
 import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
+import org.apache.samza.context.ExternalContext;
 import org.apache.samza.execution.LocalJobPlanner;
 import org.apache.samza.job.ApplicationStatus;
 import org.apache.samza.metrics.MetricsReporter;
@@ -105,7 +107,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
   }
 
   @Override
-  public void run() {
+  public void run(ExternalContext externalContext) {
     try {
       List<JobConfig> jobConfigs = planner.prepareJobs();
 
@@ -116,7 +118,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
       jobConfigs.forEach(jobConfig -> {
           LOG.debug("Starting job {} StreamProcessor with config {}", jobConfig.getName(), jobConfig);
           StreamProcessor processor = createStreamProcessor(jobConfig, appDesc,
-              sp -> new LocalStreamProcessorLifecycleListener(sp, jobConfig));
+              sp -> new LocalStreamProcessorLifecycleListener(sp, jobConfig), Optional.ofNullable(externalContext));
           processors.add(processor);
         });
       numProcessorsToStart.set(processors.size());
@@ -181,7 +183,8 @@ public class LocalApplicationRunner implements ApplicationRunner {
 
   @VisibleForTesting
   StreamProcessor createStreamProcessor(Config config, ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc,
-      StreamProcessor.StreamProcessorLifecycleListenerFactory listenerFactory) {
+      StreamProcessor.StreamProcessorLifecycleListenerFactory listenerFactory,
+      Optional<ExternalContext> externalContextOptional) {
     TaskFactory taskFactory = TaskFactoryUtil.getTaskFactory(appDesc);
     // NOTE: LinkedIn only change to plugin sensor-registry reporters before launching the StreamProcessor.
     Map<String, MetricsReporter> reporters = new HashMap<>(this.reporters);
@@ -189,7 +192,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
     appDesc.getMetricsReporterFactories().forEach((name, factory) ->
         reporters.put(name, factory.getMetricsReporter(name, null, config)));
     return new StreamProcessor(config, reporters, taskFactory, appDesc.getApplicationContainerContextFactory(),
-        appDesc.getApplicationTaskContextFactory(), listenerFactory, null);
+        appDesc.getApplicationTaskContextFactory(), externalContextOptional, listenerFactory, null);
   }
 
   /**

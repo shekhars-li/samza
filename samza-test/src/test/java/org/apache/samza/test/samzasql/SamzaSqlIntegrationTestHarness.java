@@ -16,20 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.container.grouper.task;
+package org.apache.samza.test.samzasql;
 
 import org.apache.samza.config.Config;
+import org.apache.samza.sql.runner.SamzaSqlApplicationRunner;
+import org.apache.samza.test.harness.AbstractIntegrationTestHarness;
 
-/**
- * Factory for building a {@link TaskNameGrouper}.
- */
-public interface TaskNameGrouperFactory {
-  /**
-   * Builds a {@link TaskNameGrouper}. The config can be used to read the necessary values which are needed int the
-   * process of building the {@link TaskNameGrouper}
-   *
-   * @param config configuration to use for building the {@link TaskNameGrouper}
-   * @return a {@link TaskNameGrouper} implementation
-   */
-  TaskNameGrouper build(Config config);
+
+public class SamzaSqlIntegrationTestHarness extends AbstractIntegrationTestHarness {
+  protected void runApplication(Config config) {
+    SamzaSqlApplicationRunner runner = new SamzaSqlApplicationRunner(true, config);
+    executeRun(runner, config);
+    runner.waitForFinish();
+  }
 }

@@ -25,6 +25,7 @@ import org.apache.samza.application.SamzaApplication;
 import org.apache.samza.application.MockStreamApplication;
 import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.Config;
+import org.apache.samza.context.ExternalContext;
 import org.apache.samza.job.ApplicationStatus;
 import org.junit.Before;
 import org.junit.Test;
@@ -135,7 +136,7 @@ public class TestApplicationRunnerMain {
     }
 
     @Override
-    public void run() {
+    public void run(ExternalContext externalContext) {
       runCount++;
     }
 

@@ -19,27 +19,25 @@
 
 package org.apache.samza.runtime;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
-
 import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
-import org.slf4j.MDC;
 import org.apache.samza.SamzaException;
+import org.apache.samza.application.ApplicationUtil;
 import org.apache.samza.application.descriptors.ApplicationDescriptor;
 import org.apache.samza.application.descriptors.ApplicationDescriptorImpl;
 import org.apache.samza.application.descriptors.ApplicationDescriptorUtil;
-import org.apache.samza.application.ApplicationUtil;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.ShellCommandConfig;
 import org.apache.samza.container.ContainerHeartbeatClient;
 import org.apache.samza.container.ContainerHeartbeatMonitor;
+import org.apache.samza.container.LocalityManager;
 import org.apache.samza.container.SamzaContainer;
 import org.apache.samza.container.SamzaContainer$;
 import org.apache.samza.container.SamzaContainerListener;
+import org.apache.samza.context.ExternalContext;
 import org.apache.samza.context.JobContextImpl;
 import org.apache.samza.job.model.JobModel;
+import org.apache.samza.metrics.MetricsRegistryMap;
 import org.apache.samza.metrics.MetricsReporter;
 import org.apache.samza.task.TaskFactory;
 import org.apache.samza.task.TaskFactoryUtil;
@@ -47,8 +45,12 @@ import org.apache.samza.util.SamzaUncaughtExceptionHandler;
 import org.apache.samza.util.ScalaJavaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import scala.Option;
-
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 
 /**
  * Launches and manages the lifecycle for {@link SamzaContainer}s in YARN.
@@ -93,7 +95,7 @@ public class LocalContainerRunner {
     try {
       ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc =
           ApplicationDescriptorUtil.getAppDescriptor(ApplicationUtil.fromConfig(config), config);
-      run(appDesc, containerId, jobModel, config);
+      run(appDesc, containerId, jobModel, config, buildExternalContext(config));
     } finally {
       // Linkedin-only Offspring shutdown
       ProcessGeneratorHolder.getInstance().stop();
@@ -103,8 +105,9 @@ public class LocalContainerRunner {
   }
 
   private static void run(ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc, String containerId,
-      JobModel jobModel, Config config) {
+      JobModel jobModel, Config config, Optional<ExternalContext> externalContextOptional) {
     TaskFactory taskFactory = TaskFactoryUtil.getTaskFactory(appDesc);
+    LocalityManager localityManager = new LocalityManager(config, new MetricsRegistryMap());
     SamzaContainer container = SamzaContainer$.MODULE$.apply(
         containerId,
         jobModel,
@@ -112,7 +115,8 @@ public class LocalContainerRunner {
         taskFactory,
         JobContextImpl.fromConfigWithDefaults(config),
         Option.apply(appDesc.getApplicationContainerContextFactory().orElse(null)),
-        Option.apply(appDesc.getApplicationTaskContextFactory().orElse(null)));
+        Option.apply(appDesc.getApplicationTaskContextFactory().orElse(null)),
+        Option.apply(externalContextOptional.orElse(null)), localityManager);
 
     ProcessorLifecycleListener listener = appDesc.getProcessorLifecycleListenerFactory()
         .createInstance(new ProcessorContext() { }, config);
@@ -159,6 +163,15 @@ public class LocalContainerRunner {
       log.error("Container stopped with Exception. Exiting process now.", containerRunnerException);
       System.exit(1);
     }
+  }
+
+  private static Optional<ExternalContext> buildExternalContext(Config config) {
+    /*
+     * By default, use an empty ExternalContext here. In a custom fork of Samza, this can be implemented to pass
+     * a non-empty ExternalContext to SamzaContainer. Only config should be used to build the external context. In the
+     * future, components like the application descriptor may not be available to LocalContainerRunner.
+     */
+    return Optional.empty();
   }
 
   // TODO: this is going away when SAMZA-1168 is done and the initialization of metrics reporters are done via

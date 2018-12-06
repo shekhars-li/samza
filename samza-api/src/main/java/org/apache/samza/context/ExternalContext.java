@@ -16,20 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.container.grouper.task;
-
-import org.apache.samza.config.Config;
+package org.apache.samza.context;
 
 /**
- * Factory for building a {@link TaskNameGrouper}.
+ * An {@link ExternalContext} can be used to pass components created and managed outside of Samza into a Samza
+ * application. This will be made accessible through the {@link Context}.
+ * <p>
+ * This is passed to {@link org.apache.samza.runtime.ApplicationRunner#run(ExternalContext)} and propagated down to the
+ * {@link Context} object provided to tasks.
+ * <p>
+ * {@link ExternalContext} can be used to inject objects that need to be created by other frameworks, such as Spring.
+ * <p>
+ * This is currently just a marker interface for the object passed into Samza.
  */
-public interface TaskNameGrouperFactory {
-  /**
-   * Builds a {@link TaskNameGrouper}. The config can be used to read the necessary values which are needed int the
-   * process of building the {@link TaskNameGrouper}
-   *
-   * @param config configuration to use for building the {@link TaskNameGrouper}
-   * @return a {@link TaskNameGrouper} implementation
-   */
-  TaskNameGrouper build(Config config);
+public interface ExternalContext {
 }
