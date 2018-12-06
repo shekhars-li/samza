@@ -171,7 +171,7 @@ public class TestApplicationRunnerMain {
     }
 
     @Override
-    public void run() {
+    public void run(ExternalContext externalContext) {
     }
 
     @Override
