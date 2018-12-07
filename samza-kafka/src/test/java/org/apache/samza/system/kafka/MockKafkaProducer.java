@@ -42,7 +42,6 @@ import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.record.Record;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.test.TestUtils;
 
@@ -190,6 +189,11 @@ public class MockKafkaProducer implements Producer<byte[], byte[]> {
 
   public synchronized void flush () {
     new FlushRunnable(0).run();
+  }
+
+  @Override
+  public synchronized void flush(long timeout, TimeUnit unit) {
+    flush();
   }
 
   public void initTransactions() {
