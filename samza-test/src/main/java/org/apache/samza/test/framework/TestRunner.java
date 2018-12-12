@@ -20,6 +20,8 @@
 package org.apache.samza.test.framework;
 
 import com.google.common.base.Preconditions;
+import com.linkedin.samza.context.DefaultLiExternalContextFactory;
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import java.io.File;
 import java.time.Duration;
 import java.util.HashMap;
@@ -118,6 +120,8 @@ public class TestRunner {
     addConfig(ClusterManagerConfig.JOB_HOST_AFFINITY_ENABLED, Boolean.FALSE.toString());
     addConfig(InMemorySystemConfig.INMEMORY_SCOPE, inMemoryScope);
     addConfig(new InMemorySystemDescriptor(JOB_DEFAULT_SYSTEM).withInMemoryScope(inMemoryScope).toConfig());
+    // Linkedin-specific Offspring configs
+    addConfig(LiConfigUtil.buildRequiredOffspringConfigs(JOB_NAME));
   }
 
   /**
@@ -267,15 +271,28 @@ public class TestRunner {
     // Cleaning store directories to ensure current run does not pick up state from previous run
     deleteStoreDirectories();
     Config config = new MapConfig(configs);
-    final LocalApplicationRunner runner = new LocalApplicationRunner(app, config);
-    runner.run(buildExternalContext(config).orElse(null));
-    if (!runner.waitForFinish(timeout)) {
-      throw new SamzaException("Timed out waiting for application to finish");
-    }
-    ApplicationStatus status = runner.status();
-    deleteStoreDirectories();
-    if (status.getStatusCode() == ApplicationStatus.StatusCode.UnsuccessfulFinish) {
-      throw new SamzaException("Application could not finish successfully", status.getThrowable());
+
+    // Linkedin-specific initialization for Offspring usage
+    ProcessGeneratorHolder.getInstance().createGenerator(config);
+    ProcessGeneratorHolder.getInstance().start();
+
+    /*
+     * Linkedin-specific: need to wrap execution in a try-finally in order to stop the ProcessGeneratorHolder at the end
+     * of the test. Logic inside of the try block should match open source.
+     */
+    try {
+      final LocalApplicationRunner runner = new LocalApplicationRunner(app, config);
+      runner.run(buildExternalContext(config).orElse(null));
+      if (!runner.waitForFinish(timeout)) {
+        throw new SamzaException("Timed out waiting for application to finish");
+      }
+      ApplicationStatus status = runner.status();
+      deleteStoreDirectories();
+      if (status.getStatusCode() == ApplicationStatus.StatusCode.UnsuccessfulFinish) {
+        throw new SamzaException("Application could not finish successfully", status.getThrowable());
+      }
+    } finally {
+      ProcessGeneratorHolder.getInstance().stop();
     }
   }
 
@@ -415,11 +432,8 @@ public class TestRunner {
   }
 
   private static Optional<ExternalContext> buildExternalContext(Config config) {
-    /*
-     * By default, use an empty ExternalContext here. In a custom fork of Samza, this can be implemented to pass
-     * a non-empty ExternalContext. Only config should be used to build the external context. In the future, components
-     * like the application descriptor may not be available.
-     */
-    return Optional.empty();
+    // Linkedin-specific injection of external context
+    return Optional.of(
+        ProcessGeneratorHolder.getInstance().getGenerator().getBean(DefaultLiExternalContextFactory.class));
   }
 }

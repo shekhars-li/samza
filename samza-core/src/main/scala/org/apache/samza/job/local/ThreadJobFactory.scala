@@ -19,6 +19,7 @@
 
 package org.apache.samza.job.local
 
+import com.linkedin.samza.context.ExternalContextUtil
 import org.apache.samza.application.ApplicationUtil
 import org.apache.samza.application.descriptors.ApplicationDescriptorUtil
 import org.apache.samza.config.JobConfig._
@@ -138,11 +139,7 @@ class ThreadJobFactory extends StreamJobFactory with Logging {
   }
 
   private def buildExternalContext(config: Config): Option[ExternalContext] = {
-    /*
-     * By default, use an empty ExternalContext here. In a custom fork of Samza, this can be implemented to pass
-     * a non-empty ExternalContext to SamzaContainer. Only config should be used to build the external context. In the
-     * future, components like the application descriptor may not be available.
-     */
-    None
+    // Linkedin-specific loading of ExternalContext
+    Option(ExternalContextUtil.buildExternalContext(config).orElse(null))
   }
 }

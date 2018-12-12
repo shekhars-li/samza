@@ -20,6 +20,7 @@ package org.apache.samza.test.harness
 
 import java.util.Properties
 
+import com.linkedin.samza.context.{DefaultLiExternalContextFactory, LiExternalContext}
 import com.linkedin.samza.generator.internal.ProcessGeneratorHolder
 import kafka.server.KafkaConfig
 import kafka.utils.TestUtils
@@ -27,6 +28,7 @@ import org.apache.samza.config.{Config, JobConfig, KafkaConsumerConfig, MapConfi
 import org.apache.samza.context.ExternalContext
 import org.apache.samza.runtime.ApplicationRunner
 import org.apache.samza.system.kafka.{KafkaSystemAdmin, KafkaSystemConsumer}
+import org.apache.samza.test.framework.LiConfigUtil
 import org.junit.{After, Before}
 
 import scala.collection.JavaConverters._
@@ -37,13 +39,20 @@ import scala.collection.JavaConverters._
   * abstract class so that user's java test class can extend it.
   */
 abstract class AbstractIntegrationTestHarness extends AbstractKafkaServerTestHarness {
+  /**
+    * Linkedin-specific initialization for Offspring
+    */
   @Before
   override def setUp(): Unit = {
     super.setUp()
-    ProcessGeneratorHolder.getInstance().createGenerator(new MapConfig(buildRequiredOffspringConfigs().asJava))
+    ProcessGeneratorHolder.getInstance().createGenerator(
+      new MapConfig(LiConfigUtil.buildRequiredOffspringConfigs(getClass.getSimpleName)))
     ProcessGeneratorHolder.getInstance().start()
   }
 
+  /**
+    * Linkedin-specific shutdown for Offspring
+    */
   @After
   override def tearDown(): Unit = {
     super.tearDown()
@@ -106,24 +115,8 @@ abstract class AbstractIntegrationTestHarness extends AbstractKafkaServerTestHar
   }
 
   private def buildExternalContext(config: Config): Option[ExternalContext] = {
-    /*
-     * By default, use an empty ExternalContext here. In a custom fork of Samza, this can be implemented to pass
-     * a non-empty ExternalContext. Only config should be used to build the external context. In the future, components
-     * like the application descriptor may not be available.
-     */
-    None
-  }
-
-  /**
-    * Build Linkedin-specific required configs for Offspring.
-    */
-  def buildRequiredOffspringConfigs(): Map[String, String] = {
-    Map(
-      "serviceCallHelper.notificationType" -> "log",
-      "serviceCallHelper.notificationLogRate" -> "1m",
-      "com.linkedin.app.env" -> "dev",
-      "com.linkedin.app.name" -> getClass.getSimpleName,
-      "com.linkedin.app.instance" -> "i001"
-    )
+    // Linkedin-specific injection of external context
+    Some(ProcessGeneratorHolder.getInstance().getGenerator
+      .getBean[LiExternalContext, DefaultLiExternalContextFactory](classOf[DefaultLiExternalContextFactory]))
   }
 }

@@ -22,8 +22,10 @@ package org.apache.samza.test.integration
 import java.util
 import java.util.Properties
 import java.util.concurrent.{CountDownLatch, TimeUnit}
-
 import javax.security.auth.login.Configuration
+
+import com.linkedin.samza.context.DefaultLiExternalContextFactory
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder
 import kafka.admin.AdminUtils
 import kafka.consumer.{Consumer, ConsumerConfig}
 import kafka.message.MessageAndMetadata
@@ -46,6 +48,7 @@ import org.apache.samza.storage.ChangelogStreamManager
 import org.apache.samza.system.kafka.TopicMetadataCache
 import org.apache.samza.system.{IncomingMessageEnvelope, SystemStreamPartition}
 import org.apache.samza.task._
+import org.apache.samza.test.framework.LiConfigUtil
 import org.apache.samza.util.{ClientUtilTopicMetadataStore, KafkaUtil, TopicMetadataStore}
 import org.junit.Assert._
 
@@ -100,7 +103,9 @@ object StreamTaskTestUtil {
     "task.checkpoint.replication.factor" -> "1",
     // However, don't have the inputs use the checkpoint manager
     // since the second part of the test expects to replay the input streams.
-    "systems.kafka.streams.input.samza.reset.offset" -> "false")
+    "systems.kafka.streams.input.samza.reset.offset" -> "false",
+    // Linkedin-specific default Offspring components
+    "samza.external.context.factory" -> classOf[DefaultLiExternalContextFactory].getCanonicalName)
 
   def apply(map: Map[String, String]): Unit = {
     jobConfig ++= map
@@ -205,6 +210,11 @@ class StreamTaskTestUtil {
    * time, number of partitions, etc.
    */
   def startJob = {
+    // Linkedin-specific Offspring setup
+    ProcessGeneratorHolder.getInstance().createGenerator(
+      new MapConfig(LiConfigUtil.buildRequiredOffspringConfigs(getClass.getSimpleName)))
+    ProcessGeneratorHolder.getInstance().start()
+
     // Start task.
     val jobRunner = new JobRunner(new MapConfig(jobConfig.asJava))
     val job = jobRunner.run()
@@ -233,6 +243,10 @@ class StreamTaskTestUtil {
 
     // Shutdown task.
     job.kill
+
+    // Linkedin-specific Offspring shutdown
+    ProcessGeneratorHolder.getInstance().stop()
+
     val status = job.waitForFinish(60000)
     assertEquals(ApplicationStatus.UnsuccessfulFinish, status)
   }
