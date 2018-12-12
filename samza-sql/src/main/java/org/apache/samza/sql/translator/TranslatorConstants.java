@@ -16,16 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.standalone;
 
-import org.apache.samza.config.Config;
-import org.apache.samza.coordinator.JobCoordinator;
-import org.apache.samza.coordinator.JobCoordinatorFactory;
-import org.apache.samza.metrics.MetricsRegistry;
+package org.apache.samza.sql.translator;
 
-public class PassthroughJobCoordinatorFactory implements JobCoordinatorFactory {
-  @Override
-  public JobCoordinator getJobCoordinator(String processorId, Config config, MetricsRegistry metricsRegistry) {
-    return new PassthroughJobCoordinator(processorId, config, metricsRegistry);
-  }
+public class TranslatorConstants {
+  public static final String PROCESSING_TIME_NAME = "processingTimeMs";
+  public static final String TOTAL_LATENCY_NAME = "totalLatencyMs";
+  public static final String QUERY_LATENCY_NAME = "queryLatencyMs";
+  public static final String QUEUEING_LATENCY_NAME = "queueingLatencyMs";
+  public static final String INPUT_EVENTS_NAME = "inputEvents";
+  public static final String FILTERED_EVENTS_NAME = "filteredEvents";
+  public static final String OUTPUT_EVENTS_NAME = "outputEvents";
+  public static final String LOGOPID_TEMPLATE = "sql_%d_%s_%d";
+  public static final String LOGSQLID_TEMPLATE = "sql_%d";
 }
