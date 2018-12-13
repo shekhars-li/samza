@@ -1,0 +1,1 @@
+The file ligradle/checkstyle/linkedin-checkstyle.xml is hardcoded as the checkstyle configuration file location to use for Linkedin checkstyle (see LiCheckstylePlugin). In order to be consistent with open source checkstyle, we will make ligradle/checkstyle/linkedin-checkstyle.xml a symlink to the open source checkstyle configuration file (i.e. checkstyle/checkstyle.xml).

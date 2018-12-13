@@ -19,6 +19,10 @@
 // limitations under the License.
 -->
 <module name="Checker">
+  <!-- Linkedin-specific: need level of warning since Linkedin has a modified checkstyle
+       We don't want to put this in open source since the open source build would just warn instead of fail. -->
+  <property name="severity" value="warning"/>
+
   <property name="localeLanguage" value="en"/>
 
   <!-- allow suppression for specific files -->
