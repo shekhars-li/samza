@@ -20,10 +20,14 @@
 package org.apache.samza.checkpoint
 
 import java.util
-import org.apache.samza.container.TaskName
+
 import org.apache.samza.Partition
-import org.apache.samza.system._
+import org.apache.samza.container.TaskName
+import org.apache.samza.metadatastore.InMemoryMetadataStoreFactory
+import org.apache.samza.startpoint.{StartpointManager, StartpointOldest, StartpointUpcoming}
 import org.apache.samza.system.SystemStreamMetadata.{OffsetType, SystemStreamPartitionMetadata}
+import org.apache.samza.system._
+import org.apache.samza.util.NoOpMetricsRegistry
 import org.junit.Assert._
 import org.junit.Test
 import org.apache.samza.SamzaException
@@ -62,10 +66,13 @@ class TestOffsetManager {
     val systemStreamMetadata = Map(systemStream -> testStreamMetadata)
     val config = new MapConfig
     val checkpointManager = getCheckpointManager(systemStreamPartition, taskName)
+    val startpointManager = getStartpointManager()
     val systemAdmins = mock(classOf[SystemAdmins])
     when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
-    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, systemAdmins, Map(), new OffsetManagerMetrics)
+    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, getStartpointManager(), systemAdmins, Map(), new OffsetManagerMetrics)
     offsetManager.register(taskName, Set(systemStreamPartition))
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     offsetManager.start
     assertTrue(checkpointManager.isStarted)
     assertEquals(1, checkpointManager.registered.size)
@@ -83,8 +90,40 @@ class TestOffsetManager {
     // Should not update null offset
     offsetManager.update(taskName, systemStreamPartition, null)
     checkpoint(offsetManager, taskName)
+    assertNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should delete after checkpoint commit
     val expectedCheckpoint = new Checkpoint(Map(systemStreamPartition -> "47").asJava)
     assertEquals(expectedCheckpoint, checkpointManager.readLastCheckpoint(taskName))
+  }
+  @Test
+  def testGetAndSetStartpoint {
+    val taskName1 = new TaskName("c")
+    val taskName2 = new TaskName("d")
+    val systemStream = new SystemStream("test-system", "test-stream")
+    val partition = new Partition(0)
+    val systemStreamPartition = new SystemStreamPartition(systemStream, partition)
+    val testStreamMetadata = new SystemStreamMetadata(systemStream.getStream, Map(partition -> new SystemStreamPartitionMetadata("0", "1", "2")).asJava)
+    val systemStreamMetadata = Map(systemStream -> testStreamMetadata)
+    val config = new MapConfig
+    val checkpointManager = getCheckpointManager(systemStreamPartition, taskName1)
+    val startpointManager = getStartpointManager()
+    val systemAdmins = mock(classOf[SystemAdmins])
+    when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
+    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, getStartpointManager(), systemAdmins, Map(), new OffsetManagerMetrics)
+
+    offsetManager.register(taskName1, Set(systemStreamPartition))
+    val startpoint1 = new StartpointOldest
+    startpointManager.writeStartpoint(systemStreamPartition, taskName1, startpoint1)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName1))
+    offsetManager.start
+    val startpoint2 = new StartpointUpcoming
+    offsetManager.setStartpoint(taskName2, systemStreamPartition, startpoint2)
+
+    assertEquals(Option(startpoint1), offsetManager.getStartpoint(taskName1, systemStreamPartition))
+    assertEquals(Option(startpoint2), offsetManager.getStartpoint(taskName2, systemStreamPartition))
+
+    assertEquals(startpoint1, startpointManager.readStartpoint(systemStreamPartition, taskName1))
+    // Startpoint written to offset manager, but not directly to startpoint manager.
+    assertNull(startpointManager.readStartpoint(systemStreamPartition, taskName2))
   }
 
   @Test
@@ -97,20 +136,33 @@ class TestOffsetManager {
     val systemStreamMetadata = Map(systemStream -> testStreamMetadata)
     val config = new MapConfig
     val checkpointManager = getCheckpointManager(systemStreamPartition, taskName)
+    val startpointManager = getStartpointManager()
     val systemAdmins = mock(classOf[SystemAdmins])
     when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
-    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, systemAdmins, Map(), new OffsetManagerMetrics)
+    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, getStartpointManager(), systemAdmins, Map(), new OffsetManagerMetrics)
     offsetManager.register(taskName, Set(systemStreamPartition))
+
+    // Pre-populate startpoint
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
     offsetManager.start
     // Should get offset 45 back from the checkpoint manager, which is last processed, and system admin should return 46 as starting offset.
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     checkpoint(offsetManager, taskName)
+    assertNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should delete after checkpoint commit
     assertEquals("45", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
     offsetManager.update(taskName, systemStreamPartition, "46")
+
     offsetManager.update(taskName, systemStreamPartition, "47")
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     checkpoint(offsetManager, taskName)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should only be deleted at first checkpoint
     assertEquals("47", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
+
     offsetManager.update(taskName, systemStreamPartition, "48")
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     checkpoint(offsetManager, taskName)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should only be deleted at first checkpoint
     assertEquals("48", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
   }
 
@@ -154,18 +206,22 @@ class TestOffsetManager {
     val checkpoint = new Checkpoint(Map(systemStreamPartition1 -> "45").asJava)
     // Checkpoint manager only has partition 1.
     val checkpointManager = getCheckpointManager(systemStreamPartition1, taskName1)
+    val startpointManager = getStartpointManager()
     val config = new MapConfig
     val systemAdmins = mock(classOf[SystemAdmins])
     when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
-    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, systemAdmins)
+    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, getStartpointManager(), systemAdmins)
     // Register both partitions. Partition 2 shouldn't have a checkpoint.
     offsetManager.register(taskName1, Set(systemStreamPartition1))
     offsetManager.register(taskName2, Set(systemStreamPartition2))
+    startpointManager.writeStartpoint(systemStreamPartition1, taskName1, new StartpointOldest)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition1, taskName1))
     offsetManager.start
     assertTrue(checkpointManager.isStarted)
     assertEquals(2, checkpointManager.registered.size)
     assertEquals(checkpoint, checkpointManager.readLastCheckpoint(taskName1))
     assertNull(checkpointManager.readLastCheckpoint(taskName2))
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition1, taskName1)) // no checkpoint commit so this should still be there
   }
 
   @Test
@@ -257,6 +313,7 @@ class TestOffsetManager {
     val checkpointManager = getCheckpointManager1(systemStreamPartition,
                                                  new Checkpoint(Map(systemStreamPartition -> "45", systemStreamPartition2 -> "100").asJava),
                                                  taskName)
+    val startpointManager = getStartpointManager()
     val consumer = new SystemConsumerWithCheckpointCallback
     val systemAdmins = mock(classOf[SystemAdmins])
     when(systemAdmins.getSystemAdmin(systemName)).thenReturn(getSystemAdmin)
@@ -267,13 +324,16 @@ class TestOffsetManager {
     else
       Map()
 
-    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, systemAdmins,
+    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, getStartpointManager(), systemAdmins,
       checkpointListeners, new OffsetManagerMetrics)
     offsetManager.register(taskName, Set(systemStreamPartition, systemStreamPartition2))
 
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     offsetManager.start
     // Should get offset 45 back from the checkpoint manager, which is last processed, and system admin should return 46 as starting offset.
     checkpoint(offsetManager, taskName)
+    assertNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint be deleted at first checkpoint
     assertEquals("45", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
     assertEquals("100", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition2).getValue)
     assertEquals("45", consumer.recentCheckpoint.get(systemStreamPartition))
@@ -282,7 +342,10 @@ class TestOffsetManager {
 
     offsetManager.update(taskName, systemStreamPartition, "46")
     offsetManager.update(taskName, systemStreamPartition, "47")
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     checkpoint(offsetManager, taskName)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should only be deleted at first checkpoint
     assertEquals("47", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
     assertEquals("100", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition2).getValue)
     assertEquals("47", consumer.recentCheckpoint.get(systemStreamPartition))
@@ -290,7 +353,10 @@ class TestOffsetManager {
 
     offsetManager.update(taskName, systemStreamPartition, "48")
     offsetManager.update(taskName, systemStreamPartition2, "101")
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     checkpoint(offsetManager, taskName)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should only be deleted at first checkpoint
     assertEquals("48", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
     assertEquals("101", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition2).getValue)
     assertEquals("48", consumer.recentCheckpoint.get(systemStreamPartition))
@@ -313,27 +379,35 @@ class TestOffsetManager {
     val testStreamMetadata = new SystemStreamMetadata(systemStream.getStream, Map(partition -> new SystemStreamPartitionMetadata("0", "1", "2")).asJava)
     val systemStreamMetadata = Map(systemStream -> testStreamMetadata)
     val checkpointManager = getCheckpointManager(systemStreamPartition, taskName)
+    val startpointManager = getStartpointManager()
     val systemAdmins = mock(classOf[SystemAdmins])
     when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
-    val offsetManager = OffsetManager(systemStreamMetadata, new MapConfig, checkpointManager, systemAdmins, Map(), new OffsetManagerMetrics)
+    val offsetManager = OffsetManager(systemStreamMetadata, new MapConfig, checkpointManager, getStartpointManager(), systemAdmins, Map(), new OffsetManagerMetrics)
     offsetManager.register(taskName, Set(systemStreamPartition))
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
     offsetManager.start
 
     // Should get offset 45 back from the checkpoint manager, which is last processed, and system admin should return 46 as starting offset.
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName))
     checkpoint(offsetManager, taskName)
+    assertNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint be deleted at first checkpoint
     assertEquals("45", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
+
+    startpointManager.writeStartpoint(systemStreamPartition, taskName, new StartpointOldest)
 
     offsetManager.update(taskName, systemStreamPartition, "46")
     // Get checkpoint snapshot like we do at the beginning of TaskInstance.commit()
     val checkpoint46 = offsetManager.buildCheckpoint(taskName)
     offsetManager.update(taskName, systemStreamPartition, "47") // Offset updated before checkpoint
     offsetManager.writeCheckpoint(taskName, checkpoint46)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should only be deleted at first checkpoint
     assertEquals(Some("47"), offsetManager.getLastProcessedOffset(taskName, systemStreamPartition))
     assertEquals("46", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
 
     // Now write the checkpoint for the latest offset
     val checkpoint47 = offsetManager.buildCheckpoint(taskName)
     offsetManager.writeCheckpoint(taskName, checkpoint47)
+    assertNotNull(startpointManager.readStartpoint(systemStreamPartition, taskName)) // Startpoint should only be deleted at first checkpoint
     assertEquals(Some("47"), offsetManager.getLastProcessedOffset(taskName, systemStreamPartition))
     assertEquals("47", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
   }
@@ -396,7 +470,7 @@ class TestOffsetManager {
     val checkpointManager = getCheckpointManager(systemStreamPartition, taskName)
     val systemAdmins = mock(classOf[SystemAdmins])
     when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
-    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, systemAdmins, Map(), new OffsetManagerMetrics)
+    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, getStartpointManager(), systemAdmins, Map(), new OffsetManagerMetrics)
     offsetManager.register(taskName, Set(systemStreamPartition))
     offsetManager.start
 
@@ -456,7 +530,13 @@ class TestOffsetManager {
     assertEquals(safeOffsetsNoSafeCheckpoint(ssp3), "40") // no change
   }
 
-  private def getSystemAdmin = {
+  private def getStartpointManager() = {
+    val startpointManager = new StartpointManager(new InMemoryMetadataStoreFactory, new MapConfig, new NoOpMetricsRegistry)
+    startpointManager.start
+    startpointManager
+  }
+
+  private def getSystemAdmin: SystemAdmin = {
     new SystemAdmin {
       def getOffsetsAfter(offsets: java.util.Map[SystemStreamPartition, String]) =
         offsets.asScala.mapValues(offset => (offset.toLong + 1).toString).asJava
