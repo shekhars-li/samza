@@ -70,16 +70,4 @@
 
   <!-- don't require FQDNs to be used in descriptor javadocs -->
   <suppress files="samza-li-kafka/src/main/java/com/linkedin/samza/system/kafka/descriptors" id="preventJavadocUnusedImports" />
-
-  <!-- supressing some Linkedin modules for now just so that we can fix modules one-by-one -->
-  <suppress files="samza-li-config/src/main/java" checks=".*" />
-  <suppress files="samza-li-core-adapters/src/main/java" checks=".*" />
-  <suppress files="samza-li-databus/src/main/java" checks=".*" />
-  <suppress files="samza-li-factory/src/main/java" checks=".*" />
-  <suppress files="samza-li-job-client/src/main/java" checks=".*" />
-  <suppress files="samza-li-kafka/src/main/java" checks=".*" />
-  <suppress files="samza-li-metrics/src/main/java" checks=".*" />
-  <suppress files="samza-li-security/src/main/java" checks=".*" />
-  <suppress files="samza-li-standalone-checkpoint/src/main/java" checks=".*" />
 </suppressions>
-
