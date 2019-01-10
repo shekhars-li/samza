@@ -334,6 +334,8 @@ class OffsetManager(
   }
 
   /**
+   * Note: This is a Linkedin only function for Large message support, while merging oss to li if there is a merge conflict please do not remove this
+   *
    * see if the offset needs to be adjusted
    * @param taskName
    * @param partitionOffsets - offsets we are going to save as checkpoints
