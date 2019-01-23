@@ -268,23 +268,64 @@ class OffsetManager(
     if (checkpointManager != null || checkpointListeners.nonEmpty) {
       debug("Getting checkpoint offsets for taskName %s." format taskName)
 
-      val sspsForTaskName = systemStreamPartitions.getOrElse(taskName, throw new SamzaException("No SSPs registered for task: " + taskName)).toSet
-      val sspToOffsets = lastProcessedOffsets.get(taskName)
+      val taskStartingOffsets = startingOffsets.getOrElse(taskName,
+        throw new SamzaException("Couldn't find starting offsets for task: " + taskName))
 
-      val partitionOffsets = if (sspToOffsets != null) {
-        // Filter the offsets in case the task model changed since the last checkpoint was written.
-        sspToOffsets.asScala.filterKeys(sspsForTaskName.contains)
-      } else {
-        warn(taskName + " is not found... ")
-        Map[SystemStreamPartition, String]()
-      }
+      val taskSSPs = systemStreamPartitions.getOrElse(taskName,
+        throw new SamzaException("No SSPs registered for task: " + taskName))
 
-      val safePartitionOffsets = getSafeOffset(taskName, partitionOffsets)
-      new Checkpoint(new HashMap(safePartitionOffsets.asJava)) // Copy into new Map to prevent mutation
+      // filter the offsets in case the task model changed since the last checkpoint was written.
+      val taskLastProcessedOffsets =
+        lastProcessedOffsets.getOrDefault(taskName, new ConcurrentHashMap()).asScala
+          .filterKeys(taskSSPs.contains)
+
+      val modifiedTaskOffsets = getModifiedOffsets(taskStartingOffsets, taskLastProcessedOffsets)
+      new Checkpoint(new HashMap(modifiedTaskOffsets)) // Copy into new Map to prevent mutation
     } else {
       debug("Returning null checkpoint for taskName %s because no checkpoint manager/callback is defined." format taskName)
       null
     }
+  }
+
+  /**
+    * Call the beforeCheckpoint() method on [[CheckpointListener]] SystemConsumers to give them a chance to inspect and
+    * potentially modify the offsets about to be checkpointed.
+    */
+  def getModifiedOffsets(taskStartingOffsets: Map[SystemStreamPartition, String],
+      taskLastProcessedOffsets: Map[SystemStreamPartition, String]): HashMap[SystemStreamPartition, String] = {
+    val modifiedOffsets = new HashMap[SystemStreamPartition, String](taskLastProcessedOffsets.asJava)
+
+    taskLastProcessedOffsets
+      .groupBy { case (ssp, offset) => ssp.getSystem }  // Map(systemName -> Map(ssp -> offset))
+      .foreach { case (systemName, systemSSPLastProcessedOffsets) =>
+      if (checkpointListeners.contains(systemName)) {
+        val checkpointListener = checkpointListeners(systemName)
+
+        // if we haven't processed any messages from the system since we started, we don't need to call
+        // the checkpoint listener. also, in case of Kafka, getting the safe offset is only possible after
+        // first poll() is successful. check if we need to adjust the offset for any of the ssp in the system.
+        val needModifiedOffsets = systemSSPLastProcessedOffsets.exists { case (ssp, sspLastProcessedOffset) =>
+          // starting offsets are checkpointed offsets + 1 (see 'loadStartingOffsets'),
+          // while on container start last processed offsets are equal to checkpointed offsets.
+          // compare last processed offsets with starting offsets to see if we've processed anything.
+          // last processed offsets < starting offsets after container start but before we've processed anything.
+          taskStartingOffsets.get(ssp) match {
+            case Some(startingOffset) if startingOffset != null =>
+              val systemAdmin = systemAdmins.getSystemAdmin(systemName)
+              val comparisionResult = systemAdmin.offsetComparator(sspLastProcessedOffset, startingOffset)
+              if (comparisionResult != null) comparisionResult < 0 else false
+            case _ => false
+          }
+        }
+
+        if (needModifiedOffsets) {
+          val systemModifiedOffsets = checkpointListener.beforeCheckpoint(systemSSPLastProcessedOffsets.asJava)
+          modifiedOffsets.putAll(systemModifiedOffsets)
+        }
+      }
+    }
+
+    modifiedOffsets
   }
 
   /**
@@ -331,53 +372,6 @@ class OffsetManager(
         info("No more startpoints left to consume. Stopped the startpoint manager.")
       }
     }
-  }
-
-  /**
-   * Note: This is a Linkedin only function for Large message support, while merging oss to li if there is a merge conflict please do not remove this
-   *
-   * see if the offset needs to be adjusted
-   * @param taskName
-   * @param partitionOffsets - offsets we are going to save as checkpoints
-   * @return
-   */
-  def getSafeOffset(taskName: TaskName, partitionOffsets:  Map[SystemStreamPartition, String]): Map[SystemStreamPartition, String] = {
-    // Some systems (like kafka with large message support) provide a notion of a "SafeOffset",
-    // it is the offset the client is safe to seek to, so as the result the offset to be checkpointed may need to
-    // be adjusted to a "safe" one.
-
-    // see if the offset is different from the starting one.
-    val taskStartingOffsets = startingOffsets.getOrElse(taskName,
-                                                        throw new SamzaException("couldn't find starting offsets for task=" + taskName))
-
-    val safePartitionOffsets = partitionOffsets.map {
-          case (ssp, offset) => {
-            // grab the systemAdmin for the this system
-            val systemAdmin = systemAdmins.getSystemAdmin(ssp.getSystem)
-
-            // is the feature avaialable for this system
-            if (systemAdmin.isInstanceOf[CheckpointSafeOffset]) {
-             // grab the starting offset for this taskName/ssp.
-              val startingOffset = taskStartingOffsets.get(ssp) match {
-                case Some(null) => ""
-                case Some(off) => (off.toLong - 1).toString // a 'would be' value if we were to write it out as checkpoint
-                case None => ""
-              }
-
-              // if offset is the same as original read from checkpoint - then we don't need to adjust it.
-              // Also, in case of Kafka, getting the safeOffset is only possible after first poll() is successful.
-              if (!startingOffset.equals(offset)) {
-                ssp -> systemAdmin.asInstanceOf[CheckpointSafeOffset].checkpointSafeOffset(ssp, offset)
-              }
-              else {
-                ssp -> offset // no change
-              }
-            } else {
-              ssp -> offset  // no change
-            }
-          }
-    }
-    safePartitionOffsets
   }
 
   def stop {

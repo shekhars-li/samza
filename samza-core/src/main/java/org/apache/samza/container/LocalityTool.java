@@ -10,6 +10,7 @@ import org.apache.samza.config.ConfigRewriter;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.container.grouper.task.TaskAssignmentManager;
 import org.apache.samza.coordinator.stream.messages.SetContainerHostMapping;
+import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.util.CommandLine;
 import org.apache.samza.util.NoOpMetricsRegistry;
@@ -174,7 +175,7 @@ public class LocalityTool extends CommandLine {
     if (DELETE_VALUE.equalsIgnoreCase(containerId)) {
       taskAssignmentManager.deleteTaskContainerMappings(ImmutableList.of(taskName));
     } else {
-      taskAssignmentManager.writeTaskContainerMapping(taskName, containerId);
+      taskAssignmentManager.writeTaskContainerMapping(taskName, containerId, TaskMode.Active);
     }
     LOG.info("Task locality written successfully.");
   }

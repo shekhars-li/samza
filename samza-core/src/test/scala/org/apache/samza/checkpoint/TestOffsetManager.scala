@@ -20,8 +20,10 @@
 package org.apache.samza.checkpoint
 
 import java.util
+import java.util.function.BiConsumer
 
-import org.apache.samza.Partition
+import org.apache.samza.{Partition, SamzaException}
+import org.apache.samza.config.MapConfig
 import org.apache.samza.container.TaskName
 import org.apache.samza.metadatastore.InMemoryMetadataStoreFactory
 import org.apache.samza.startpoint.{StartpointManager, StartpointOldest, StartpointUpcoming}
@@ -30,10 +32,11 @@ import org.apache.samza.system._
 import org.apache.samza.util.NoOpMetricsRegistry
 import org.junit.Assert._
 import org.junit.Test
-import org.apache.samza.SamzaException
-import org.apache.samza.config.MapConfig
-import org.mockito.Matchers.any
-import org.mockito.Mockito.{mock, when, spy, verify, times}
+import org.mockito.Matchers
+import org.mockito.Matchers.anyString
+import org.mockito.Mockito.{mock, when}
+import org.mockito.invocation.InvocationOnMock
+import org.mockito.stubbing.Answer
 import org.scalatest.Assertions.intercept
 
 import scala.collection.JavaConverters._
@@ -412,6 +415,73 @@ class TestOffsetManager {
     assertEquals("47", offsetManager.offsetManagerMetrics.checkpointedOffsets.get(systemStreamPartition).getValue)
   }
 
+  @Test
+  def testGetModifiedOffsets: Unit = {
+    val system1 = "system1"
+    val system2 = "system2"
+    val ssp1 = new SystemStreamPartition(system1, "stream", new Partition(1))
+    val ssp2 = new SystemStreamPartition(system1, "stream1", new Partition(1))
+    val ssp3 = new SystemStreamPartition(system1, "stream1", new Partition(2))
+    val ssp4 = new SystemStreamPartition(system1, "stream1", new Partition(3))
+    val ssp5 = new SystemStreamPartition(system2, "stream", new Partition(1))
+    val ssp6 = new SystemStreamPartition(system2, "stream1", new Partition(1))
+
+    val lastProcessedOffsets = Map(ssp1 -> "10", ssp2 -> "20", ssp3 -> "30", ssp4 -> "40", ssp5 -> "50", ssp6 -> "60")
+    // starting offsets are (lastProcessedOffset + 1) (i.e. checkpointed offset + 1) on startup
+    val taskStartingOffsets = Map(ssp1 -> "11", ssp2 -> "19", ssp3 -> null, ssp5 -> "51", ssp6 -> "59")
+
+    // test behavior without any checkpoint listeners
+    val offsetManager = new OffsetManager()
+    val regularOffsets = offsetManager.getModifiedOffsets(taskStartingOffsets, lastProcessedOffsets)
+    // since there are no checkpoint listeners, there should be no change in offsets.
+    assertEquals("10", regularOffsets.get(ssp1))
+    assertEquals("20", regularOffsets.get(ssp2))
+    assertEquals("30", regularOffsets.get(ssp3))
+    assertEquals("40", regularOffsets.get(ssp4))
+    assertEquals("50", regularOffsets.get(ssp5))
+    assertEquals("60", regularOffsets.get(ssp6))
+
+    // test behavior with a checkpoint listener for "system1" that increments all provided offsets by 5
+    val checkpointListener: CheckpointListener = new CheckpointListener {
+      override def beforeCheckpoint(offsets: util.Map[SystemStreamPartition, String]) = {
+        val results = new util.HashMap[SystemStreamPartition, String]()
+        offsets.forEach(new BiConsumer[SystemStreamPartition, String] {
+          override def accept(ssp: SystemStreamPartition, offset: String): Unit = {
+            results.put(ssp, (offset.toLong + 5).toString)
+          }
+        })
+        results
+      }
+    }
+    val checkpointListeners = Map(system1 -> checkpointListener)
+
+    val system1Admin = mock(classOf[SystemAdmin])
+    when(system1Admin.offsetComparator(anyString(), anyString()))
+      .thenAnswer(new Answer[Integer] {
+          override def answer(invocation: InvocationOnMock): Integer = {
+            val offset1 = invocation.getArguments.apply(0).asInstanceOf[String]
+            val offset2 = invocation.getArguments.apply(1).asInstanceOf[String]
+            offset1.toLong.compareTo(offset2.toLong)
+          }
+        })
+
+    val systemAdmins = mock(classOf[SystemAdmins])
+    when(systemAdmins.getSystemAdmin(Matchers.eq("system1"))).thenReturn(system1Admin)
+
+    val offsetManagerWithCheckpointListener =
+      new OffsetManager(checkpointListeners = checkpointListeners, systemAdmins = systemAdmins)
+    val modifiedOffsets = offsetManagerWithCheckpointListener.getModifiedOffsets(taskStartingOffsets, lastProcessedOffsets)
+    // since there is at least one ssp on system1 that has processed messages (ssp2),
+    // all ssps on system1 should get modified offsets (ssp1 to ssp4)
+    assertEquals("15", modifiedOffsets.get(ssp1))
+    assertEquals("25", modifiedOffsets.get(ssp2))
+    assertEquals("35", modifiedOffsets.get(ssp3))
+    assertEquals("45", modifiedOffsets.get(ssp4))
+    // no change for ssps on system2
+    assertEquals("50", modifiedOffsets.get(ssp5))
+    assertEquals("60", modifiedOffsets.get(ssp6))
+  }
+
   // Utility method to create and write checkpoint in one statement
   def checkpoint(offsetManager: OffsetManager, taskName: TaskName): Unit = {
     offsetManager.writeCheckpoint(taskName, offsetManager.buildCheckpoint(taskName))
@@ -453,81 +523,6 @@ class TestOffsetManager {
       // Only for testing purposes - not present in actual checkpoint manager
       def getOffets = Map(taskName -> checkpoint.getOffsets.asScala.toMap)
     }
-  }
-
-  /**
-    * Verify that OffsetManager uses the concept of Kafka "safe offsets" for checkpoints while writing them. This is needed for large message support with Kafka.
-    */
-  @Test
-  def testGetSafeOffsetUsage: Unit = {
-    val taskName = new TaskName("c")
-    val systemStream = new SystemStream("test-system", "test-stream")
-    val partition = new Partition(0)
-    val systemStreamPartition = new SystemStreamPartition(systemStream, partition)
-    val testStreamMetadata = new SystemStreamMetadata(systemStream.getStream, Map(partition -> new SystemStreamPartitionMetadata("0", "1", "2")).asJava)
-    val systemStreamMetadata = Map(systemStream -> testStreamMetadata)
-    val config = new MapConfig
-    val checkpointManager = getCheckpointManager(systemStreamPartition, taskName)
-    val systemAdmins = mock(classOf[SystemAdmins])
-    when(systemAdmins.getSystemAdmin("test-system")).thenReturn(getSystemAdmin)
-    val offsetManager = OffsetManager(systemStreamMetadata, config, checkpointManager, getStartpointManager(), systemAdmins, Map(), new OffsetManagerMetrics)
-    offsetManager.register(taskName, Set(systemStreamPartition))
-    offsetManager.start
-
-    val spyOffsetManager = spy(offsetManager)
-    spyOffsetManager.buildCheckpoint(taskName)
-    verify(spyOffsetManager, times(1)).getSafeOffset(any(), any())
-  }
-
-  // mock OffsetManager class
-  class SafeOffsetOffsetManager(
-      startingOffsets1: Map[TaskName, Map[SystemStreamPartition, String]],
-      override val systemAdmins: SystemAdmins
-    ) extends OffsetManager {
-
-    startingOffsets = startingOffsets1
-  }
-
-  @Test
-  // some systems may provide notion of safeOffset (for checkpointing).
-  // this is to test getSafeOffset
-  def testGetSafeOffset() = {
-    val taskName = new TaskName("task")
-    val systemName = "system"
-    val ssp = new SystemStreamPartition(systemName, "stream", new Partition(1))
-    val ssp1 = new SystemStreamPartition(systemName, "stream1", new Partition(1))
-    val ssp2 = new SystemStreamPartition(systemName, "stream1", new Partition(2))
-    val ssp3 = new SystemStreamPartition(systemName, "stream1", new Partition(3))
-
-    // this system/systemAdmin supports SafeOffset, it makes the offset "safe" by adding 5.
-    val systemAdminsWithSafeCheckpoint = mock(classOf[SystemAdmins])
-    when(systemAdminsWithSafeCheckpoint.getSystemAdmin(systemName)).thenReturn(getSystemAdminWithSafeOffset)
-
-    val systemAdminsNoSafeCheckpoint = mock(classOf[SystemAdmins])
-    when(systemAdminsNoSafeCheckpoint.getSystemAdmin(systemName)).thenReturn(getSystemAdmin)
-
-    // starting offsets are (checkpointed_offset + 1)
-    val startingOffsets  = Map(taskName -> Map(ssp -> "11", ssp1 -> "19", ssp2 -> null))  // 11 actually means 10 was read from checkpoint
-
-    // "mock" class for OffsetManager; doesn't implement full functionality, only the part that is needed by getSafeOffset
-    val offsetManagerWithSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsWithSafeCheckpoint)
-
-    val offsetsToCheckpoint = Map(ssp->"10", ssp1->"20", ssp2->"30", ssp3->"40")
-    val safeOffsetsWithSafeCheckpoint = offsetManagerWithSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
-    assertEquals(safeOffsetsWithSafeCheckpoint(ssp), "10")  // since it matches the starting offset it shouldn't be changed
-    assertEquals(safeOffsetsWithSafeCheckpoint(ssp1), "25") // for test purposes safe offset - is given offset + 5
-    assertEquals(safeOffsetsWithSafeCheckpoint(ssp2), "35") // starting offset is invalid - should just get safe offset
-    assertEquals(safeOffsetsWithSafeCheckpoint(ssp3), "45") // there is no valid starting offset - should just get safe offset
-
-    // now same tests with a system that doesn't support safeCheckpoint
-    val offsetManagerNoSafeCheckpoint = new SafeOffsetOffsetManager(startingOffsets, systemAdminsNoSafeCheckpoint)
-    val safeOffsetsNoSafeCheckpoint = offsetManagerNoSafeCheckpoint.getSafeOffset(taskName, offsetsToCheckpoint)
-
-    // since safeCheckpoint is not enabled - there should be no change
-    assertEquals(safeOffsetsNoSafeCheckpoint(ssp), "10")  // no change
-    assertEquals(safeOffsetsNoSafeCheckpoint(ssp1), "20") // no change
-    assertEquals(safeOffsetsNoSafeCheckpoint(ssp2), "30") // no change
-    assertEquals(safeOffsetsNoSafeCheckpoint(ssp3), "40") // no change
   }
 
   private def getStartpointManager() = {
