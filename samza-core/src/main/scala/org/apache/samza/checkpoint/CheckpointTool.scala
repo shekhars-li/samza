@@ -22,6 +22,7 @@ package org.apache.samza.checkpoint
 import java.net.URI
 import java.util.regex.Pattern
 
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder
 import joptsimple.ArgumentAcceptingOptionSpec
 import joptsimple.OptionSet
 import org.apache.samza.checkpoint.CheckpointTool.TaskNameToCheckpointMap
@@ -169,6 +170,10 @@ class CheckpointTool(newOffsets: TaskNameToCheckpointMap, coordinatorStreamManag
     coordinatorStreamManager.bootstrap()
     val configFromCoordinatorStream: Config = coordinatorStreamManager.getConfig
 
+    // Linkedin-only Offspring setup
+    ProcessGeneratorHolder.getInstance.createGenerator(configFromCoordinatorStream)
+    ProcessGeneratorHolder.getInstance.start()
+
     // Instantiate the checkpoint manager with coordinator stream configuration.
     val checkpointManager: CheckpointManager = configFromCoordinatorStream.getCheckpointManagerFactory() match {
       case Some(className) =>
@@ -214,6 +219,8 @@ class CheckpointTool(newOffsets: TaskNameToCheckpointMap, coordinatorStreamManag
     }
 
     checkpointManager.stop()
+    // Linkedin-only Offspring shutdown
+    ProcessGeneratorHolder.getInstance().stop()
     coordinatorStreamManager.stop()
   }
 
