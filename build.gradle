@@ -727,6 +727,7 @@ project(":samza-hdfs_$scalaSuffix") {
     testCompile "junit:junit:$junitVersion"
     testCompile "org.scalatest:scalatest_$scalaSuffix:$scalaTestVersion"
     testCompile "org.apache.hadoop:hadoop-minicluster:$yarnVersion"
+    testCompile "org.apache.hadoop:hadoop-hdfs:$yarnVersion:tests"
   }
 }
 
