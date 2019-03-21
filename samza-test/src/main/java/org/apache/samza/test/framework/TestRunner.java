@@ -99,6 +99,7 @@ public class TestRunner {
 
   private Map<String, String> configs;
   private SamzaApplication app;
+  private ExternalContext externalContext;
   /*
    * inMemoryScope is a unique global key per TestRunner, this key when configured with {@link InMemorySystemDescriptor}
    * provides an isolated state to run with in memory system
@@ -186,13 +187,25 @@ public class TestRunner {
   }
 
   /**
-   * Only adds a config from {@code config} to samza job {@code configs} if they dont exist in it.
+   * Adds a config to Samza application. This config takes precedence over default configs and descriptor generated configs
    * @param config configs for the application
    * @return this {@link TestRunner}
    */
   public TestRunner addConfig(Map<String, String> config) {
     Preconditions.checkNotNull(config);
     configs.putAll(config);
+    return this;
+  }
+
+  /**
+   * Passes the user provided external context to {@link LocalApplicationRunner}
+   *
+   * @param externalContext external context provided by user
+   * @return this {@link TestRunner}
+   */
+  public TestRunner addExternalContext(ExternalContext externalContext) {
+    Preconditions.checkNotNull(externalContext);
+    this.externalContext = externalContext;
     return this;
   }
 
@@ -275,7 +288,6 @@ public class TestRunner {
     // Cleaning store directories to ensure current run does not pick up state from previous run
     deleteStoreDirectories();
     Config config = new MapConfig(JobPlanner.generateSingleJobConfig(configs));
-
     // Linkedin-specific initialization for Offspring usage
     ProcessGeneratorHolder.getInstance().createGenerator(config);
     ProcessGeneratorHolder.getInstance().start();
@@ -286,7 +298,7 @@ public class TestRunner {
      */
     try {
       final LocalApplicationRunner runner = new LocalApplicationRunner(app, config);
-      runner.run(buildExternalContext(config).orElse(null));
+      runner.run(externalContext != null ? externalContext : buildDefaultExternalContext());
       if (!runner.waitForFinish(timeout)) {
         throw new SamzaException("Timed out waiting for application to finish");
       }
@@ -435,9 +447,8 @@ public class TestRunner {
     this.configs.put(msgSerdeConfigKey, null);
   }
 
-  private static Optional<ExternalContext> buildExternalContext(Config config) {
+  private static ExternalContext buildDefaultExternalContext() {
     // Linkedin-specific injection of external context
-    return Optional.of(
-        ProcessGeneratorHolder.getInstance().getGenerator().getBean(DefaultLiExternalContextFactory.class));
+    return ProcessGeneratorHolder.getInstance().getGenerator().getBean(DefaultLiExternalContextFactory.class);
   }
 }
