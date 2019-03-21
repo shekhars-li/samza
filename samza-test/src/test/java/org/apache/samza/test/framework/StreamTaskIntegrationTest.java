@@ -108,6 +108,7 @@ public class StreamTaskIntegrationTest {
         .addInputStream(imid, inputList)
         .addOutputStream(imod, 1)
         .addExternalContext(new TestContext(10))
+        .addConfig("samza.li.task.wrapper.enabled", "false") // li only change: to disable linkedin offspring wrapper external context verification
         .run(Duration.ofSeconds(1));
 
     Assert.assertThat(TestRunner.consumeStream(imod, Duration.ofMillis(1000)).get(0),
@@ -135,6 +136,7 @@ public class StreamTaskIntegrationTest {
         .addInputStream(imid, inputList)
         .addOutputStream(imod, 1)
         .addExternalContext(new TestContext(10))
+        .addConfig("samza.li.task.wrapper.enabled", "false")  // li only change: to disable linkedin offspring wrapper external context verification
         .run(Duration.ofSeconds(1));
   }
 
@@ -157,6 +159,7 @@ public class StreamTaskIntegrationTest {
         .addOutputStream(imod, 1)
         .addConfig("job.container.thread.pool.size", "4")
         .addExternalContext(new TestContext(10))
+        .addConfig("samza.li.task.wrapper.enabled", "false")  // li only change: to disable linkedin offspring wrapper external context verification
         .run(Duration.ofSeconds(1));
 
     StreamAssert.containsInOrder(outputList, imod, Duration.ofMillis(1000));
@@ -181,6 +184,7 @@ public class StreamTaskIntegrationTest {
         .addInputStream(imid, inputPartitionData)
         .addOutputStream(imod, 5)
         .addExternalContext(new TestContext(10))
+        .addConfig("samza.li.task.wrapper.enabled", "false")  // li only change: to disable linkedin offspring wrapper external context verification
         .run(Duration.ofSeconds(2));
 
     StreamAssert.containsInOrder(expectedOutputPartitionData, imod, Duration.ofMillis(1000));
@@ -206,6 +210,7 @@ public class StreamTaskIntegrationTest {
         .addOutputStream(imod, 5)
         .addConfig("job.container.thread.pool.size", "4")
         .addExternalContext(new TestContext(10))
+        .addConfig("samza.li.task.wrapper.enabled", "false")  // li only change: to disable linkedin offspring wrapper external context verification
         .run(Duration.ofSeconds(2));
 
     StreamAssert.containsInOrder(expectedOutputPartitionData, imod, Duration.ofMillis(1000));
