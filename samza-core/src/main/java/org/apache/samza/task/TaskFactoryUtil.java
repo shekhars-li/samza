@@ -151,7 +151,7 @@ public class TaskFactoryUtil {
    */
   private static TaskFactory getLiTaskFactory(StreamApplicationDescriptorImpl applicationDescriptor) {
     TaskFactory baseFactory =
-        (StreamTaskFactory) () -> new StreamOperatorTask(applicationDescriptor.getOperatorSpecGraph());
+        (AsyncStreamTaskFactory) () -> new StreamOperatorTask(applicationDescriptor.getOperatorSpecGraph());
     return TaskWrapperUtil.wrapTaskFactory(baseFactory, applicationDescriptor.getConfig());
   }
 }

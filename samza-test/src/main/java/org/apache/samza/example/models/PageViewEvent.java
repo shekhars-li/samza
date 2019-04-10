@@ -16,20 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.samza.example.models;
 
-package org.apache.samza.system.kafka_deprecated
+public class PageViewEvent {
+  private String pageId;
+  private String memberId;
+  private long timestamp;
 
-import kafka.common.TopicAndPartition
-import kafka.message.MessageAndOffset
+  public PageViewEvent(String pageId, String memberId, long timestamp) {
+    this.pageId = pageId;
+    this.memberId = memberId;
+    this.timestamp = timestamp;
+  }
 
-private[kafka_deprecated] trait MessageSink {
-  def setIsAtHighWatermark(tp: TopicAndPartition, isAtHighWatermark: Boolean): Unit
+  public String getPageId() {
+    return pageId;
+  }
 
-  def addMessage(tp: TopicAndPartition, msg: MessageAndOffset, highWatermark: Long): Unit
+  public String getMemberId() {
+    return memberId;
+  }
 
-  def abdicate(tp: TopicAndPartition, nextOffset: Long): Unit
-
-  def refreshDropped(): Unit
-
-  def needsMoreMessages(tp: TopicAndPartition): Boolean
+  public long getTimestamp() {
+    return timestamp;
+  }
 }

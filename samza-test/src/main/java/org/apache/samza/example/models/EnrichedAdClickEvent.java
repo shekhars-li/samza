@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,13 +15,29 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
+package org.apache.samza.example.models;
 
-package org.apache.samza.system.kafka_deprecated
+public class EnrichedAdClickEvent {
+  private int id;
+  private String gender;
+  private String country;
 
-import org.apache.samza.SamzaException
+  public EnrichedAdClickEvent(int id, String gender, String country) {
+    this.id = id;
+    this.gender = gender;
+    this.country = country;
+  }
 
-private[kafka_deprecated] trait Toss {
-  def toss(s:String) = throw new SamzaException(s)
+  public int getId() {
+    return id;
+  }
+
+  public String getGender() {
+    return gender;
+  }
+
+  public String getCountry() {
+    return country;
+  }
 }

@@ -16,20 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.samza.example.models;
 
-package org.apache.samza.system.kafka
 
-import kafka.common.TopicAndPartition
-import kafka.message.MessageAndOffset
+public class PageViewCount {
+  private String memberId;
+  private long timestamp;
+  private int count;
 
-private[kafka] trait MessageSink {
-  def setIsAtHighWatermark(tp: TopicAndPartition, isAtHighWatermark: Boolean): Unit
+  public PageViewCount(String memberId, long timestamp, int count) {
+    this.memberId = memberId;
+    this.timestamp = timestamp;
+    this.count = count;
+  }
 
-  def addMessage(tp: TopicAndPartition, msg: MessageAndOffset, highWatermark: Long): Unit
+  public String getMemberId() {
+    return memberId;
+  }
 
-  def abdicate(tp: TopicAndPartition, nextOffset: Long): Unit
+  public long getTimestamp() {
+    return timestamp;
+  }
 
-  def refreshDropped(): Unit
-
-  def needsMoreMessages(tp: TopicAndPartition): Boolean
+  public int getCount() {
+    return count;
+  }
 }

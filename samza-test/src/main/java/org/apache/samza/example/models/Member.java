@@ -16,30 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.job.yarn;
+package org.apache.samza.example.models;
 
-/**
- * {@code SamzaContainerLaunchException} indicates an {@link Exception} during container launch.
- * It can wrap another type of {@link Throwable} or {@link Exception}. Ultimately, any exception thrown
- * during container launch should be of this type so it can be handled explicitly.
- */
-public class SamzaContainerLaunchException extends Exception {
+public class Member {
+  private int memberId;
+  private String gender;
+  private String country;
 
-  private static final long serialVersionUID = -3957939806997013992L;
-
-  public SamzaContainerLaunchException() {
-    super();
+  public Member(int memberId, String gender, String country) {
+    this.memberId = memberId;
+    this.gender = gender;
+    this.country = country;
   }
 
-  public SamzaContainerLaunchException(String s, Throwable t) {
-    super(s, t);
+  public int getMemberId() {
+    return memberId;
   }
 
-  public SamzaContainerLaunchException(String s) {
-    super(s);
+  public String getGender() {
+    return gender;
   }
 
-  public SamzaContainerLaunchException(Throwable t) {
-    super(t);
+  public String getCountry() {
+    return country;
   }
 }

@@ -16,19 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.samza.clustermanager;
 
-package org.apache.samza.serializers
+/**
+ * {@code ProcessorLaunchException} indicates an {@link Exception} during processor launch.
+ * It can wrap another type of {@link Throwable} or {@link Exception}. Ultimately, any exception thrown
+ * during processor launch should be of this type so it can be handled explicitly.
+ */
+public class ProcessorLaunchException extends Exception {
+  private static final long serialVersionUID = -3957939806997013992L;
 
-import kafka.serializer.StringEncoder
-import kafka.serializer.StringDecoder
+  public ProcessorLaunchException() {
+    super();
+  }
 
-import org.junit.Assert._
-import org.junit.Test
+  public ProcessorLaunchException(String s, Throwable t) {
+    super(s, t);
+  }
 
-class TestKafkaSerde {
-  @Test
-  def testKafkaSerdeShouldWrapEncoderAndDecoders {
-    val serde = new KafkaSerde(new StringEncoder, new StringDecoder)
-    assertEquals("test", serde.fromBytes(serde.toBytes("test")))
+  public ProcessorLaunchException(String s) {
+    super(s);
+  }
+
+  public ProcessorLaunchException(Throwable t) {
+    super(t);
   }
 }
