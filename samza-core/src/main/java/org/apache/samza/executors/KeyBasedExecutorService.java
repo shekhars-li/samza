@@ -59,7 +59,8 @@ public class KeyBasedExecutorService extends AbstractExecutorService {
    *                   number of threads = key set size.
    * @throws IllegalArgumentException if numThreads {@literal <}= 0
    */
-  public KeyBasedExecutorService(String threadPoolNamePrefix, int numThreads) {
+  public KeyBasedExecutorService(String threadPoolNamePrefix,
+      int numThreads) {
     if (numThreads <= 0) {
       throw new IllegalArgumentException("numThreads has to be greater than 0 in KeyBasedExecutor!");
     }

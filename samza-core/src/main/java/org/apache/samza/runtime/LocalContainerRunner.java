@@ -59,7 +59,6 @@ public class LocalContainerRunner {
     int delay = new Random().nextInt(SamzaContainer.DEFAULT_READ_JOBMODEL_DELAY_MS()) + 1;
     JobModel jobModel = SamzaContainer.readJobModel(coordinatorUrl, delay);
     Config config = jobModel.getConfig();
-
     JobConfig jobConfig = new JobConfig(config);
     if (jobConfig.getName().isEmpty()) {
       throw new SamzaException("can not find the job name");

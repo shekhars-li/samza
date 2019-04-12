@@ -36,8 +36,6 @@ import org.slf4j.LoggerFactory;
 import scala.Option;
 
 
-
-
 /**
  * The configuration class for KafkaConsumer
  */

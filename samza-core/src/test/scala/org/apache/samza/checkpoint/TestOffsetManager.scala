@@ -30,11 +30,11 @@ import org.apache.samza.system.SystemStreamMetadata.{OffsetType, SystemStreamPar
 import org.apache.samza.system._
 import org.junit.Assert._
 import org.junit.Test
-import org.mockito.Matchers
-import org.mockito.Matchers.anyString
+import org.mockito.Matchers._
 import org.mockito.Mockito.{mock, when}
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
+import org.mockito.{Matchers, Mockito}
 import org.scalatest.Assertions.intercept
 
 import scala.collection.JavaConverters._
@@ -454,7 +454,7 @@ class TestOffsetManager {
     val checkpointListeners = Map(system1 -> checkpointListener)
 
     val system1Admin = mock(classOf[SystemAdmin])
-    when(system1Admin.offsetComparator(anyString(), anyString()))
+    Mockito.when(system1Admin.offsetComparator(anyString(), anyString()))
       .thenAnswer(new Answer[Integer] {
           override def answer(invocation: InvocationOnMock): Integer = {
             val offset1 = invocation.getArguments.apply(0).asInstanceOf[String]
@@ -531,21 +531,6 @@ class TestOffsetManager {
 
   private def getSystemAdmin: SystemAdmin = {
     new SystemAdmin {
-      def getOffsetsAfter(offsets: java.util.Map[SystemStreamPartition, String]) =
-        offsets.asScala.mapValues(offset => (offset.toLong + 1).toString).asJava
-
-      def getSystemStreamMetadata(streamNames: java.util.Set[String]) =
-        Map[String, SystemStreamMetadata]().asJava
-
-      override def offsetComparator(offset1: String, offset2: String) = null
-    }
-  }
-
-  private def getSystemAdminWithSafeOffset = {
-    new SystemAdmin with CheckpointSafeOffset {
-      override def checkpointSafeOffset(ssp: SystemStreamPartition, offset: String): String = {
-        (offset.toLong + 5).toString
-      }
       def getOffsetsAfter(offsets: java.util.Map[SystemStreamPartition, String]) =
         offsets.asScala.mapValues(offset => (offset.toLong + 1).toString).asJava
 

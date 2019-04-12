@@ -129,13 +129,6 @@ class TaskConfig(config: Config) extends ScalaMapConfig(config) with Logging {
 
   def getIgnoredExceptions = getOption(TaskConfig.IGNORED_EXCEPTIONS)
 
-  def getServiceCallWrapperTaskClass = {
-    getOption(TaskConfig.SERVICECALL_WRAPPER_TASK_CLASS) match {
-      case Some(className) => className
-      case None => ""
-    }
-  }
-
   def getTaskNameGrouperFactory = {
     getOption(TaskConfig.GROUPER_FACTORY) match {
       case Some(grouperFactory) => grouperFactory

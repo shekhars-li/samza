@@ -47,6 +47,7 @@ object KafkaSystemFactory extends Logging {
 }
 
 class KafkaSystemFactory extends SystemFactory with Logging {
+
   def getConsumer(systemName: String, config: Config, registry: MetricsRegistry): SystemConsumer = {
     val metrics = new KafkaSystemConsumerMetrics(systemName, registry)
 
