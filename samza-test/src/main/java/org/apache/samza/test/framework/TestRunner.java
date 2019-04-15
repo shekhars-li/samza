@@ -125,8 +125,8 @@ public class TestRunner {
     addConfig(ClusterManagerConfig.JOB_HOST_AFFINITY_ENABLED, Boolean.FALSE.toString());
     addConfig(InMemorySystemConfig.INMEMORY_SCOPE, inMemoryScope);
     addConfig(new InMemorySystemDescriptor(JOB_DEFAULT_SYSTEM).withInMemoryScope(inMemoryScope).toConfig());
-    // Linkedin-specific Offspring configs
-    addConfig(LiConfigUtil.buildRequiredOffspringConfigs(APP_NAME));
+    // Linkedin-specific Offspring, SchemaRegistry and JMX configs
+    addConfig(LiConfigUtil.buildRequiredTestConfigs(APP_NAME));
   }
 
   /**
