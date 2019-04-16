@@ -22,6 +22,7 @@ import java.lang.reflect.Field;
 import java.util.concurrent.ExecutorService;
 
 import com.google.common.collect.ImmutableMap;
+import com.linkedin.samza.task.wrapper.LiAsyncStreamTask;
 import com.linkedin.samza.task.wrapper.LiStreamTask;
 import org.apache.samza.SamzaException;
 import org.apache.samza.application.descriptors.ApplicationDescriptorImpl;
@@ -118,9 +119,9 @@ public class TestTaskFactoryUtil {
     OperatorSpecGraph mockSpecGraph = mock(OperatorSpecGraph.class);
     when(mockStreamApp.getOperatorSpecGraph()).thenReturn(mockSpecGraph);
     TaskFactory streamTaskFactory = TaskFactoryUtil.getTaskFactory(mockStreamApp);
-    assertTrue(streamTaskFactory instanceof StreamTaskFactory);
-    StreamTask streamTask = ((StreamTaskFactory) streamTaskFactory).createInstance();
-    assertTrue(streamTask instanceof LiStreamTask);
+    assertTrue(streamTaskFactory instanceof AsyncStreamTaskFactory);
+    AsyncStreamTask streamTask = ((AsyncStreamTaskFactory) streamTaskFactory).createInstance();
+    assertTrue(streamTask instanceof LiAsyncStreamTask);
     verify(mockSpecGraph).clone();
   }
 
