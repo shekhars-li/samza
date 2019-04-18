@@ -20,6 +20,8 @@
 package org.apache.samza.test.harness;
 
 import com.google.common.collect.ImmutableMap;
+import com.linkedin.samza.context.DefaultLiExternalContextFactory;
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,6 +50,9 @@ import org.apache.samza.context.ExternalContext;
 import org.apache.samza.runtime.ApplicationRunner;
 import org.apache.samza.system.kafka.KafkaSystemAdmin;
 import org.apache.samza.system.kafka.KafkaSystemConsumer;
+import org.apache.samza.test.framework.LiConfigUtil;
+import org.junit.After;
+import org.junit.Before;
 
 import static org.apache.kafka.clients.consumer.ConsumerConfig.*;
 import static org.apache.kafka.clients.producer.ProducerConfig.*;
@@ -78,6 +83,9 @@ public class IntegrationTestHarness extends AbstractKafkaServerTestHarness {
   @Override
   public void setUp() {
     super.setUp();
+    ProcessGeneratorHolder.getInstance().
+        createGenerator(new MapConfig(LiConfigUtil.buildRequiredOffspringConfigs(getClass().getSimpleName())));
+    ProcessGeneratorHolder.getInstance().start();
     producer = new KafkaProducer<>(createProducerConfigs());
     consumer = new KafkaConsumer<>(createConsumerConfigs());
 
@@ -95,6 +103,7 @@ public class IntegrationTestHarness extends AbstractKafkaServerTestHarness {
   @Override
   public void tearDown() {
     systemAdmin.stop();
+    super.tearDown();
 
    /*
     * Close joins on AdminClientRunnable thread and at times, it takes longer than the test timeouts, resulting
@@ -105,6 +114,7 @@ public class IntegrationTestHarness extends AbstractKafkaServerTestHarness {
     adminClient.close(ADMIN_OPERATION_WAIT_DURATION_MS, TimeUnit.MILLISECONDS);
     consumer.close();
     producer.close();
+    ProcessGeneratorHolder.getInstance().stop();
     super.tearDown();
   }
 
@@ -198,7 +208,8 @@ public class IntegrationTestHarness extends AbstractKafkaServerTestHarness {
      * a non-empty ExternalContext. Only config should be used to build the external context. In the future, components
      * like the application descriptor may not be available.
      */
-    return Optional.empty();
+    return Optional.of(ProcessGeneratorHolder.getInstance().getGenerator().getBean(
+        DefaultLiExternalContextFactory.class));
   }
 
   private KafkaSystemAdmin createSystemAdmin(String system) {

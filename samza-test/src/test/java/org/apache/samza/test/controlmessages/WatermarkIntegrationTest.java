@@ -20,6 +20,7 @@
 package org.apache.samza.test.controlmessages;
 
 import com.linkedin.samza.task.wrapper.BaseLiTask;
+import java.lang.reflect.Field;
 import scala.collection.JavaConverters;
 
 import java.util.ArrayList;
@@ -197,7 +198,13 @@ public class WatermarkIntegrationTest extends IntegrationTestHarness {
     Map<TaskName, TaskInstance> taskInstances = JavaConverters.mapAsJavaMapConverter(container.getTaskInstances()).asJava();
     Map<String, StreamOperatorTask> tasks = new HashMap<>();
     for (Map.Entry<TaskName, TaskInstance> entry : taskInstances.entrySet()) {
-      StreamOperatorTask task = (StreamOperatorTask) entry.getValue().task();
+      // need to unwrap Linkedin-specific task wrapper first
+      // TODO ideally, we shouldn't be using reflection for an intergration-test: SAMZA-2037
+      BaseLiTask baseLiTask = (BaseLiTask) entry.getValue().task();
+      Field taskFieldBaseLiTask = BaseLiTask.class.getDeclaredField("task");
+      taskFieldBaseLiTask.setAccessible(true);
+
+      StreamOperatorTask task = (StreamOperatorTask) taskFieldBaseLiTask.get(baseLiTask);
       tasks.put(entry.getKey().getTaskName(), task);
     }
     return tasks;
