@@ -1,20 +1,14 @@
 ---
-date: Oct 2018
-display_date: Oct 2018
-meetups:
-    - name: 'Operating Samza at LinkedIn'
-      host: LinkedIn
-      image: 
-      presenters:
-        - name: Abhishek Shivanna and Stephan Soilleau
-          website: 
-          image:
-          affiliation: LinkedIn
-      abstract: Operating a streaming platform that processes over a trillion messages daily, with thousands of applications is a daunting task. This talk shares the best practices around operating Samza as a managed service.  
-      video:
-          url: https://www.youtube.com/watch?v=AnNwkfJO4Us&feature=youtu.be
-          image: https://img.youtube.com/vi/AnNwkfJO4Us/maxresdefault.jpg
-
+name: Cameron Lee
+website:
+linkedin: https://www.linkedin.com/in/cameron-lee-3846b840
+twitter:
+image:
+github: cameronlee314
+pmc_member: false
+job_title:
+samza_title:
+order: 105
 ---
 <!--
    Licensed to the Apache Software Foundation (ASF) under one or more

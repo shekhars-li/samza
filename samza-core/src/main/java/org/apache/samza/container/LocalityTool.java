@@ -9,7 +9,11 @@ import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigRewriter;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.container.grouper.task.TaskAssignmentManager;
+import org.apache.samza.coordinator.metadatastore.CoordinatorStreamStore;
+import org.apache.samza.coordinator.metadatastore.NamespaceAwareCoordinatorStreamStore;
 import org.apache.samza.coordinator.stream.messages.SetContainerHostMapping;
+import org.apache.samza.coordinator.stream.messages.SetTaskContainerMapping;
+import org.apache.samza.coordinator.stream.messages.SetTaskModeMapping;
 import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.util.CommandLine;
@@ -91,8 +95,11 @@ public class LocalityTool extends CommandLine {
     Config rconfig = rewriteJobConfig(new JobConfig(config));
     MetricsRegistry metricsRegistry = new NoOpMetricsRegistry();
 
-    this.localityManager = new LocalityManager(rconfig, metricsRegistry);
-    this.taskAssignmentManager = new TaskAssignmentManager(rconfig, metricsRegistry);
+    CoordinatorStreamStore coordinatorStreamStore = new CoordinatorStreamStore(rconfig, metricsRegistry);
+    this.localityManager = new LocalityManager(coordinatorStreamStore);
+    this.taskAssignmentManager = new TaskAssignmentManager(
+        new NamespaceAwareCoordinatorStreamStore(coordinatorStreamStore, SetTaskContainerMapping.TYPE),
+        new NamespaceAwareCoordinatorStreamStore(coordinatorStreamStore, SetTaskModeMapping.TYPE));
   }
 
   private Config rewriteJobConfig(JobConfig jobConfig) {
