@@ -28,7 +28,6 @@ import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.apache.samza.SamzaException;
-import org.apache.samza.checkpoint.CheckpointManager;
 import org.apache.samza.config.ClusterManagerConfig;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
@@ -39,6 +38,7 @@ import org.apache.samza.config.TaskConfigJava;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.coordinator.InputStreamsDiscoveredException;
 import org.apache.samza.coordinator.JobModelManager;
+import org.apache.samza.coordinator.MetadataResourceUtil;
 import org.apache.samza.coordinator.PartitionChangeException;
 import org.apache.samza.coordinator.StreamPartitionCountMonitor;
 import org.apache.samza.coordinator.StreamRegexMonitor;
@@ -232,11 +232,9 @@ public class ClusterBasedJobCoordinator {
 
       //create necessary checkpoint and changelog streams, if not created
       JobModel jobModel = jobModelManager.jobModel();
-      CheckpointManager checkpointManager = new TaskConfigJava(config).getCheckpointManager(metrics);
-      if (checkpointManager != null) {
-        checkpointManager.createResources();
-      }
-      ChangelogStreamManager.createChangelogStreams(jobModel.getConfig(), jobModel.maxChangeLogStreamPartitions);
+      MetadataResourceUtil metadataResourceUtil =
+          new MetadataResourceUtil(jobModel, metrics);
+      metadataResourceUtil.createResources();
 
       // Remap changelog partitions to tasks
       Map<TaskName, Integer> prevPartitionMappings = changelogStreamManager.readPartitionMapping();

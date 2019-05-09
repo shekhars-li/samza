@@ -16,35 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.startpoint;
 
-import java.time.Instant;
+package org.apache.samza.table.remote.couchbase;
+
+import java.io.Serializable;
 
 
-public class MockStartpointCustom extends StartpointCustom {
-  private final String testInfo1;
-  private final long testInfo2;
+class CouchbaseEnvironmentConfigs implements Serializable {
 
-  // Default constructor needed for serde.
-  private MockStartpointCustom() {
-    this(null, 0);
-  }
-
-  public MockStartpointCustom(String testInfo1, long testInfo2) {
-    this(testInfo1, testInfo2, Instant.now().toEpochMilli());
-  }
-
-  public MockStartpointCustom(String testInfo1, long testInfo2, long creationTimestamp) {
-    super(creationTimestamp);
-    this.testInfo1 = testInfo1;
-    this.testInfo2 = testInfo2;
-  }
-
-  public String getTestInfo1() {
-    return testInfo1;
-  }
-
-  public long getTestInfo2() {
-    return testInfo2;
-  }
+  Boolean sslEnabled;
+  Boolean certAuthEnabled;
+  String sslKeystoreFile;
+  String sslKeystorePassword;
+  String sslTruststoreFile;
+  String sslTruststorePassword;
+  Integer bootstrapCarrierDirectPort;
+  Integer bootstrapCarrierSslPort;
+  Integer bootstrapHttpDirectPort;
+  Integer bootstrapHttpSslPort;
+  String username;
+  String password;
 }
