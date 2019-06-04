@@ -100,11 +100,6 @@ class TaskConfig(config: Config) extends ScalaMapConfig(config) with Logging {
     case _ => TaskConfig.DEFAULT_COMMIT_MS
   }
 
-  def getShutdownMs: Option[Long] = getOption(TaskConfig.SHUTDOWN_MS) match {
-    case Some(ms) => Some(ms.toLong)
-    case _ => Some(TaskConfig.DEFAULT_SHUTDOWN_MS.toLong)
-  }
-
   def getTaskClass = getOption(TaskConfig.TASK_CLASS)
 
   def getCommandClass = getOption(TaskConfig.COMMAND_BUILDER)

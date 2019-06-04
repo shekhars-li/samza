@@ -38,9 +38,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
 /**
@@ -100,6 +98,19 @@ public class TestTaskFactoryUtil {
     AsyncStreamTaskFactory mockAsyncStreamFactory = mock(AsyncStreamTaskFactory.class);
     retFactory = TaskFactoryUtil.finalizeTaskFactory(mockAsyncStreamFactory, null);
     assertEquals(retFactory, mockAsyncStreamFactory);
+  }
+
+  @Test
+  public void testFinalizeTaskFactoryForStreamOperatorTask() {
+    TaskFactory mockFactory = mock(StreamOperatorTaskFactory.class);
+    StreamOperatorTask mockStreamOperatorTask = mock(StreamOperatorTask.class);
+    when(mockFactory.createInstance())
+        .thenReturn(mockStreamOperatorTask);
+
+    ExecutorService mockThreadPool = mock(ExecutorService.class);
+    TaskFactory finalizedFactory = TaskFactoryUtil.finalizeTaskFactory(mockFactory, mockThreadPool);
+    finalizedFactory.createInstance();
+    verify(mockStreamOperatorTask, times(1)).setTaskThreadPool(eq(mockThreadPool));
   }
 
   // test getTaskFactory with StreamApplicationDescriptor with Linkedin task wrapper enabled
