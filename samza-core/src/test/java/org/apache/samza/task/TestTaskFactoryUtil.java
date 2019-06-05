@@ -84,6 +84,7 @@ public class TestTaskFactoryUtil {
       // expected
     }
     StreamTaskFactory mockStreamFactory = mock(StreamTaskFactory.class);
+    when(mockStreamFactory.createInstance()).thenReturn(mock(StreamTask.class));
 
     ExecutorService mockThreadPool = mock(ExecutorService.class);
     TaskFactory retFactory = TaskFactoryUtil.finalizeTaskFactory(mockStreamFactory, mockThreadPool);
@@ -102,7 +103,7 @@ public class TestTaskFactoryUtil {
 
   @Test
   public void testFinalizeTaskFactoryForStreamOperatorTask() {
-    TaskFactory mockFactory = mock(StreamOperatorTaskFactory.class);
+    TaskFactory mockFactory = mock(AsyncStreamTaskFactory.class);
     StreamOperatorTask mockStreamOperatorTask = mock(StreamOperatorTask.class);
     when(mockFactory.createInstance())
         .thenReturn(mockStreamOperatorTask);

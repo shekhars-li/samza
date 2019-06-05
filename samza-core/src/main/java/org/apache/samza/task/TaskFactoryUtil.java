@@ -19,6 +19,7 @@
 package org.apache.samza.task;
 
 import com.google.common.base.Preconditions;
+import com.linkedin.samza.task.wrapper.BaseLiTask;
 import com.linkedin.samza.task.wrapper.TaskWrapperUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.samza.SamzaException;
@@ -107,14 +108,20 @@ public class TaskFactoryUtil {
    */
   public static TaskFactory finalizeTaskFactory(TaskFactory factory, ExecutorService taskThreadPool) {
     validateFactory(factory);
-    boolean isAsyncTaskClass = factory instanceof AsyncStreamTaskFactory;
+    /*
+     * We only want to use this instance to determine the control flow and not use this task within the actual factory
+     * lambdas. It is to ensure the lifecycle of the task created within the factory are independent and contained across
+     * multiple createInstance() invocation on the factory.
+     */
+    Object task = factory.createInstance();
 
-    if (isAsyncTaskClass) {
-      log.info("Got an AsyncStreamTask implementation.");
-      return factory;
+    // Always adapt StreamTask to AsyncStreamTaskAdapter
+    if (task instanceof StreamTask) {
+      return (AsyncStreamTaskFactory) () -> {
+        log.info("Converting StreamTask to AsyncStreamTaskAdapter");
+        return new AsyncStreamTaskAdapter((StreamTask) factory.createInstance(), taskThreadPool);
+      };
     }
-
-    boolean isStreamOperatorTaskClass = factory instanceof StreamOperatorTaskFactory;
 
     /*
      * Note: Even though StreamOperatorTask is an instanceof AsyncStreamTask, we still need to
@@ -123,18 +130,28 @@ public class TaskFactoryUtil {
      * created in the container.
      * Refer to SAMZA-2203 for more details.
      */
-    if (isStreamOperatorTaskClass) {
-      log.info("Adapting StreamOperatorTaskFactory to inject container thread pool");
+    if (task instanceof BaseLiTask) {
+      Object wrappedTask = ((BaseLiTask) task).getTask();
+      if (wrappedTask instanceof StreamOperatorTask) {
+        return (AsyncStreamTaskFactory) () -> {
+          log.info("Injecting thread pool for a wrapped StreamOperatorTask.");
+          BaseLiTask outerTask = (BaseLiTask) factory.createInstance();
+          StreamOperatorTask streamOperatorTask = (StreamOperatorTask) outerTask.getTask();
+          streamOperatorTask.setTaskThreadPool(taskThreadPool);
+          return (AsyncStreamTask) outerTask;
+        };
+      }
+    } else if (task instanceof StreamOperatorTask) {
       return (AsyncStreamTaskFactory) () -> {
-        StreamOperatorTask operatorTask = (StreamOperatorTask) factory.createInstance();
-        operatorTask.setTaskThreadPool(taskThreadPool);
-        return operatorTask;
+        log.info("Injecting thread pool for a StreamOperatorTask.");
+        StreamOperatorTask streamOperatorTask = (StreamOperatorTask) factory.createInstance();
+        streamOperatorTask.setTaskThreadPool(taskThreadPool);
+        return streamOperatorTask;
       };
     }
 
-    log.info("Converting StreamTask to AsyncStreamTaskAdapter");
-    return (AsyncStreamTaskFactory) () ->
-        new AsyncStreamTaskAdapter(((StreamTaskFactory) factory).createInstance(), taskThreadPool);
+    log.info("Got an AsyncStreamTask implementation.");
+    return factory;
   }
 
   private static void validateFactory(TaskFactory factory) {
@@ -143,12 +160,11 @@ public class TaskFactoryUtil {
     }
 
     boolean isValidFactory = factory instanceof StreamTaskFactory
-            || factory instanceof AsyncStreamTaskFactory
-            || factory instanceof StreamOperatorTaskFactory;
+            || factory instanceof AsyncStreamTaskFactory;
 
     if (!isValidFactory) {
-      throw new SamzaException(String.format("TaskFactory must be either StreamTaskFactory or AsyncStreamTaskFactory or StreamOperatorTaskFactory. %s is not supported",
-          factory.getClass()));
+      throw new SamzaException(String.format("TaskFactory must be either StreamTaskFactory or AsyncStreamTaskFactory."
+              + " %s is not supported", factory.getClass()));
     }
   }
 
