@@ -706,7 +706,10 @@ class SamzaContainer(
   diagnosticsManager: Option[DiagnosticsManager] = Option.empty) extends Runnable with Logging {
 
   private val taskConfig = new TaskConfig(config)
-  val shutdownMs: Long = taskConfig.getShutdownMs
+
+  // Linkedin-specific shutdownMs due to SAMZA-2198; switch back to TaskConfig.getShutdownMs once that is fixed
+  val shutdownMs: Long = taskConfig.getLong(TaskConfig.TASK_SHUTDOWN_MS, 5000)
+
   var shutdownHookThread: Thread = null
   var jmxServer: JmxServer = null
 
