@@ -163,8 +163,8 @@ fi
 # Check if 64 bit is set. If not - try and set it if it's supported
 [[ $JAVA_OPTS != *-d64* ]] && check_and_enable_64_bit_mode
 
-# Add JVM option to guarantee exit on OOM
-JAVA_OPTS="${JAVA_OPTS} -XX:+ExitOnOutOfMemoryError"
+# Add JVM option to guarantee exit on OOM, and invoke a script on OOM
+JAVA_OPTS="${JAVA_OPTS} -XX:+ExitOnOutOfMemoryError -XX:OnOutOfMemoryError='bin/handle-oom.sh'"
 
 # HADOOP_CONF_DIR should be supplied to classpath explicitly for Yarn to parse configs
 echo $JAVA $JAVA_OPTS -cp $HADOOP_CONF_DIR:pathing.jar "$@"
