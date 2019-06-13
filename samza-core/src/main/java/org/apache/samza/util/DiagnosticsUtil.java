@@ -37,6 +37,7 @@ import org.apache.samza.metrics.reporter.MetricsHeader;
 import org.apache.samza.metrics.reporter.MetricsSnapshot;
 import org.apache.samza.metrics.reporter.MetricsSnapshotReporter;
 import org.apache.samza.runtime.LocalContainerRunner;
+import org.apache.samza.serializers.JsonSerde;
 import org.apache.samza.serializers.MetricsSnapshotSerdeV2;
 import org.apache.samza.system.SystemFactory;
 import org.apache.samza.system.SystemProducer;
@@ -49,26 +50,34 @@ import scala.Option;
 public class DiagnosticsUtil {
   private static final Logger log = LoggerFactory.getLogger(DiagnosticsUtil.class);
 
+
   // Write a file in the samza.log.dir named {exec-env-container-id}.metadata that contains
   // metadata about the container such as containerId, jobName, jobId, hostname, timestamp, version info, and others.
+  // The file contents are serialized using {@link JsonSerde}.
   public static void writeMetadataFile(String jobName, String jobId, String containerId,
       Optional<String> execEnvContainerId, Config config) {
 
     Option<File> metadataFile = JobConfig.getMetadataFile(Option.apply(execEnvContainerId.orElse(null)));
 
     if (metadataFile.isDefined()) {
-
-      StringBuilder metadata = new StringBuilder("Version: 1");
-      metadata.append(System.lineSeparator());
       MetricsHeader metricsHeader =
           new MetricsHeader(jobName, jobId, "samza-container-" + containerId, execEnvContainerId.orElse(""), LocalContainerRunner.class.getName(),
               Util.getTaskClassVersion(config), Util.getSamzaVersion(), Util.getLocalHost().getHostName(),
               System.currentTimeMillis(), System.currentTimeMillis());
 
+      class MetadataFileContents {
+        public final String version;
+        public final String metricsSnapshot;
+
+        public MetadataFileContents(String version, String metricsSnapshot) {
+          this.version = version;
+          this.metricsSnapshot = metricsSnapshot;
+        }
+      }
+
       MetricsSnapshot metricsSnapshot = new MetricsSnapshot(metricsHeader, new Metrics());
-      metadata.append("ContainerMetadata: ");
-      metadata.append(new String(new MetricsSnapshotSerdeV2().toBytes(metricsSnapshot)));
-      FileUtil.writeToTextFile(metadataFile.get(), metadata.toString(), false);
+      MetadataFileContents metadataFileContents = new MetadataFileContents("1", new String(new MetricsSnapshotSerdeV2().toBytes(metricsSnapshot)));
+      FileUtil.writeToTextFile(metadataFile.get(), new String(new JsonSerde<>().toBytes(metadataFileContents)), false);
     } else {
       log.info("Skipping writing metadata file.");
     }
@@ -88,16 +97,16 @@ public class DiagnosticsUtil {
     if (new JobConfig(config).getDiagnosticsEnabled()) {
 
       // Diagnostic stream, producer, and reporter related parameters
-      String diagnosticsReporterName = MetricsConfig.METRICS_SNAPSHOT_REPORTER_NAME_FOR_DIAGNOSTICS();
-      Integer publishInterval = new MetricsConfig(config).getMetricsSnapshotReporterInterval(diagnosticsReporterName);
+      String diagnosticsReporterName = MetricsConfig.METRICS_SNAPSHOT_REPORTER_NAME_FOR_DIAGNOSTICS;
+      MetricsConfig metricsConfig = new MetricsConfig(config);
+      int publishInterval = metricsConfig.getMetricsSnapshotReporterInterval(diagnosticsReporterName);
       String taskClassVersion = Util.getTaskClassVersion(config);
       String samzaVersion = Util.getSamzaVersion();
       String hostName = Util.getLocalHost().getHostName();
-      Option<String> blacklist = new MetricsConfig(config).getMetricsSnapshotReporterBlacklist(diagnosticsReporterName);
-      Option<String> diagnosticsReporterStreamName = new MetricsConfig(config).getMetricsSnapshotReporterStream(diagnosticsReporterName);
+      Optional<String> diagnosticsReporterStreamName = metricsConfig.getMetricsSnapshotReporterStream(diagnosticsReporterName);
 
-      if (diagnosticsReporterStreamName.isEmpty()) {
-        throw new ConfigException("Missing required config: " + String.format(MetricsConfig.METRICS_SNAPSHOT_REPORTER_STREAM(), diagnosticsReporterName));
+      if (!diagnosticsReporterStreamName.isPresent()) {
+        throw new ConfigException("Missing required config: " + String.format(MetricsConfig.METRICS_SNAPSHOT_REPORTER_STREAM, diagnosticsReporterName));
       }
 
       SystemStream diagnosticsSystemStream = StreamUtil.getSystemStreamFromNames(diagnosticsReporterStreamName.get());
@@ -113,6 +122,8 @@ public class DiagnosticsUtil {
       DiagnosticsManager diagnosticsManager = new DiagnosticsManager(jobName, jobId, containerId, execEnvContainerId.orElse(""), taskClassVersion,
           samzaVersion, hostName, diagnosticsSystemStream, systemProducer, Duration.ofMillis(new TaskConfig(config).getShutdownMs()));
 
+      Option<String> blacklist = ScalaJavaUtil.JavaOptionals$.MODULE$.toRichOptional(
+          metricsConfig.getMetricsSnapshotReporterBlacklist(diagnosticsReporterName)).toOption();
       MetricsSnapshotReporter diagnosticsReporter =
           new MetricsSnapshotReporter(systemProducer, diagnosticsSystemStream, publishInterval, jobName, jobId,
               "samza-container-" + containerId, taskClassVersion, samzaVersion, hostName, new MetricsSnapshotSerdeV2(),
