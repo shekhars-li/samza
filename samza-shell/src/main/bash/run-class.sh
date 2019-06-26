@@ -44,7 +44,7 @@ DEFAULT_LOG4J2_FILE=$base_dir/lib/log4j2.xml
 BASE_LIB_DIR="$base_dir/lib"
 # JOB_LIB_DIR will be set for yarn container in ContainerUtil.java
 # for others we set it to home_dir/lib
-JOB_LIB_DIR="${JOB_LIB_DIR:-$home_dir/lib}"
+JOB_LIB_DIR="${JOB_LIB_DIR:-$base_dir/lib}"
 
 export JOB_LIB_DIR=$JOB_LIB_DIR
 
@@ -90,6 +90,7 @@ else
   do
     CLASSPATH=$CLASSPATH" $file \n"
   done
+  echo generated from BASE_LIB_DIR CLASSPATH=$CLASSPATH
 fi
 
 # In some cases (AWS) $JAVA_HOME/bin doesn't contain jar.
