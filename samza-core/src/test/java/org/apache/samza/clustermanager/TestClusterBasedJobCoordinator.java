@@ -185,7 +185,7 @@ public class TestClusterBasedJobCoordinator {
    */
   @Test
   public void testProcessGeneratorHolderSetup() {
-    configMap.put(JobConfig.JOB_CONTAINER_COUNT(), "1");
+    configMap.put(JobConfig.JOB_CONTAINER_COUNT, "1");
     when(CoordinatorStreamUtil.readConfigFromCoordinatorStream(anyObject())).thenReturn(new MapConfig(configMap));
     Config config = new MapConfig(configMap);
 

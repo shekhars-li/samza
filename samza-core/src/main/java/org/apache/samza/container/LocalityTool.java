@@ -21,7 +21,6 @@ import org.apache.samza.util.NoOpMetricsRegistry;
 import org.apache.samza.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.runtime.AbstractFunction0;
 
 
 public class LocalityTool extends CommandLine {
@@ -104,7 +103,7 @@ public class LocalityTool extends CommandLine {
 
   private Config rewriteJobConfig(JobConfig jobConfig) {
     Config config = jobConfig;
-    if (jobConfig.getConfigRewriters().isDefined()) {
+    if (jobConfig.getConfigRewriters().isPresent()) {
       for (String rewriterName : jobConfig.getConfigRewriters().get().split(",")) {
         config = rewrite(jobConfig, config, rewriterName);
       }
@@ -115,12 +114,8 @@ public class LocalityTool extends CommandLine {
   private Config rewrite(JobConfig jobConfig, Config config, String rewriterName) {
     String rewriterClassName = jobConfig
         .getConfigRewriterClass(rewriterName)
-        .getOrElse(new AbstractFunction0<String>() {
-          @Override
-          public String apply() {
-            throw new SamzaException(String.format("Unable to find class config for config rewriter %s.", rewriterName));
-          }
-        });
+        .orElseThrow(() -> new SamzaException(
+            String.format("Unable to find class config for config rewriter %s.", rewriterName)));
 
     ConfigRewriter rewriter = Util.getObj(rewriterClassName, ConfigRewriter.class);
     LOG.info("Re-writing config for CheckpointTool with " + rewriter);
