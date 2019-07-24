@@ -169,6 +169,6 @@ fi
 JAVA_OPTS="${JAVA_OPTS} -XX:+ExitOnOutOfMemoryError"
 
 # HADOOP_CONF_DIR should be supplied to classpath explicitly for Yarn to parse configs
-# Adding option to invoke script on OOM
+# Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
 echo $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar "$@"
 exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar "$@"
