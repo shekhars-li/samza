@@ -297,7 +297,7 @@ public class TestRunner {
      * of the test. Logic inside of the try block should match open source.
      */
     try {
-      final LocalApplicationRunner runner = new LocalApplicationRunner(app, config);
+      final LocalApplicationRunner runner = new LocalApplicationRunner(app, config, new InMemoryMetadataStoreFactory());
       runner.run(externalContext != null ? externalContext : buildDefaultExternalContext());
       if (!runner.waitForFinish(timeout)) {
         throw new SamzaException("Timed out waiting for application to finish");
