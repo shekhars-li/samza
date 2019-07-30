@@ -20,8 +20,7 @@
 # It copies a job's .metadata files to a samza-admin accessible location on disk.
 # Samza-admin then reads it, emits an event to the job's diagnostic stream, and deletes the file.
 
-base_dir="$(dirname $0)/.."
-CONTAINER_METADATA_DIR=$base_dir/logs # path of the container's metadata file (same as log-dir)
+CONTAINER_METADATA_DIR=$1 # path of the container's metadata file (same as log-dir)
 CONTAINER_METADATA_FILEPATH_FOR_OOM=/tmp/samza-container-OOM/ # path to which the metadata needs to be copied in case of OOM
 
 # Create directory if not exists
@@ -48,6 +47,7 @@ if ls $CONTAINER_METADATA_DIR/*.metadata 1> /dev/null 2>&1; then
       do
          cp "$metadataFile" "$CONTAINER_METADATA_FILEPATH_FOR_OOM"
          echo "Copied" $metadataFile "to" $CONTAINER_METADATA_FILEPATH_FOR_OOM
+         chmod -R 777 $CONTAINER_METADATA_FILEPATH_FOR_OOM
       done
 
 else
