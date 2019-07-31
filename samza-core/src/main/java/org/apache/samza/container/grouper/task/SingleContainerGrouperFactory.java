@@ -34,10 +34,10 @@ import java.util.Set;
 public class SingleContainerGrouperFactory implements TaskNameGrouperFactory {
   @Override
   public TaskNameGrouper build(Config config) {
-    if (config == null || config.get(JobConfig.PROCESSOR_ID()) == null) {
-      throw new ConfigException("Could not find " + JobConfig.PROCESSOR_ID() + " in Config!");
+    if (config == null || config.get(JobConfig.PROCESSOR_ID) == null) {
+      throw new ConfigException("Could not find " + JobConfig.PROCESSOR_ID + " in Config!");
     }
-    return new SingleContainerGrouper(config.get(JobConfig.PROCESSOR_ID()));
+    return new SingleContainerGrouper(config.get(JobConfig.PROCESSOR_ID));
   }
 }
 
