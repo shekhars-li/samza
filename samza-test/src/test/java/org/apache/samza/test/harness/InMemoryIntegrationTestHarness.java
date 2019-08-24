@@ -21,6 +21,8 @@ package org.apache.samza.test.harness;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import com.linkedin.samza.context.DefaultLiExternalContextFactory;
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.InMemorySystemConfig;
@@ -30,6 +32,9 @@ import org.apache.samza.config.SystemConfig;
 import org.apache.samza.context.ExternalContext;
 import org.apache.samza.runtime.ApplicationRunner;
 import org.apache.samza.system.inmemory.InMemorySystemFactory;
+import org.apache.samza.test.framework.LiConfigUtil;
+import org.junit.After;
+import org.junit.Before;
 
 
 /**
@@ -39,6 +44,20 @@ import org.apache.samza.system.inmemory.InMemorySystemFactory;
  */
 public class InMemoryIntegrationTestHarness {
   protected static final String IN_MEMORY = "inmemory";
+
+  @Before
+  public void setUp() {
+    // Linkedin-specific Offspring initialization
+    ProcessGeneratorHolder.getInstance().
+        createGenerator(new MapConfig(LiConfigUtil.buildRequiredOffspringConfigs(getClass().getSimpleName())));
+    ProcessGeneratorHolder.getInstance().start();
+  }
+
+  @After
+  public void tearDown() {
+    // Linkedin-specific Offspring shutdown
+    ProcessGeneratorHolder.getInstance().stop();
+  }
 
   protected Config baseInMemorySystemConfigs() {
     Map<String, String> configMap = new HashMap<>();
@@ -53,11 +72,8 @@ public class InMemoryIntegrationTestHarness {
   }
 
   private Optional<ExternalContext> buildExternalContext(Config config) {
-    /*
-     * By default, use an empty ExternalContext here. In a custom fork of Samza, this can be implemented to pass
-     * a non-empty ExternalContext. Only config should be used to build the external context. In the future, components
-     * like the application descriptor may not be available.
-     */
-    return Optional.empty();
+    // Linkedin-specific external context generation
+    return Optional.of(
+        ProcessGeneratorHolder.getInstance().getGenerator().getBean(DefaultLiExternalContextFactory.class));
   }
 }
