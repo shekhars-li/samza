@@ -353,7 +353,8 @@ public class LocalApplicationRunner implements ApplicationRunner {
   StreamProcessor createStreamProcessor(Config config, ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc,
       StreamProcessor.StreamProcessorLifecycleListenerFactory listenerFactory,
       Optional<ExternalContext> externalContextOptional, MetadataStore coordinatorStreamStore) {
-    TaskFactory taskFactory = TaskFactoryUtil.getTaskFactory(appDesc);
+    // LI-specific invocation of getTaskFactoryWithConfig, pending SAMZA-2312
+    TaskFactory taskFactory = TaskFactoryUtil.getTaskFactoryWithConfig(appDesc, config);
 
     // NOTE: LinkedIn only change to plugin sensor-registry reporters before launching the StreamProcessor.
     Map<String, MetricsReporter> reporters = new HashMap<>(this.reporters);
