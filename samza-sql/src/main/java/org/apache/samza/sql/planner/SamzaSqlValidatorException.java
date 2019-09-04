@@ -17,16 +17,24 @@
  * under the License.
  */
 
-package org.apache.samza.sql.translator;
+package org.apache.samza.sql.planner;
 
-public class TranslatorConstants {
-  public static final String PROCESSING_TIME_NAME = "processingTimeNanos";
-  public static final String QUEUEING_LATENCY_MILLIS_NAME = "queueingLatencyMillis";
-  public static final String QUERY_LATENCY_NANOS_NAME = "queryLatencyNanos";
-  public static final String TOTAL_LATENCY_MILLIS_NAME = "totalLatencyMillis";
-  public static final String INPUT_EVENTS_NAME = "inputEvents";
-  public static final String FILTERED_EVENTS_NAME = "filteredEvents";
-  public static final String OUTPUT_EVENTS_NAME = "outputEvents";
-  public static final String LOGOPID_TEMPLATE = "sql_%d_%s_%d";
-  public static final String LOGSQLID_TEMPLATE = "sql_%d";
+/**
+ * Checked Exception thrown while validating SQL statement.
+ */
+public class SamzaSqlValidatorException extends Exception {
+  public SamzaSqlValidatorException() {
+  }
+
+  public SamzaSqlValidatorException(String message) {
+    super(message);
+  }
+
+  public SamzaSqlValidatorException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  public SamzaSqlValidatorException(Throwable cause) {
+    super(cause);
+  }
 }
