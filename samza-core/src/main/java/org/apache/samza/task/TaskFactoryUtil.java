@@ -27,6 +27,7 @@ import org.apache.samza.application.descriptors.ApplicationDescriptor;
 import org.apache.samza.application.descriptors.ApplicationDescriptorImpl;
 import org.apache.samza.application.descriptors.StreamApplicationDescriptorImpl;
 import org.apache.samza.application.descriptors.TaskApplicationDescriptorImpl;
+import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,19 +44,33 @@ public class TaskFactoryUtil {
   /**
    * Creates a {@link TaskFactory} based on {@link ApplicationDescriptorImpl}
    *
+   * TODO the signature of this method is LinkedIn specific. Once SAMZA-2312 is resolved, the config parameter may be cleaned up
+   * to match {@link #getTaskFactory(ApplicationDescriptorImpl)}.
+   *
+   * @param appDesc {@link ApplicationDescriptorImpl} for this application
+   * @param config {@link Config} config if different than those provided by the ApplicationDescriptor. This is intended
+   *                             to be the final, planned set of configs.
+   * @return {@link TaskFactory} object defined by {@code appDesc}
+   */
+  public static TaskFactory getTaskFactoryWithConfig(ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc, Config config) {
+    if (appDesc instanceof TaskApplicationDescriptorImpl) {
+      // build a Linkedin-specific task factory
+      return getLiTaskFactory((TaskApplicationDescriptorImpl) appDesc, config);
+    } else if (appDesc instanceof StreamApplicationDescriptorImpl) {
+      // build a Linkedin-specific task factory
+      return getLiTaskFactory((StreamApplicationDescriptorImpl) appDesc, config);
+    }
+    throw new IllegalArgumentException(String.format("ApplicationDescriptorImpl has to be either TaskApplicationDescriptorImpl or "
+        + "StreamApplicationDescriptorImpl. class %s is not supported", appDesc.getClass().getName()));
+  }
+  /**
+   * Creates a {@link TaskFactory} based on {@link ApplicationDescriptorImpl}
+   *
    * @param appDesc {@link ApplicationDescriptorImpl} for this application
    * @return {@link TaskFactory} object defined by {@code appDesc}
    */
   public static TaskFactory getTaskFactory(ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc) {
-    if (appDesc instanceof TaskApplicationDescriptorImpl) {
-      // build a Linkedin-specific task factory
-      return getLiTaskFactory((TaskApplicationDescriptorImpl) appDesc);
-    } else if (appDesc instanceof StreamApplicationDescriptorImpl) {
-      // build a Linkedin-specific task factory
-      return getLiTaskFactory((StreamApplicationDescriptorImpl) appDesc);
-    }
-    throw new IllegalArgumentException(String.format("ApplicationDescriptorImpl has to be either TaskApplicationDescriptorImpl or "
-        + "StreamApplicationDescriptorImpl. class %s is not supported", appDesc.getClass().getName()));
+    return getTaskFactoryWithConfig(appDesc, appDesc.getConfig());
   }
 
   /**
@@ -169,19 +184,21 @@ public class TaskFactoryUtil {
   }
 
   /**
-   * Adds a Linkedin-specific wrapper around the task factory for the application.
+   * Adds a Linkedin-specific wrapper around the task factory for the application. Input config may be different than
+   * what is returned by {@link ApplicationDescriptor#getConfig()}
    */
-  private static TaskFactory getLiTaskFactory(TaskApplicationDescriptorImpl applicationDescriptor) {
+  private static TaskFactory getLiTaskFactory(TaskApplicationDescriptorImpl applicationDescriptor, Config config) {
     TaskFactory baseFactory = applicationDescriptor.getTaskFactory();
-    return TaskWrapperUtil.wrapTaskFactory(baseFactory, applicationDescriptor.getConfig());
+    return TaskWrapperUtil.wrapTaskFactory(baseFactory, config);
   }
 
   /**
-   * Adds a Linkedin-specific wrapper around the task factory for the application.
+   * Adds a Linkedin-specific wrapper around the task factory for the application. Input config may be different than
+   * what is returned by {@link ApplicationDescriptor#getConfig()}
    */
-  private static TaskFactory getLiTaskFactory(StreamApplicationDescriptorImpl applicationDescriptor) {
+  private static TaskFactory getLiTaskFactory(StreamApplicationDescriptorImpl applicationDescriptor, Config config) {
     TaskFactory baseFactory =
         (AsyncStreamTaskFactory) () -> new StreamOperatorTask(applicationDescriptor.getOperatorSpecGraph());
-    return TaskWrapperUtil.wrapTaskFactory(baseFactory, applicationDescriptor.getConfig());
+    return TaskWrapperUtil.wrapTaskFactory(baseFactory, config);
   }
 }
