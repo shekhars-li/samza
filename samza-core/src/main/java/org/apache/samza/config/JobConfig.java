@@ -318,6 +318,19 @@ public class JobConfig extends MapConfig {
     return getBoolean(JOB_AUTOSIZING_ENABLED, false);
   }
 
+  public boolean isAutosizingConfig(String configParam) {
+    switch (configParam) {
+      case JOB_AUTOSIZING_CONTAINER_COUNT:
+      case JOB_AUTOSIZING_CONTAINER_MAX_CORES:
+      case JOB_AUTOSIZING_CONTAINER_MAX_HEAP_MB:
+      case JOB_AUTOSIZING_CONTAINER_MEMORY_MB:
+      case JOB_AUTOSIZING_CONTAINER_THREAD_POOL_SIZE:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   public boolean getJMXEnabled() {
     return getBoolean(JOB_JMX_ENABLED, true);
   }
