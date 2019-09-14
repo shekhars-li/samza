@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 public class KafkaStreamSpec extends StreamSpec {
   private static final Logger LOG = LoggerFactory.getLogger(KafkaStreamSpec.class);
 
-  private static final int DEFAULT_REPLICATION_FACTOR = 2;
+  private static final int DEFAULT_REPLICATION_FACTOR = 3;
 
   /**
    * The number of replicas for stream durability.
