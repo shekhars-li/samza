@@ -40,13 +40,16 @@ public class ApplicationRunnerUtil {
    * @return the {@link ApplicationRunner} object.
    */
   public static ApplicationRunner invoke(Config originalConfig, ApplicationRunnerOperation op) {
+
+    // Linkedin-only Offspring setup
+    ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
+    ProcessGeneratorHolder.getInstance().start();
+
     Config config = Util.rewriteConfig(originalConfig);
     ApplicationRunner appRunner =
         ApplicationRunners.getApplicationRunner(ApplicationUtil.fromConfig(config), config);
 
-    // Linkedin-only Offspring setup
-    ProcessGeneratorHolder.getInstance().createGenerator(config);
-    ProcessGeneratorHolder.getInstance().start();
+
 
     try {
       switch (op) {
