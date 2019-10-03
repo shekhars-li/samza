@@ -120,7 +120,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
     this.appDesc = ApplicationDescriptorUtil.getAppDescriptor(app, config);
     this.reporters = new HashMap<>();
     isAppModeBatch = new ApplicationConfig(config).getAppMode() == ApplicationConfig.ApplicationMode.BATCH;
-    coordinationUtils = getCoordinationUtils(config, getClass().getClassLoader());
+    coordinationUtils = getCoordinationUtils(config);
     this.metadataStoreFactory = Optional.ofNullable(metadataStoreFactory);
   }
 
@@ -135,7 +135,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
     this.appDesc = ApplicationDescriptorUtil.getAppDescriptor(app, config);
     this.reporters = reporters;
     this.isAppModeBatch = new ApplicationConfig(config).getAppMode() == ApplicationConfig.ApplicationMode.BATCH;
-    this.coordinationUtils = getCoordinationUtils(config, getClass().getClassLoader());
+    this.coordinationUtils = getCoordinationUtils(config);
     this.metadataStoreFactory = Optional.ofNullable(metadataStoreFactory);
   }
 
@@ -167,12 +167,12 @@ public class LocalApplicationRunner implements ApplicationRunner {
     return null;
   }
 
-  private Optional<CoordinationUtils> getCoordinationUtils(Config config, ClassLoader classLoader) {
+  private Optional<CoordinationUtils> getCoordinationUtils(Config config) {
     if (!isAppModeBatch) {
       return Optional.empty();
     }
     JobCoordinatorConfig jcConfig = new JobCoordinatorConfig(config);
-    CoordinationUtils coordinationUtils = jcConfig.getCoordinationUtilsFactory(classLoader)
+    CoordinationUtils coordinationUtils = jcConfig.getCoordinationUtilsFactory()
         .getCoordinationUtils(CoordinationConstants.APPLICATION_RUNNER_PATH_SUFFIX, PROCESSOR_ID, config);
     return Optional.ofNullable(coordinationUtils);
   }
@@ -181,10 +181,10 @@ public class LocalApplicationRunner implements ApplicationRunner {
    * @return LocalJobPlanner created
    */
   @VisibleForTesting
-  LocalJobPlanner getPlanner(ClassLoader classLoader) {
+  LocalJobPlanner getPlanner() {
     boolean isAppModeBatch = new ApplicationConfig(appDesc.getConfig()).getAppMode() == ApplicationConfig.ApplicationMode.BATCH;
     if (!isAppModeBatch) {
-      return new LocalJobPlanner(appDesc, PROCESSOR_ID, classLoader);
+      return new LocalJobPlanner(appDesc, PROCESSOR_ID);
     }
     CoordinationUtils coordinationUtils = this.coordinationUtils.orElse(null);
     String runId = this.runId.orElse(null);
@@ -220,7 +220,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
   public void run(ExternalContext externalContext) {
     initializeRunId();
 
-    LocalJobPlanner planner = getPlanner(getClass().getClassLoader());
+    LocalJobPlanner planner = getPlanner();
 
     try {
       List<JobConfig> jobConfigs = planner.prepareJobs();
@@ -353,13 +353,14 @@ public class LocalApplicationRunner implements ApplicationRunner {
   StreamProcessor createStreamProcessor(Config config, ApplicationDescriptorImpl<? extends ApplicationDescriptor> appDesc,
       StreamProcessor.StreamProcessorLifecycleListenerFactory listenerFactory,
       Optional<ExternalContext> externalContextOptional, MetadataStore coordinatorStreamStore) {
+
     // LI-specific invocation of getTaskFactoryWithConfig, pending SAMZA-2312
     TaskFactory taskFactory = TaskFactoryUtil.getTaskFactoryWithConfig(appDesc, config);
 
     // NOTE: LinkedIn only change to plugin sensor-registry reporters before launching the StreamProcessor.
     Map<String, MetricsReporter> reporters = new HashMap<>(this.reporters);
 
-    String processorId = createProcessorId(new ApplicationConfig(config), getClass().getClassLoader());
+    String processorId = createProcessorId(new ApplicationConfig(config));
     appDesc.getMetricsReporterFactories().forEach((name, factory) ->
         reporters.put(name, factory.getMetricsReporter(name, processorId, config)));
 
@@ -376,17 +377,16 @@ public class LocalApplicationRunner implements ApplicationRunner {
    * to generate the unique processorId.
    * 3. Else throws the {@see ConfigException} back to the caller.
    * @param appConfig the configuration of the samza application.
-   * @param classLoader classloader for loading processor id generator
    * @throws ConfigException if neither processor.id nor app.processor-id-generator.class is defined in the configuration.
    * @return the generated processor identifier.
    */
   @VisibleForTesting
-  static String createProcessorId(ApplicationConfig appConfig, ClassLoader classLoader) {
+  static String createProcessorId(ApplicationConfig appConfig) {
     if (StringUtils.isNotBlank(appConfig.getProcessorId())) {
       return appConfig.getProcessorId();
     } else if (StringUtils.isNotBlank(appConfig.getAppProcessorIdGeneratorClass())) {
       ProcessorIdGenerator idGenerator =
-          ReflectionUtil.getObj(classLoader, appConfig.getAppProcessorIdGeneratorClass(), ProcessorIdGenerator.class);
+          ReflectionUtil.getObj(appConfig.getAppProcessorIdGeneratorClass(), ProcessorIdGenerator.class);
       return idGenerator.generateProcessorId(appConfig);
     } else {
       throw new ConfigException(String.format("Expected either %s or %s to be configured", ApplicationConfig.PROCESSOR_ID,

@@ -64,6 +64,7 @@ import org.apache.samza.serializers.Serde;
 import org.apache.samza.serializers.SerdeManager;
 import org.apache.samza.storage.kv.Entry;
 import org.apache.samza.storage.kv.KeyValueStore;
+import org.apache.samza.system.ChangelogSSPIterator;
 import org.apache.samza.system.IncomingMessageEnvelope;
 import org.apache.samza.system.StreamMetadataCache;
 import org.apache.samza.system.StreamSpec;
@@ -76,7 +77,6 @@ import org.apache.samza.system.SystemFactory;
 import org.apache.samza.system.SystemStream;
 import org.apache.samza.system.SystemStreamMetadata;
 import org.apache.samza.system.SystemStreamPartition;
-import org.apache.samza.system.SystemStreamPartitionIterator;
 import org.apache.samza.system.chooser.DefaultChooser;
 import org.apache.samza.system.chooser.MessageChooser;
 import org.apache.samza.system.chooser.RoundRobinChooserFactory;
@@ -168,6 +168,7 @@ public class ContainerStorageManager {
   private volatile Throwable sideInputException = null;
 
   private final Config config;
+  private final StorageManagerUtil storageManagerUtil = new StorageManagerUtil();
 
   public ContainerStorageManager(ContainerModel containerModel,
       StreamMetadataCache streamMetadataCache,
@@ -187,8 +188,7 @@ public class ContainerStorageManager {
       File nonLoggedStoreBaseDirectory,
       int maxChangeLogStreamPartitions,
       SerdeManager serdeManager,
-      Clock clock,
-      ClassLoader classLoader) {
+      Clock clock) {
 
     this.containerModel = containerModel;
     this.sideInputSystemStreams = new HashMap<>(sideInputSystemStreams);
@@ -244,7 +244,7 @@ public class ContainerStorageManager {
     this.taskRestoreManagers = createTaskRestoreManagers(systemAdmins, clock, this.samzaContainerMetrics);
 
     // create sideInput storage managers
-    sideInputStorageManagers = createSideInputStorageManagers(clock, classLoader);
+    sideInputStorageManagers = createSideInputStorageManagers(clock);
 
     // create sideInput consumers indexed by systemName
     this.sideInputConsumers = createConsumers(this.sideInputSystemStreams, systemFactories, config, this.samzaContainerMetrics.registry());
@@ -471,9 +471,11 @@ public class ContainerStorageManager {
     // for non logged stores
     File storeDirectory;
     if (changeLogSystemStreamPartition != null || sideInputSystemStreams.containsKey(storeName)) {
-      storeDirectory = StorageManagerUtil.getStorePartitionDir(this.loggedStoreBaseDirectory, storeName, taskName, taskModel.getTaskMode());
+      storeDirectory = storageManagerUtil.getTaskStoreDir(this.loggedStoreBaseDirectory, storeName, taskName,
+          taskModel.getTaskMode());
     } else {
-      storeDirectory = StorageManagerUtil.getStorePartitionDir(this.nonLoggedStoreBaseDirectory, storeName, taskName, taskModel.getTaskMode());
+      storeDirectory = storageManagerUtil.getTaskStoreDir(this.nonLoggedStoreBaseDirectory, storeName, taskName,
+          taskModel.getTaskMode());
     }
 
     this.storeDirectoryPaths.add(storeDirectory.toPath());
@@ -515,7 +517,7 @@ public class ContainerStorageManager {
   // Create sideInput store processors, one per store per task
   private Map<TaskName, Map<String, SideInputsProcessor>> createSideInputProcessors(StorageConfig config,
       ContainerModel containerModel, Map<String, Set<SystemStream>> sideInputSystemStreams,
-      Map<TaskName, TaskInstanceMetrics> taskInstanceMetrics, ClassLoader classLoader) {
+      Map<TaskName, TaskInstanceMetrics> taskInstanceMetrics) {
 
     Map<TaskName, Map<String, SideInputsProcessor>> sideInputStoresToProcessors = new HashMap<>();
     getTasks(containerModel, TaskMode.Active).forEach((taskName, taskModel) -> {
@@ -532,8 +534,7 @@ public class ContainerStorageManager {
                 .orElseThrow(() -> new SamzaException(
                     String.format("Could not find sideInputs processor factory for store: %s", storeName)));
             SideInputsProcessorFactory sideInputsProcessorFactory =
-                ReflectionUtil.getObj(classLoader, sideInputsProcessorFactoryClassName,
-                    SideInputsProcessorFactory.class);
+                ReflectionUtil.getObj(sideInputsProcessorFactoryClassName, SideInputsProcessorFactory.class);
             SideInputsProcessor sideInputsProcessor =
                 sideInputsProcessorFactory.getSideInputsProcessor(config, taskInstanceMetrics.get(taskName).registry());
             sideInputStoresToProcessors.get(taskName).put(storeName, sideInputsProcessor);
@@ -571,12 +572,11 @@ public class ContainerStorageManager {
   }
 
   // Create task sideInput storage managers, one per task, index by the SSP they are responsible for consuming
-  private Map<SystemStreamPartition, TaskSideInputStorageManager> createSideInputStorageManagers(Clock clock,
-      ClassLoader classLoader) {
+  private Map<SystemStreamPartition, TaskSideInputStorageManager> createSideInputStorageManagers(Clock clock) {
     // creating sideInput store processors, one per store per task
     Map<TaskName, Map<String, SideInputsProcessor>> taskSideInputProcessors =
         createSideInputProcessors(new StorageConfig(config), this.containerModel, this.sideInputSystemStreams,
-            this.taskInstanceMetrics, classLoader);
+            this.taskInstanceMetrics);
 
     Map<SystemStreamPartition, TaskSideInputStorageManager> sideInputStorageManagers = new HashMap<>();
 
@@ -960,31 +960,33 @@ public class ContainerStorageManager {
      */
     private void cleanBaseDirsAndReadOffsetFiles() {
       LOG.debug("Cleaning base directories for stores.");
-
+      FileUtil fileUtil = new FileUtil();
       taskStores.forEach((storeName, storageEngine) -> {
           if (!storageEngine.getStoreProperties().isLoggedStore()) {
             File nonLoggedStorePartitionDir =
-                StorageManagerUtil.getStorePartitionDir(nonLoggedStoreBaseDirectory, storeName, taskModel.getTaskName(), taskModel.getTaskMode());
+                storageManagerUtil.getTaskStoreDir(nonLoggedStoreBaseDirectory, storeName, taskModel.getTaskName(),
+                    taskModel.getTaskMode());
             LOG.info("Got non logged storage partition directory as " + nonLoggedStorePartitionDir.toPath().toString());
 
             if (nonLoggedStorePartitionDir.exists()) {
               LOG.info("Deleting non logged storage partition directory " + nonLoggedStorePartitionDir.toPath().toString());
-              FileUtil.rm(nonLoggedStorePartitionDir);
+              fileUtil.rm(nonLoggedStorePartitionDir);
             }
           } else {
             File loggedStorePartitionDir =
-                StorageManagerUtil.getStorePartitionDir(loggedStoreBaseDirectory, storeName, taskModel.getTaskName(), taskModel.getTaskMode());
+                storageManagerUtil.getTaskStoreDir(loggedStoreBaseDirectory, storeName, taskModel.getTaskName(),
+                    taskModel.getTaskMode());
             LOG.info("Got logged storage partition directory as " + loggedStorePartitionDir.toPath().toString());
 
             // Delete the logged store if it is not valid.
             if (!isLoggedStoreValid(storeName, loggedStorePartitionDir)) {
               LOG.info("Deleting logged storage partition directory " + loggedStorePartitionDir.toPath().toString());
-              FileUtil.rm(loggedStorePartitionDir);
+              fileUtil.rm(loggedStorePartitionDir);
             } else {
 
               SystemStreamPartition changelogSSP = new SystemStreamPartition(changelogSystemStreams.get(storeName), taskModel.getChangelogPartition());
               Map<SystemStreamPartition, String> offset =
-                  StorageManagerUtil.readOffsetFile(loggedStorePartitionDir, Collections.singleton(changelogSSP), false);
+                  storageManagerUtil.readOffsetFile(loggedStorePartitionDir, Collections.singleton(changelogSSP), false);
               LOG.info("Read offset {} for the store {} from logged storage partition directory {}", offset, storeName, loggedStorePartitionDir);
 
               if (offset.containsKey(changelogSSP)) {
@@ -1006,11 +1008,11 @@ public class ContainerStorageManager {
      */
     private boolean isLoggedStoreValid(String storeName, File loggedStoreDir) {
       long changeLogDeleteRetentionInMs = new StorageConfig(config).getChangeLogDeleteRetentionInMs(storeName);
-
       if (changelogSystemStreams.containsKey(storeName)) {
         SystemStreamPartition changelogSSP = new SystemStreamPartition(changelogSystemStreams.get(storeName), taskModel.getChangelogPartition());
-        return this.taskStores.get(storeName).getStoreProperties().isPersistedToDisk() && StorageManagerUtil.isOffsetFileValid(loggedStoreDir, Collections.singleton(changelogSSP), false)
-            && !StorageManagerUtil.isStaleStore(loggedStoreDir, changeLogDeleteRetentionInMs, clock.currentTimeMillis(), false);
+        return this.taskStores.get(storeName).getStoreProperties().isPersistedToDisk()
+            && storageManagerUtil.isOffsetFileValid(loggedStoreDir, Collections.singleton(changelogSSP), false)
+            && !storageManagerUtil.isStaleStore(loggedStoreDir, changeLogDeleteRetentionInMs, clock.currentTimeMillis(), false);
       }
 
       return false;
@@ -1025,7 +1027,7 @@ public class ContainerStorageManager {
           if (storageEngine.getStoreProperties().isLoggedStore()) {
 
             File loggedStorePartitionDir =
-                StorageManagerUtil.getStorePartitionDir(loggedStoreBaseDirectory, storeName, taskModel.getTaskName(), taskModel.getTaskMode());
+                storageManagerUtil.getTaskStoreDir(loggedStoreBaseDirectory, storeName, taskModel.getTaskName(), taskModel.getTaskMode());
 
             LOG.info("Using logged storage partition directory: " + loggedStorePartitionDir.toPath().toString()
                 + " for store: " + storeName);
@@ -1035,7 +1037,7 @@ public class ContainerStorageManager {
             }
           } else {
             File nonLoggedStorePartitionDir =
-                StorageManagerUtil.getStorePartitionDir(nonLoggedStoreBaseDirectory, storeName, taskModel.getTaskName(), taskModel.getTaskMode());
+                storageManagerUtil.getTaskStoreDir(nonLoggedStoreBaseDirectory, storeName, taskModel.getTaskName(), taskModel.getTaskMode());
             LOG.info("Using non logged storage partition directory: " + nonLoggedStorePartitionDir.toPath().toString()
                 + " for store: " + storeName);
             nonLoggedStorePartitionDir.mkdirs();
@@ -1143,7 +1145,7 @@ public class ContainerStorageManager {
       }
 
       String oldestOffset = changeLogOldestOffsets.get(systemStreamPartition.getSystemStream());
-      return StorageManagerUtil.getStartingOffset(systemStreamPartition, systemAdmin, fileOffset, oldestOffset);
+      return storageManagerUtil.getStartingOffset(systemStreamPartition, systemAdmin, fileOffset, oldestOffset);
     }
 
 
@@ -1156,11 +1158,13 @@ public class ContainerStorageManager {
       for (String storeName : taskStoresToRestore) {
         SystemConsumer systemConsumer = storeConsumers.get(storeName);
         SystemStream systemStream = changelogSystemStreams.get(storeName);
+        SystemAdmin systemAdmin = systemAdmins.getSystemAdmin(systemStream.getSystem());
 
-        SystemStreamPartitionIterator systemStreamPartitionIterator = new SystemStreamPartitionIterator(systemConsumer,
-            new SystemStreamPartition(systemStream, taskModel.getChangelogPartition()));
+        // TODO HIGH pmaheshw: use actual changelog topic newest offset instead of trimEnabled flag
+        ChangelogSSPIterator changelogSSPIterator = new ChangelogSSPIterator(systemConsumer,
+            new SystemStreamPartition(systemStream, taskModel.getChangelogPartition()), null, systemAdmin, false);
 
-        taskStores.get(storeName).restore(systemStreamPartitionIterator);
+        taskStores.get(storeName).restore(changelogSSPIterator);
       }
     }
 

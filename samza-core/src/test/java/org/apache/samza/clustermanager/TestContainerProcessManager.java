@@ -146,9 +146,9 @@ public class TestContainerProcessManager {
     ContainerProcessManager cpm =
         buildContainerProcessManager(new ClusterManagerConfig(new MapConfig(conf)), state, clusterResourceManager, Optional.empty());
 
-    AbstractContainerAllocator allocator =
-        (AbstractContainerAllocator) getPrivateFieldFromCpm("containerAllocator", cpm).get(cpm);
-    assertEquals(AbstractContainerAllocator.class, allocator.getClass());
+    ContainerAllocator allocator =
+        (ContainerAllocator) getPrivateFieldFromCpm("containerAllocator", cpm).get(cpm);
+    assertEquals(ContainerAllocator.class, allocator.getClass());
     // Asserts that samza exposed container configs is honored by allocator thread
     assertEquals(500, allocator.containerMemoryMb);
     assertEquals(5, allocator.containerNumCpuCores);
@@ -166,13 +166,12 @@ public class TestContainerProcessManager {
         state,
         new MetricsRegistryMap(),
         clusterResourceManager,
-        Optional.empty(),
-        getClass().getClassLoader()
+        Optional.empty()
     );
 
     allocator =
-        (AbstractContainerAllocator) getPrivateFieldFromCpm("containerAllocator", cpm).get(cpm);
-    assertEquals(AbstractContainerAllocator.class, allocator.getClass());
+        (ContainerAllocator) getPrivateFieldFromCpm("containerAllocator", cpm).get(cpm);
+    assertEquals(ContainerAllocator.class, allocator.getClass());
     // Asserts that samza exposed container configs is honored by allocator thread
     assertEquals(500, allocator.containerMemoryMb);
     assertEquals(5, allocator.containerNumCpuCores);
@@ -621,8 +620,8 @@ public class TestContainerProcessManager {
         state);
 
     ContainerProcessManager manager =
-        new ContainerProcessManager(new ClusterManagerConfig(config), state, new MetricsRegistryMap(), clusterResourceManager,
-            Optional.of(allocator), getClass().getClassLoader());
+        new ContainerProcessManager(new ClusterManagerConfig(config), state, new MetricsRegistryMap(),
+            clusterResourceManager, Optional.of(allocator));
 
     manager.start();
     SamzaResource resource = new SamzaResource(1, 1024, "host1", "resource-1");
@@ -891,8 +890,8 @@ public class TestContainerProcessManager {
   }
 
   private ContainerProcessManager buildContainerProcessManager(ClusterManagerConfig clusterManagerConfig, SamzaApplicationState state,
-      ClusterResourceManager clusterResourceManager, Optional<AbstractContainerAllocator> allocator) {
-    return new ContainerProcessManager(clusterManagerConfig, state, new MetricsRegistryMap(), clusterResourceManager, allocator,
-        getClass().getClassLoader());
+      ClusterResourceManager clusterResourceManager, Optional<ContainerAllocator> allocator) {
+    return new ContainerProcessManager(clusterManagerConfig, state, new MetricsRegistryMap(), clusterResourceManager,
+        allocator);
   }
 }

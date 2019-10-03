@@ -26,13 +26,12 @@ import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-public class MockContainerAllocatorWithHostAffinity extends AbstractContainerAllocator {
+public class MockContainerAllocatorWithHostAffinity extends ContainerAllocator {
   private Semaphore semaphore = new Semaphore(0);
 
   public MockContainerAllocatorWithHostAffinity(ClusterResourceManager manager,
       Config config, SamzaApplicationState state) {
-    super(manager, config, state,
-        MockContainerAllocatorWithHostAffinity.class.getClassLoader(), true, Optional.empty());
+    super(manager, config, state, true, Optional.empty());
   }
 
   /**
@@ -55,7 +54,7 @@ public class MockContainerAllocatorWithHostAffinity extends AbstractContainerAll
   }
 
   public ResourceRequestState getContainerRequestState() throws Exception {
-    Field field = AbstractContainerAllocator.class.getDeclaredField("resourceRequestState");
+    Field field = ContainerAllocator.class.getDeclaredField("resourceRequestState");
     field.setAccessible(true);
 
     return (ResourceRequestState) field.get(this);
