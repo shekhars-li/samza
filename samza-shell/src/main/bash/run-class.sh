@@ -143,6 +143,8 @@ function check_and_enable_64_bit_mode {
 # Check if log4j configuration is specified. If not - set to lib/log4j.xml
 if [[ -n $(find "$base_dir/lib" -regex ".*samza-log4j2.*.jar*") ]]; then
     [[ $JAVA_OPTS != *-Dlog4j.configurationFile* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j.configurationFile=file:$DEFAULT_LOG4J2_FILE"
+    # LI-ONLY CONFIG: Used to set log4j2 configurations for util-log (xeril) to be printed to the same .log file
+    [[ $JAVA_OPTS != *-Dlog4j2.configuration* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configuration=file:$DEFAULT_LOG4J2_FILE"
 elif [[ -n $(find "$base_dir/lib" -regex ".*samza-log4j.*.jar*") ]]; then
     [[ $JAVA_OPTS != *-Dlog4j.configuration* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j.configuration=file:$DEFAULT_LOG4J_FILE"
 fi
