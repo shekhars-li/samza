@@ -85,7 +85,7 @@ class ShellCommandConfig(config: Config) extends ScalaMapConfig(config) {
       if (jvmOpts.isDefined && jvmOpts.get.contains("-Xmx"))
         jvmOpts = Option(jvmOpts.get.replaceAll("-Xmx\\S+", xmxSetting))
       else if (jvmOpts.isDefined)
-        jvmOpts = Option(jvmOpts.get.concat(xmxSetting))
+        jvmOpts = Option(jvmOpts.get.concat(" " + xmxSetting))
       else
         jvmOpts = Some(xmxSetting)
     }
