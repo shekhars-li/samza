@@ -80,10 +80,14 @@ class ShellCommandConfig(config: Config) extends ScalaMapConfig(config) {
     if (jobConfig.getAutosizingEnabled && getOption(JobConfig.JOB_AUTOSIZING_CONTAINER_MAX_HEAP_MB).isDefined) {
 
       val maxHeapMb = getOption(JobConfig.JOB_AUTOSIZING_CONTAINER_MAX_HEAP_MB).get
-      if (jvmOpts.isDefined)
-        jvmOpts = Option(jvmOpts.get.replaceAll("-Xmx\\S+", "-Xmx" + maxHeapMb + "m"))
+      val xmxSetting = "-Xmx" + maxHeapMb + "m"
+
+      if (jvmOpts.isDefined && jvmOpts.get.contains("-Xmx"))
+        jvmOpts = Option(jvmOpts.get.replaceAll("-Xmx\\S+", xmxSetting))
+      else if (jvmOpts.isDefined)
+        jvmOpts = Option(jvmOpts.get.concat(xmxSetting))
       else
-        jvmOpts = Some("-Xmx" + maxHeapMb + "m")
+        jvmOpts = Some(xmxSetting)
     }
 
     jvmOpts
