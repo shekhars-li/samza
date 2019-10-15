@@ -42,14 +42,9 @@ GC_LOG_ROTATION_OPTS="-XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GC
 DEFAULT_LOG4J_FILE=$base_dir/lib/log4j.xml
 DEFAULT_LOG4J2_FILE=$base_dir/lib/log4j2.xml
 BASE_LIB_DIR="$base_dir/lib"
-# JOB_LIB_DIR will be set for yarn container in ContainerUtil.java
-# for others we set it to home_dir/lib
-JOB_LIB_DIR="${JOB_LIB_DIR:-$base_dir/lib}"
 
-export JOB_LIB_DIR=$JOB_LIB_DIR
-
-echo JOB_LIB_DIR=$JOB_LIB_DIR
 echo BASE_LIB_DIR=$BASE_LIB_DIR
+
 CLASSPATH=""
 
 # This is LinkedIn Hadoop cluster specific dependency! The jar file is needed
