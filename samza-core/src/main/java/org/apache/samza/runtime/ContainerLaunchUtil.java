@@ -81,11 +81,13 @@ public class ContainerLaunchUtil {
       JobModel jobModel) {
 
     Config config = jobModel.getConfig();
+
     // Linkedin-only Offspring setup
     ProcessGeneratorHolder.getInstance().createGenerator(config);
     ProcessGeneratorHolder.getInstance().start();
 
     try {
+      DiagnosticsUtil.writeMetadataFile(jobName, jobId, containerId, execEnvContainerId, config);
       run(appDesc, jobName, jobId, containerId, execEnvContainerId, jobModel, config, buildExternalContext(config));
     } finally {
       // Linkedin-only Offspring shutdown
