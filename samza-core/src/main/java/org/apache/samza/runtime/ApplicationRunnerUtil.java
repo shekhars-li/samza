@@ -22,7 +22,7 @@ package org.apache.samza.runtime;
 import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.samza.application.ApplicationUtil;
 import org.apache.samza.config.Config;
-import org.apache.samza.util.Util;
+import org.apache.samza.util.ConfigUtil;
 
 
 /**
@@ -45,7 +45,7 @@ public class ApplicationRunnerUtil {
     ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
     ProcessGeneratorHolder.getInstance().start();
 
-    Config config = Util.rewriteConfig(originalConfig);
+    Config config = ConfigUtil.rewriteConfig(originalConfig);
     ApplicationRunner appRunner =
         ApplicationRunners.getApplicationRunner(ApplicationUtil.fromConfig(config), config);
 
