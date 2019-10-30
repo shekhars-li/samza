@@ -193,6 +193,7 @@ object YarnJob extends Logging {
     envMapBuilder.result()
   }
 
+
   /**
     * Build the command for the job coordinator execution.
     * Passing multiple separate config objects so that they can be reused in other places.

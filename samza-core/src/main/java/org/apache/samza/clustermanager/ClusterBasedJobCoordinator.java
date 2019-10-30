@@ -176,10 +176,15 @@ public class ClusterBasedJobCoordinator {
   public ClusterBasedJobCoordinator(Config coordinatorSystemConfig) {
     metrics = new MetricsRegistryMap();
 
+    /* an generator created to get configs*/
+    ProcessGeneratorHolder.getInstance().createGenerator(coordinatorSystemConfig);
+    ProcessGeneratorHolder.getInstance().start();
+
     coordinatorStreamStore = new CoordinatorStreamStore(coordinatorSystemConfig, metrics);
     coordinatorStreamStore.init();
     config = CoordinatorStreamUtil.readConfigFromCoordinatorStream(coordinatorStreamStore);
 
+    ProcessGeneratorHolder.getInstance().stop();
     /*
      * Linkedin-only Offspring setup: It would be nice to do this outside of the constructor, but it's the best place to
      * put it now given how this class currently sets components up and manages their lifecycles. This needs to be put

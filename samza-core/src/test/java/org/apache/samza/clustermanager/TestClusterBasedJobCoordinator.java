@@ -56,6 +56,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -194,7 +195,7 @@ public class TestClusterBasedJobCoordinator {
 
     new ClusterBasedJobCoordinator(config);
     // make sure it gets the config in the coordinator stream
-    verify(processGeneratorHolder).createGenerator(config);
-    verify(processGeneratorHolder).start();
+    verify(processGeneratorHolder, times(2)).createGenerator(config);
+    verify(processGeneratorHolder, times(2)).start();
   }
 }

@@ -44,6 +44,7 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
   public static final Logger LOG = LoggerFactory.getLogger(KafkaConsumerConfig.class);
 
   public static final String ZOOKEEPER_CONNECT = "zookeeper.connect";
+  public static final String DESERIALIZATION_MODE = "deserialization.mode";
   private static final int FETCH_MAX_BYTES = 1024 * 1024;
 
   private final String systemName;
@@ -72,6 +73,11 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
     final String groupId = createConsumerGroupId(config);
 
     Map<String, Object> consumerProps = new HashMap<>(subConf);
+
+    if(consumerProps.containsKey(DESERIALIZATION_MODE)) {
+      Object originMode = consumerProps.get(DESERIALIZATION_MODE);
+      consumerProps.put(DESERIALIZATION_MODE, originMode.toString().toUpperCase());
+    }
 
     consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
     consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
