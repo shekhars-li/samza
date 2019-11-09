@@ -46,47 +46,12 @@ BASE_LIB_DIR="$base_dir/lib"
 echo BASE_LIB_DIR=$BASE_LIB_DIR
 
 CLASSPATH=""
-
-# This is LinkedIn Hadoop cluster specific dependency! The jar file is needed
-# for the Samza job to run on LinkedIn's Hadoop YARN cluster.
-# There is no clean way to include this dependency anywhere else, so we just
-# manually include it here.
-# Long term fix: make Hadoop YARN cluster officially support Samza job and prepare
-# runtime dependency for us.
-#
-if [ -e /export/apps/hadoop/site/lib/grid-topology-1.0.jar ]; then
-  CLASSPATH=$CLASSPATH" /export/apps/hadoop/site/lib/grid-topology-1.0.jar \n"
-fi
-
-if [ -d "$JOB_LIB_DIR" ] && [ "$JOB_LIB_DIR" != "$BASE_LIB_DIR" ]; then
-  # build a common classpath
-  # this class path will contain all the jars from the framework and the job's libs.
-  # in case of different version of the same lib - we pick the highest
-
-  #all jars from the fwk
-  base_jars=`ls $BASE_LIB_DIR/*.[jw]ar`
-  #all jars from the job
-  job_jars=`for file in $JOB_LIB_DIR/*.[jw]ar; do name=\`basename $file\`; if [[ $base_jars != *"$name"* ]]; then echo "$file"; fi; done`
-  # get all lib jars and reverse sort it by versions
-  all_jars=`for file in $base_jars $job_jars; do echo \`basename $file|sed 's/.*[-]\([0-9]\+\..*\)[jw]ar$/\1/'\` $file; done|sort -t. -k 1,1nr -k 2,2nr -k 3,3nr -k 4,4nr|awk '{print $2}'`
-  # generate the class path based on the sorted result, all the jars need to be appended on newlines
-  # to ensure java argument length of 72 bytes is not violated
-  for jar in $all_jars; do CLASSPATH=$CLASSPATH" $jar \n"; done
-
-  # for debug only
-  echo base_jars=$base_jars
-  echo job_jars=$job_jars
-  echo all_jars=$all_jars
-  echo generated combined CLASSPATH=$CLASSPATH
-else
-  # default behavior, all the jars need to be appended on newlines
-  # to ensure line argument length of 72 bytes is not violated
-  for file in $BASE_LIB_DIR/*.[jw]ar;
-  do
-    CLASSPATH=$CLASSPATH" $file \n"
-  done
-  echo generated from BASE_LIB_DIR CLASSPATH=$CLASSPATH
-fi
+# all the jars need to be appended on newlines to ensure line argument length of 72 bytes is not violated
+for file in $BASE_LIB_DIR/*.[jw]ar;
+do
+  CLASSPATH=$CLASSPATH" $file \n"
+done
+echo generated from BASE_LIB_DIR CLASSPATH=$CLASSPATH
 
 # In some cases (AWS) $JAVA_HOME/bin doesn't contain jar.
 if [ -z "$JAVA_HOME" ] || [ ! -e "$JAVA_HOME/bin/jar" ]; then
@@ -138,8 +103,6 @@ function check_and_enable_64_bit_mode {
 # Check if log4j configuration is specified. If not - set to lib/log4j.xml
 if [[ -n $(find "$base_dir/lib" -regex ".*samza-log4j2.*.jar*") ]]; then
     [[ $JAVA_OPTS != *-Dlog4j.configurationFile* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j.configurationFile=file:$DEFAULT_LOG4J2_FILE"
-    # LI-ONLY CONFIG: Used to set log4j2 configurations for util-log (xeril) to be printed to the same .log file
-    [[ $JAVA_OPTS != *-Dlog4j2.configuration* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configuration=file:$DEFAULT_LOG4J2_FILE"
 elif [[ -n $(find "$base_dir/lib" -regex ".*samza-log4j.*.jar*") ]]; then
     [[ $JAVA_OPTS != *-Dlog4j.configuration* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j.configuration=file:$DEFAULT_LOG4J_FILE"
 fi
@@ -162,10 +125,12 @@ fi
 # Check if 64 bit is set. If not - try and set it if it's supported
 [[ $JAVA_OPTS != *-d64* ]] && check_and_enable_64_bit_mode
 
-# Add JVM option to guarantee exit on OOM
-JAVA_OPTS="${JAVA_OPTS} -XX:+ExitOnOutOfMemoryError"
-
 # HADOOP_CONF_DIR should be supplied to classpath explicitly for Yarn to parse configs
-# Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
-echo $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar "$@"
-exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar "$@"
+echo $JAVA $JAVA_OPTS -cp $HADOOP_CONF_DIR:pathing.jar "$@"
+
+## If localized resource lib directory is defined, then include it in the classpath.
+if [[ -z "${ADDITIONAL_CLASSPATH_DIR}" ]]; then
+   exec $JAVA $JAVA_OPTS -cp $HADOOP_CONF_DIR:pathing.jar "$@"
+else
+  exec $JAVA $JAVA_OPTS -cp $HADOOP_CONF_DIR:pathing.jar:$ADDITIONAL_CLASSPATH_DIR "$@"
+fi
