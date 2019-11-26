@@ -69,7 +69,7 @@ public class ReflectionBasedUdfResolver implements UdfResolver {
     ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
     // Include only the SamzaSqlUDFClass implementations defined in the package prefix.
     configurationBuilder.forPackages(samzaSqlUdfPackagePrefix.split(","));
-    configurationBuilder.filterInputsBy(new FilterBuilder().includePackage(samzaSqlUdfFilter));
+    configurationBuilder.filterInputsBy(new FilterBuilder().includePackage(samzaSqlUdfFilter.split(",")));
     // Manually add the resource urls if they're configured.
     configurationBuilder.addUrls(getUrls(udfConfig));
 
