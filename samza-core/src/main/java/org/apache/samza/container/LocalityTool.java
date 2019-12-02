@@ -18,7 +18,7 @@ import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.util.CommandLine;
 import org.apache.samza.util.NoOpMetricsRegistry;
-import org.apache.samza.util.Util;
+import org.apache.samza.util.ReflectionUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,7 +117,7 @@ public class LocalityTool extends CommandLine {
         .orElseThrow(() -> new SamzaException(
             String.format("Unable to find class config for config rewriter %s.", rewriterName)));
 
-    ConfigRewriter rewriter = Util.getObj(rewriterClassName, ConfigRewriter.class);
+    ConfigRewriter rewriter = ReflectionUtil.getObj(rewriterClassName, ConfigRewriter.class);
     LOG.info("Re-writing config for CheckpointTool with " + rewriter);
     return rewriter.rewrite(rewriterName, config);
   }
