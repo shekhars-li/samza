@@ -550,9 +550,15 @@ public class ClusterBasedJobCoordinator {
   static ClusterBasedJobCoordinator createFromMetadataStore(Config metadataStoreConfig) {
     MetricsRegistryMap metrics = new MetricsRegistryMap();
 
+    // an generator created to get configs
+    ProcessGeneratorHolder.getInstance().createGenerator(metadataStoreConfig);
+    ProcessGeneratorHolder.getInstance().start();
+
     CoordinatorStreamStore coordinatorStreamStore = new CoordinatorStreamStore(metadataStoreConfig, metrics);
     coordinatorStreamStore.init();
     Config config = CoordinatorStreamUtil.readConfigFromCoordinatorStream(coordinatorStreamStore);
+
+    ProcessGeneratorHolder.getInstance().stop();
 
     return new ClusterBasedJobCoordinator(metrics, coordinatorStreamStore, config);
   }
