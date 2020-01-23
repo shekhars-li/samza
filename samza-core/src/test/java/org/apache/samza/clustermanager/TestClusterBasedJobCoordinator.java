@@ -212,7 +212,12 @@ public class TestClusterBasedJobCoordinator {
     producer.writeConfig("test-job", config);
 
     ClusterBasedJobCoordinator.createFromMetadataStore(config);
-    // make sure it gets the config in the coordinator stream
+    /*
+     * make sure it gets the config in the coordinator stream.
+     * offspring generator is supposed to start twice.
+     * first time to start with coordinator stream configs only in order to build coordinator stream store
+     * second time to start with full job config in order
+     */
     verify(processGeneratorHolder, times(2)).createGenerator(config);
     verify(processGeneratorHolder, times(2)).start();
   }

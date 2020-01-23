@@ -550,7 +550,7 @@ public class ClusterBasedJobCoordinator {
   static ClusterBasedJobCoordinator createFromMetadataStore(Config metadataStoreConfig) {
     MetricsRegistryMap metrics = new MetricsRegistryMap();
 
-    // an generator created to get configs
+    // an offspring generator created to get full job config, this is required to start coordinator stream store.
     ProcessGeneratorHolder.getInstance().createGenerator(metadataStoreConfig);
     ProcessGeneratorHolder.getInstance().start();
 
@@ -558,6 +558,8 @@ public class ClusterBasedJobCoordinator {
     coordinatorStreamStore.init();
     Config config = CoordinatorStreamUtil.readConfigFromCoordinatorStream(coordinatorStreamStore);
 
+    // stop the temporary offspring generator, this is required to restart the generator with full job config
+    // in the constructor of ClusterBasedJobCoordinator
     ProcessGeneratorHolder.getInstance().stop();
 
     return new ClusterBasedJobCoordinator(metrics, coordinatorStreamStore, config);
