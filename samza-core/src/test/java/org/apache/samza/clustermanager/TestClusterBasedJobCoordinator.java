@@ -213,8 +213,8 @@ public class TestClusterBasedJobCoordinator {
 
     ClusterBasedJobCoordinator.createFromMetadataStore(config);
     // make sure it gets the config in the coordinator stream
-    verify(processGeneratorHolder, times(1)).createGenerator(config);
-    verify(processGeneratorHolder, times(1)).start();
+    verify(processGeneratorHolder, times(2)).createGenerator(config);
+    verify(processGeneratorHolder, times(2)).start();
   }
 
   @Test
