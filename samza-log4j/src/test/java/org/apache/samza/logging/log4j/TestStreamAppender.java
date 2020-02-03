@@ -61,6 +61,8 @@ public class TestStreamAppender {
     layout.setConversionPattern("%m");
     systemProducerAppender.setLayout(layout);
     systemProducerAppender.activateOptions();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     assertNotNull(systemProducerAppender.getSerde());
     assertEquals(LoggingEventJsonSerde.class, systemProducerAppender.getSerde().getClass());
   }
@@ -81,6 +83,8 @@ public class TestStreamAppender {
     layout.setConversionPattern("%m");
     systemProducerAppender.setLayout(layout);
     systemProducerAppender.activateOptions();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     assertNotNull(systemProducerAppender.getSerde());
     assertEquals(LoggingEventStringSerde.class, systemProducerAppender.getSerde().getClass());
   }
@@ -94,6 +98,8 @@ public class TestStreamAppender {
     layout.setConversionPattern("%m");
     systemProducerAppender.setLayout(layout);
     systemProducerAppender.activateOptions();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     log.addAppender(systemProducerAppender);
 
     List<String> messages = Lists.newArrayList("testing1", "testing2");
@@ -114,7 +120,7 @@ public class TestStreamAppender {
     log.info("no-received"); // System isn't initialized yet, so this message should be dropped
 
     systemProducerAppender.setupSystem();
-    MockSystemProducerAppender.systemInitialized = true;
+    systemProducerAppender.systemInitialized = true;
 
     List<String> messages = Lists.newArrayList("testing3", "testing4");
     logAndVerifyMessages(messages);
@@ -128,7 +134,9 @@ public class TestStreamAppender {
     PatternLayout layout = new PatternLayout();
     layout.setConversionPattern("%m");
     systemProducerAppender.setLayout(layout);
-    systemProducerAppender.activateOptions(); // setupSystem() called inside here.
+    systemProducerAppender.activateOptions();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     log.addAppender(systemProducerAppender);
 
     Assert.assertEquals("", MockSystemAdmin.createdStreamName);
@@ -149,7 +157,9 @@ public class TestStreamAppender {
     PatternLayout layout = new PatternLayout();
     layout.setConversionPattern("%m");
     systemProducerAppender.setLayout(layout);
-    systemProducerAppender.activateOptions(); // setupSystem() called inside here.
+    systemProducerAppender.activateOptions();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     log.addAppender(systemProducerAppender);
 
     Assert.assertEquals("__samza_log4jTest_1_logs", MockSystemAdmin.createdStreamName);
@@ -183,6 +193,8 @@ public class TestStreamAppender {
     layout.setConversionPattern("%m");
     systemProducerAppender.setLayout(layout);
     systemProducerAppender.activateOptions();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     log.addAppender(systemProducerAppender);
 
     List<String> messages = Lists.newArrayList("testing5", "testing6", "testing7");
@@ -214,6 +226,9 @@ public class TestStreamAppender {
     layout.setConversionPattern("%m");
     systemProducerAppender.setLayout(layout);
     systemProducerAppender.activateOptions();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
+
     log.addAppender(systemProducerAppender);
 
     int extraMessageCount = 5;

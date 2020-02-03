@@ -44,6 +44,7 @@ import org.apache.samza.job.model.JobModel;
 import org.apache.samza.logging.log4j.serializers.LoggingEventJsonSerdeFactory;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.metrics.MetricsRegistryMap;
+import org.apache.samza.runtime.ContainerLaunchUtil;
 import org.apache.samza.serializers.Serde;
 import org.apache.samza.serializers.SerdeFactory;
 import org.apache.samza.serializers.model.SamzaObjectMapper;
@@ -74,7 +75,7 @@ public class StreamAppender extends AppenderSkeleton {
   protected static final int DEFAULT_QUEUE_SIZE = 100;
   private static final long DEFAULT_QUEUE_TIMEOUT_S = 2; // Abitrary choice
 
-  protected static volatile boolean systemInitialized = false;
+  protected volatile boolean systemInitialized = false;
 
   private Config config = null;
   private SystemStream systemStream = null;
@@ -149,14 +150,6 @@ public class StreamAppender extends AppenderSkeleton {
           ". This is used as the key for the log appender, so can't proceed.");
     }
     key = containerName; // use the container name as the key for the logs
-
-    // StreamAppender has to wait until the JobCoordinator is up when the log is in the AM
-    if (isApplicationMaster) {
-      systemInitialized = false;
-    } else {
-      setupSystem();
-      systemInitialized = true;
-    }
   }
 
   @Override
@@ -165,12 +158,25 @@ public class StreamAppender extends AppenderSkeleton {
       try {
         recursiveCall.set(true);
         if (!systemInitialized) {
-          if (JobModelManager.currentJobModelManager() != null) {
+          //StreamAppender has to wait until the JobCoordinator is up when the log is in the AM
+          if (isApplicationMaster && JobModelManager.currentJobModelManager() != null) {
             // JobCoordinator has been instantiated
-            setupSystem();
-            systemInitialized = true;
+            synchronized (this) {
+              if (!systemInitialized) {
+                setupSystem();
+                systemInitialized = true;
+              }
+            }
+          } else if (!isApplicationMaster && ContainerLaunchUtil.isContainerRunning()) {
+            // Linkedin-specific: StreamAppender has to wait until the Offspring is up when log is in the container, should be consistent with OSS after SAMZA-2450 done.
+            synchronized (this) {
+              if (!systemInitialized) {
+                setupSystem();
+                systemInitialized = true;
+              }
+            }
           } else {
-            log.trace("Waiting for the JobCoordinator to be instantiated...");
+            log.trace("Waiting for the JobCoordinator/Container to be instantiated...");
           }
         } else {
           // Serialize the event before adding to the queue to leverage the caller thread

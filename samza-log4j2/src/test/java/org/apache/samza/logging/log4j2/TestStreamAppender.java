@@ -61,6 +61,8 @@ public class TestStreamAppender {
     PatternLayout layout = PatternLayout.newBuilder().withPattern("%m").build();
     MockSystemProducerAppender systemProducerAppender = MockSystemProducerAppender.createAppender("testName", null, layout, false, null, null);
     systemProducerAppender.start();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     assertNotNull(systemProducerAppender.getSerde());
     assertEquals(LoggingEventJsonSerde.class, systemProducerAppender.getSerde().getClass());
   }
@@ -79,6 +81,8 @@ public class TestStreamAppender {
     PatternLayout layout = PatternLayout.newBuilder().withPattern("%m").build();
     MockSystemProducerAppender systemProducerAppender = MockSystemProducerAppender.createAppender("testName", null, layout, false, new MapConfig(map), null);
     systemProducerAppender.start();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     assertNotNull(systemProducerAppender.getSerde());
     assertEquals(LoggingEventStringSerde.class, systemProducerAppender.getSerde().getClass());
   }
@@ -89,6 +93,8 @@ public class TestStreamAppender {
     PatternLayout layout = PatternLayout.newBuilder().withPattern("%m").build();
     MockSystemProducerAppender systemProducerAppender = MockSystemProducerAppender.createAppender("testName", null, layout, false, null, null);
     systemProducerAppender.start();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     log.addAppender(systemProducerAppender);
     Assert.assertEquals("__samza_log4jTest_1_logs", systemProducerAppender.getStreamName());
   }
@@ -110,6 +116,8 @@ public class TestStreamAppender {
     PatternLayout layout = PatternLayout.newBuilder().withPattern("%m").build();
     MockSystemProducerAppender systemProducerAppender = MockSystemProducerAppender.createAppender("testName", null, layout, false, null, null);
     systemProducerAppender.start();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
 
     log.addAppender(systemProducerAppender);
     log.setLevel(Level.INFO);
@@ -131,7 +139,7 @@ public class TestStreamAppender {
     log.info("no-received"); // System isn't initialized yet, so this message should be dropped
 
     systemProducerAppender.setupSystem();
-    MockSystemProducerAppender.systemInitialized = true;
+    systemProducerAppender.systemInitialized = true;
 
     List<String> messages = Lists.newArrayList("testing3", "testing4");
     logAndVerifyMessages(messages);
@@ -164,6 +172,8 @@ public class TestStreamAppender {
     PatternLayout layout = PatternLayout.newBuilder().withPattern("%m").build();
     MockSystemProducerAppender systemProducerAppender = MockSystemProducerAppender.createAppender("testName", null, layout, false, mapConfig, null);
     systemProducerAppender.start();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     log.addAppender(systemProducerAppender);
 
     Assert.assertEquals("__samza_log4jTest_1_logs", MockSystemAdmin.createdStreamName);
@@ -196,6 +206,9 @@ public class TestStreamAppender {
     PatternLayout layout = PatternLayout.newBuilder().withPattern("%m").build();
     MockSystemProducerAppender systemProducerAppender = MockSystemProducerAppender.createAppender("testName", null, layout, false, null, null);
     systemProducerAppender.start();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
+
     log.addAppender(systemProducerAppender);
     log.setLevel(Level.INFO);
 
@@ -227,6 +240,8 @@ public class TestStreamAppender {
     MockSystemProducerAppender systemProducerAppender = MockSystemProducerAppender.createAppender("testName", null, layout, false, null, null);
     systemProducerAppender.queueTimeoutS = 1;
     systemProducerAppender.start();
+    systemProducerAppender.setupSystem();
+    systemProducerAppender.systemInitialized = true;
     log.addAppender(systemProducerAppender);
     log.setLevel(Level.INFO);
 

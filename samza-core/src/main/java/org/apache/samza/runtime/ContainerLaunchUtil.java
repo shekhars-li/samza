@@ -61,7 +61,7 @@ public class ContainerLaunchUtil {
   private static final Logger log = LoggerFactory.getLogger(ContainerLaunchUtil.class);
 
   private static volatile Throwable containerRunnerException = null;
-
+  private static boolean isContainerLaunched = false;
   /**
    * This method launches a Samza container in a managed cluster and is invoked by BeamContainerRunner.
    * Any change here needs to take Beam into account.
@@ -85,16 +85,21 @@ public class ContainerLaunchUtil {
     // Linkedin-only Offspring setup
     ProcessGeneratorHolder.getInstance().createGenerator(config);
     ProcessGeneratorHolder.getInstance().start();
-
+    isContainerLaunched = true;
     try {
       DiagnosticsUtil.writeMetadataFile(jobName, jobId, containerId, execEnvContainerId, config);
       run(appDesc, jobName, jobId, containerId, execEnvContainerId, jobModel, config, buildExternalContext(config));
     } finally {
+      isContainerLaunched = false;
       // Linkedin-only Offspring shutdown
       ProcessGeneratorHolder.getInstance().stop();
     }
 
     System.exit(0);
+  }
+
+  public static boolean isContainerRunning() {
+    return isContainerLaunched;
   }
 
   private static void run(
