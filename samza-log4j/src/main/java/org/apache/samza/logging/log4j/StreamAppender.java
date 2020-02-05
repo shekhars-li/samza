@@ -168,7 +168,8 @@ public class StreamAppender extends AppenderSkeleton {
               }
             }
           } else if (!isApplicationMaster && ContainerLaunchUtil.isContainerRunning()) {
-            // Linkedin-specific: StreamAppender has to wait until the Offspring is up when log is in the container, should be consistent with OSS after SAMZA-2450 done.
+            // Linkedin-specific: StreamAppender has to wait until the Offspring is up when log is in the container,
+            // Please see more details in LISAMZA-14223.
             synchronized (this) {
               if (!systemInitialized) {
                 setupSystem();
