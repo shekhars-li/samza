@@ -200,15 +200,7 @@ public class ClusterBasedJobCoordinator {
     this.metadataStore = metadataStore;
     this.config = fullJobConfig;
 
-    /*
-      * Linkedin-only Offspring setup: It would be nice to do this outside of the constructor, but it's the best place to
-      * put it now given how this class currently sets components up and manages their lifecycles. This needs to be put
-      * here because the creation of the Generator in ProcessGeneratorHolder requires the full configuration, but that is
-      * not available until the coordinator stream is read to get the configuration. This also means that
-      * ProcessGeneratorHolder cannot be used to build any components needed by the coordinator stream consumer.
-      */
-    ProcessGeneratorHolder.getInstance().createGenerator(config);
-    ProcessGeneratorHolder.getInstance().start();
+    // ProcessGeneratorHolder is expected to have already started before the constructor is being invoked.
 
     // build a JobModelManager and ChangelogStreamManager and perform partition assignments.
     this.changelogStreamManager = new ChangelogStreamManager(
@@ -607,6 +599,14 @@ public class ClusterBasedJobCoordinator {
     // in the constructor of ClusterBasedJobCoordinator
     ProcessGeneratorHolder.getInstance().stop();
 
+    /*
+     * This needs to be put here because the creation of the Generator in ProcessGeneratorHolder requires the full
+     * configuration, but that is not available until the coordinator stream is read to get the configuration.
+     * This also means that ProcessGeneratorHolder cannot be used to build any components needed by the coordinator stream consumer.
+     */
+    ProcessGeneratorHolder.getInstance().createGenerator(config);
+    ProcessGeneratorHolder.getInstance().start();
+
     return new ClusterBasedJobCoordinator(metrics, coordinatorStreamStore, config);
   }
 
@@ -628,6 +628,13 @@ public class ClusterBasedJobCoordinator {
     MetricsRegistryMap metrics = new MetricsRegistryMap();
     // load full job config with ConfigLoader
     Config originalConfig = ConfigUtil.loadConfig(submissionConfig);
+
+    /*
+     * Start the ProcessGenerator with full job config, we don't need to stop and restart it after planning as
+     * planning is only expected to change samza related configs but not offspring components.
+     */
+    ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
+    ProcessGeneratorHolder.getInstance().start();
 
     // Execute planning
     ApplicationDescriptorImpl<? extends ApplicationDescriptor>
