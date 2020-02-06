@@ -96,6 +96,7 @@ public class LocalityManager {
     }
 
     metadataStore.put(containerId, valueSerde.toBytes(hostName));
+    metadataStore.flush();
   }
 
   /**

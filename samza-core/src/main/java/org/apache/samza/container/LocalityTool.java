@@ -1,6 +1,7 @@
 package org.apache.samza.container;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionSet;
@@ -177,7 +178,7 @@ public class LocalityTool extends CommandLine {
     if (DELETE_VALUE.equalsIgnoreCase(containerId)) {
       taskAssignmentManager.deleteTaskContainerMappings(ImmutableList.of(taskName));
     } else {
-      taskAssignmentManager.writeTaskContainerMapping(taskName, containerId, TaskMode.Active);
+      taskAssignmentManager.writeTaskContainerMappings(ImmutableMap.of(containerId, ImmutableMap.of(taskName, TaskMode.Active)));
     }
     LOG.info("Task locality written successfully.");
   }
