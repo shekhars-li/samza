@@ -600,9 +600,9 @@ public class ClusterBasedJobCoordinator {
     ProcessGeneratorHolder.getInstance().stop();
 
     /*
-     * This needs to be put here because the creation of the Generator in ProcessGeneratorHolder requires the full
-     * configuration, but that is not available until the coordinator stream is read to get the configuration.
-     * This also means that ProcessGeneratorHolder cannot be used to build any components needed by the coordinator stream consumer.
+     * LinkedIn-Only
+     *
+     * Start the ProcessGenerator with full job config.
      */
     ProcessGeneratorHolder.getInstance().createGenerator(config);
     ProcessGeneratorHolder.getInstance().start();
@@ -630,6 +630,8 @@ public class ClusterBasedJobCoordinator {
     Config originalConfig = ConfigUtil.loadConfig(submissionConfig);
 
     /*
+     * LinkedIn Only
+     *
      * Start the ProcessGenerator with full job config, we don't need to stop and restart it after planning as
      * planning is only expected to change samza related configs but not offspring components.
      */
