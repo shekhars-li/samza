@@ -54,6 +54,18 @@ echo APPLICATION_LIB_DIR=$APPLICATION_LIB_DIR
 echo BASE_LIB_DIR=$BASE_LIB_DIR
 
 CLASSPATH=""
+
+# This is LinkedIn Hadoop cluster specific dependency! The jar file is needed
+# for the Samza job to run on LinkedIn's Hadoop YARN cluster.
+# There is no clean way to include this dependency anywhere else, so we just
+# manually include it here.
+# Long term fix: make Hadoop YARN cluster officially support Samza job and prepare
+# runtime dependency for us.
+#
+if [ -e /export/apps/hadoop/site/lib/grid-topology-1.0.jar ]; then
+  CLASSPATH=$CLASSPATH" /export/apps/hadoop/site/lib/grid-topology-1.0.jar \n"
+fi
+
 # all the jars need to be appended on newlines to ensure line argument length of 72 bytes is not violated
 for file in $BASE_LIB_DIR/*.[jw]ar;
 do
@@ -118,8 +130,12 @@ if [[ -n $(find "$BASE_LIB_DIR" -regex ".*samza-log4j2.*.jar*") ]]; then
   if [[ $JAVA_OPTS != *-Dlog4j.configurationFile* ]]; then
     if [[ -n $(find "$APPLICATION_LIB_DIR" -maxdepth 1 -name $LOG4J2_FILE_NAME) ]]; then
       export JAVA_OPTS="$JAVA_OPTS -Dlog4j.configurationFile=file:$APPLICATION_LIB_DIR/$LOG4J2_FILE_NAME"
+      # LI-ONLY CONFIG: Used to set log4j2 configurations for util-log (xeril) to be printed to the same .log file
+      [[ $JAVA_OPTS != *-Dlog4j2.configuration* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configuration=file:$APPLICATION_LIB_DIR/$LOG4J2_FILE_NAME"
     else
       export JAVA_OPTS="$JAVA_OPTS -Dlog4j.configurationFile=file:$DEFAULT_LOG4J2_FILE"
+      # LI-ONLY CONFIG: Used to set log4j2 configurations for util-log (xeril) to be printed to the same .log file
+      [[ $JAVA_OPTS != *-Dlog4j2.configuration* ]] && export JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configuration=file:$DEFAULT_LOG4J2_FILE"
     fi
   fi
 elif [[ -n $(find "$BASE_LIB_DIR" -regex ".*samza-log4j.*.jar*") ]]; then
@@ -150,7 +166,7 @@ fi
 # Check if 64 bit is set. If not - try and set it if it's supported
 [[ $JAVA_OPTS != *-d64* ]] && check_and_enable_64_bit_mode
 
-# Add JVM option to guarantee exit on OOM
+# Linkedin-specific: Add JVM option to guarantee exit on OOM
 JAVA_OPTS="${JAVA_OPTS} -XX:+ExitOnOutOfMemoryError"
 
 # HADOOP_CONF_DIR should be supplied to classpath explicitly for Yarn to parse configs
@@ -158,9 +174,9 @@ echo $JAVA $JAVA_OPTS -cp $HADOOP_CONF_DIR:pathing.jar "$@"
 
 ## If localized resource lib directory is defined, then include it in the classpath.
 if [[ -z "${ADDITIONAL_CLASSPATH_DIR}" ]]; then
-   # Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
-   exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar "$@"
+  # LI-specific: Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
+  exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar "$@"
 else
-   # Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
+  # LI-specific: Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
   exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar:$ADDITIONAL_CLASSPATH_DIR "$@"
 fi
