@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.clustermanager.container.placement;
+package org.apache.samza.clustermanager.container.placements;
 
 import java.time.Duration;
 import java.util.HashSet;
@@ -88,10 +88,6 @@ public class ContainerPlacementMetadata {
     return actionStatus;
   }
 
-  public ContainerPlacementRequestMessage getRequestMessage() {
-    return requestMessage;
-  }
-
   public synchronized String getResponseMessage() {
     return responseMessage;
   }
@@ -115,16 +111,12 @@ public class ContainerPlacementMetadata {
   @Override
   public String toString() {
     final StringBuilder sb = new StringBuilder("ContainerPlacementMetadata{");
-    sb.append(" UUID: ").append(requestMessage.getUuid());
-    sb.append(", Processor ID: ").append(requestMessage.getProcessorId());
-    sb.append(", deploymentId='").append(requestMessage.getDeploymentId()).append('\'');
-    sb.append(", destinationHost='").append(requestMessage.getDestinationHost()).append('\'');
-    sb.append(", requestExpiry=").append(requestMessage.getRequestExpiry());
+    sb.append("Request= ").append(requestMessage);
     sb.append(", sourceHost='").append(sourceHost).append('\'');
+    sb.append(", resourceRequests=").append(resourceRequests);
     sb.append(", actionStatus=").append(actionStatus);
     sb.append(", containerStatus=").append(containerStatus);
     sb.append(", responseMessage='").append(responseMessage).append('\'');
-    sb.append(", resourceRequests=").append(resourceRequests);
     sb.append('}');
     return sb.toString();
   }

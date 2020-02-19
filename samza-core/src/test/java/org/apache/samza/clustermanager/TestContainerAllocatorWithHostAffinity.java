@@ -28,14 +28,11 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import org.apache.samza.clustermanager.container.placement.ContainerPlacementMetadataStore;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.container.LocalityManager;
 import org.apache.samza.coordinator.JobModelManager;
 import org.apache.samza.coordinator.JobModelManagerTestUtil;
-import org.apache.samza.coordinator.metadatastore.CoordinatorStreamStore;
-import org.apache.samza.coordinator.metadatastore.CoordinatorStreamStoreTestUtil;
 import org.apache.samza.coordinator.stream.messages.SetContainerHostMapping;
 import org.apache.samza.testUtils.MockHttpServer;
 import org.eclipse.jetty.servlet.DefaultServlet;
@@ -63,8 +60,7 @@ public class TestContainerAllocatorWithHostAffinity {
   private final SamzaApplicationState state = new SamzaApplicationState(jobModelManager);
 
   private final MockClusterResourceManager clusterResourceManager = new MockClusterResourceManager(callback, state);
-  private ContainerPlacementMetadataStore containerPlacementMetadataStore;
-  private ContainerManager containerManager;
+  private final ContainerManager containerManager = new ContainerManager(state, clusterResourceManager, true, false);
 
   private JobModelManager initializeJobModelManager(Config config, int containerCount) {
     Map<String, Map<String, String>> localityMap = new HashMap<>();
@@ -87,12 +83,6 @@ public class TestContainerAllocatorWithHostAffinity {
 
   @Before
   public void setup() throws Exception {
-    CoordinatorStreamStoreTestUtil coordinatorStreamStoreTestUtil = new CoordinatorStreamStoreTestUtil(config);
-    CoordinatorStreamStore coordinatorStreamStore = coordinatorStreamStoreTestUtil.getCoordinatorStreamStore();
-    coordinatorStreamStore.init();
-    containerPlacementMetadataStore = new ContainerPlacementMetadataStore(coordinatorStreamStore);
-    containerPlacementMetadataStore.start();
-    containerManager = new ContainerManager(containerPlacementMetadataStore, state, clusterResourceManager, true, false);
     containerAllocator =
         new ContainerAllocator(clusterResourceManager, config, state, true, containerManager);
     requestState = new MockContainerRequestState(clusterResourceManager, true);
@@ -371,8 +361,7 @@ public class TestContainerAllocatorWithHostAffinity {
   public void testRequestAllocationOnPreferredHostWithRunStreamProcessor() throws Exception {
     ClusterResourceManager.Callback mockCPM = mock(MockClusterResourceManagerCallback.class);
     ClusterResourceManager mockClusterResourceManager = new MockClusterResourceManager(mockCPM, state);
-    ContainerManager containerManager =
-        new ContainerManager(containerPlacementMetadataStore, state, mockClusterResourceManager, true, false);
+    ContainerManager containerManager = new ContainerManager(state, mockClusterResourceManager, true, false);
     // Mock the callback from ClusterManager to add resources to the allocator
     doAnswer((InvocationOnMock invocation) -> {
         SamzaResource resource = (SamzaResource) invocation.getArgumentAt(0, List.class).get(0);
@@ -418,8 +407,7 @@ public class TestContainerAllocatorWithHostAffinity {
   @Test
   public void testExpiredRequestAllocationOnAnyHost() throws Exception {
     MockClusterResourceManager spyManager = spy(new MockClusterResourceManager(callback, state));
-    ContainerManager spyContainerManager =
-        spy(new ContainerManager(containerPlacementMetadataStore, state, spyManager, true, false));
+    ContainerManager spyContainerManager = spy(new ContainerManager(state, spyManager, true, false));
     spyAllocator = Mockito.spy(
         new ContainerAllocator(spyManager, config, state, true, spyContainerManager));
     // Request Preferred Resources
@@ -462,8 +450,7 @@ public class TestContainerAllocatorWithHostAffinity {
   public void testExpiredRequestAllocationOnSurplusAnyHostWithRunStreamProcessor() throws Exception {
     // Add Extra Resources
     MockClusterResourceManager spyClusterResourceManager = spy(new MockClusterResourceManager(callback, state));
-    ContainerManager spyContainerManager =
-        spy(new ContainerManager(containerPlacementMetadataStore, state, spyClusterResourceManager, true, false));
+    ContainerManager spyContainerManager = spy(new ContainerManager(state, spyClusterResourceManager, true, false));
 
     spyAllocator = Mockito.spy(
         new ContainerAllocator(spyClusterResourceManager, config, state, true, spyContainerManager));
@@ -609,8 +596,6 @@ public class TestContainerAllocatorWithHostAffinity {
         put("systems.test-system.samza.key.serde", "org.apache.samza.serializers.JsonSerde");
         put("systems.test-system.samza.msg.serde", "org.apache.samza.serializers.JsonSerde");
         put("job.host-affinity.enabled", "true");
-        put("job.name", "test-job");
-        put("job.coordinator.system", "test-kafka");
       }
     });
 

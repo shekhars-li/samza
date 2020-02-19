@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -133,7 +132,7 @@ public class ContainerPlacementMetadataStore {
    * only to write responses to Container Placement Action
    * @param message
    */
-  public void writeContainerPlacementResponseMessage(ContainerPlacementResponseMessage message) {
+  void writeContainerPlacementResponseMessage(ContainerPlacementResponseMessage message) {
     Preconditions.checkState(!stopped, "Underlying metadata store not available");
     Preconditions.checkNotNull(message);
     try {
@@ -265,8 +264,6 @@ public class ContainerPlacementMetadataStore {
         throw new SamzaException(e);
       }
     }
-    // Sort the actions in order of timestamp
-    newActions.sort(Comparator.comparingLong(ContainerPlacementRequestMessage::getTimestamp));
     return newActions;
   }
 

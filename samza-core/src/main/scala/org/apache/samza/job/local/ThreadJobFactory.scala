@@ -20,18 +20,16 @@
 package org.apache.samza.job.local
 
 import com.linkedin.samza.context.ExternalContextUtil
-import org.apache.samza.SamzaException
 import org.apache.samza.application.ApplicationUtil
 import org.apache.samza.application.descriptors.ApplicationDescriptorUtil
 import org.apache.samza.config.JobConfig._
 import org.apache.samza.config.ShellCommandConfig._
-import org.apache.samza.config.{Config, JobConfig}
+import org.apache.samza.config.{Config, JobConfig, TaskConfig}
 import org.apache.samza.container.{SamzaContainer, SamzaContainerListener, TaskName}
 import org.apache.samza.context.{ExternalContext, JobContextImpl}
+import org.apache.samza.coordinator.{JobModelManager, MetadataResourceUtil}
 import org.apache.samza.coordinator.metadatastore.{CoordinatorStreamStore, NamespaceAwareCoordinatorStreamStore}
 import org.apache.samza.coordinator.stream.messages.SetChangelogMapping
-import org.apache.samza.coordinator.{JobModelManager, MetadataResourceUtil}
-import org.apache.samza.execution.RemoteJobPlanner
 import org.apache.samza.job.model.JobModelUtil
 import org.apache.samza.job.{StreamJob, StreamJobFactory}
 import org.apache.samza.metrics.{JmxServer, MetricsRegistryMap, MetricsReporter}
@@ -39,7 +37,7 @@ import org.apache.samza.runtime.ProcessorContext
 import org.apache.samza.startpoint.StartpointManager
 import org.apache.samza.storage.ChangelogStreamManager
 import org.apache.samza.task.{TaskFactory, TaskFactoryUtil}
-import org.apache.samza.util.{ConfigUtil, CoordinatorStreamUtil, DiagnosticsUtil, Logging}
+import org.apache.samza.util.{CoordinatorStreamUtil, Logging}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -48,36 +46,20 @@ import scala.collection.mutable
   * Creates a new Thread job with the given config
   */
 class ThreadJobFactory extends StreamJobFactory with Logging {
-  def getJob(submissionConfig: Config): StreamJob = {
+  def getJob(config: Config): StreamJob = {
     info("Creating a ThreadJob, which is only meant for debugging.")
-    var config = submissionConfig
-    if (new JobConfig(submissionConfig).getConfigLoaderFactory.isPresent) {
-      val originalConfig = ConfigUtil.loadConfig(submissionConfig)
-
-      // Execute planning
-      val planner = new RemoteJobPlanner(ApplicationDescriptorUtil.getAppDescriptor(ApplicationUtil.fromConfig(originalConfig), originalConfig))
-      val jobConfigs = planner.prepareJobs
-
-      if (jobConfigs.size != 1) {
-        throw new SamzaException("Only single stage job is supported.")
-      }
-
-      // This is the full job config
-      config = jobConfigs.get(0)
-      // This needs to be consistent with RemoteApplicationRunner#run where JobRunner#submit to be called instead of JobRunner#run
-      CoordinatorStreamUtil.writeConfigToCoordinatorStream(config)
-      DiagnosticsUtil.createDiagnosticsStream(config)
-    }
 
     val metricsRegistry = new MetricsRegistryMap()
     val coordinatorStreamStore: CoordinatorStreamStore = new CoordinatorStreamStore(config, new MetricsRegistryMap())
     coordinatorStreamStore.init()
 
+    val configFromCoordinatorStream: Config = CoordinatorStreamUtil.readConfigFromCoordinatorStream(coordinatorStreamStore)
+
     val changelogStreamManager = new ChangelogStreamManager(new NamespaceAwareCoordinatorStreamStore(coordinatorStreamStore, SetChangelogMapping.TYPE))
 
-    val jobModelManager = JobModelManager(config, changelogStreamManager.readPartitionMapping(),
+    val coordinator = JobModelManager(configFromCoordinatorStream, changelogStreamManager.readPartitionMapping(),
       coordinatorStreamStore, metricsRegistry)
-    val jobModel = jobModelManager.jobModel
+    val jobModel = coordinator.jobModel
 
     val taskPartitionMappings: mutable.Map[TaskName, Integer] = mutable.Map[TaskName, Integer]()
     for (containerModel <- jobModel.getContainers.values) {
@@ -141,7 +123,7 @@ class ThreadJobFactory extends StreamJobFactory with Logging {
     }
 
     try {
-      jobModelManager.start
+      coordinator.start
       val container = SamzaContainer(
         containerId,
         jobModel,
@@ -157,7 +139,7 @@ class ThreadJobFactory extends StreamJobFactory with Logging {
       val threadJob = new ThreadJob(container)
       threadJob
     } finally {
-      jobModelManager.stop
+      coordinator.stop
       if (jmxServer != null) {
         jmxServer.stop
       }
