@@ -111,11 +111,11 @@ public class TestApplicationRunnerMain {
    * Linkedin-only test for ProcessGeneratorHolder lifecycle
    */
   @Test
-  public void testProcessGeneratorHolderLifecycle() throws Exception{
+  public void testProcessGeneratorHolderLifecycle() {
     ApplicationRunnerMain.main(
         new String[]{
-            "--config-loader-factory", "org.apache.samza.config.factories.PropertiesConfigFactory",
-            "--config-loader-properties", "path=" + getClass().getResource("/test.properties").getPath(),
+            "-config", "job.config.loader.factory=org.apache.samza.config.factories.PropertiesConfigFactory",
+            "-config", "job.config.loader.properties.path=" + getClass().getResource("/test.properties").getPath(),
             "-config", String.format("%s=%s", ApplicationConfig.APP_CLASS, MockStreamApplication.class.getName()),
             "-config", String.format("app.runner.class=%s", MockEmptyApplicationRunner.class.getName()),});
     verify(processGeneratorHolder).createGenerator(any());
