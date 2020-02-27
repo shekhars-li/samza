@@ -53,7 +53,35 @@ export APPLICATION_LIB_DIR=$APPLICATION_LIB_DIR
 echo APPLICATION_LIB_DIR=$APPLICATION_LIB_DIR
 echo BASE_LIB_DIR=$BASE_LIB_DIR
 
-CLASSPATH=""
+BASE_LIB_CLASSPATH=""
+# all the jars need to be appended on newlines to ensure line argument length of 72 bytes is not violated
+for file in $BASE_LIB_DIR/*.[jw]ar;
+do
+  BASE_LIB_CLASSPATH=$BASE_LIB_CLASSPATH" $file \n"
+done
+echo generated from BASE_LIB_DIR BASE_LIB_CLASSPATH=$BASE_LIB_CLASSPATH
+
+# In some cases (AWS) $JAVA_HOME/bin doesn't contain jar.
+if [ -z "$JAVA_HOME" ] || [ ! -e "$JAVA_HOME/bin/jar" ]; then
+  JAR="jar"
+else
+  JAR="$JAVA_HOME/bin/jar"
+fi
+
+# Create a pathing JAR for the JARs in the BASE_LIB_DIR
+# Newlines and spaces are intended to ensure proper parsing of manifest in pathing jar
+printf "Class-Path: \n $BASE_LIB_CLASSPATH \n" > base-lib-manifest.txt
+# Creates a new archive and adds custom manifest information to base-lib-pathing.jar
+eval "$JAR -cvmf base-lib-manifest.txt base-lib-pathing.jar"
+
+# Create a pathing JAR for the runtime framework resources. It is useful to separate this from the base-lib-pathing.jar
+# because the split deployment framework may only need the resources from this runtime pathing JAR.
+if ! [[ $HADOOP_CONF_DIR =~ .*/$ ]]; then
+  # manifest requires a directory to have a trailing slash
+  HADOOP_CONF_DIR="$HADOOP_CONF_DIR/"
+fi
+# HADOOP_CONF_DIR should be supplied to classpath explicitly for Yarn to parse configs
+RUNTIME_FRAMEWORK_RESOURCES_CLASSPATH="$HADOOP_CONF_DIR \n"
 
 # This is LinkedIn Hadoop cluster specific dependency! The jar file is needed
 # for the Samza job to run on LinkedIn's Hadoop YARN cluster.
@@ -63,27 +91,12 @@ CLASSPATH=""
 # runtime dependency for us.
 #
 if [ -e /export/apps/hadoop/site/lib/grid-topology-1.0.jar ]; then
-  CLASSPATH=$CLASSPATH" /export/apps/hadoop/site/lib/grid-topology-1.0.jar \n"
+  RUNTIME_FRAMEWORK_RESOURCES_CLASSPATH=$RUNTIME_FRAMEWORK_RESOURCES_CLASSPATH" /export/apps/hadoop/site/lib/grid-topology-1.0.jar \n"
 fi
 
-# all the jars need to be appended on newlines to ensure line argument length of 72 bytes is not violated
-for file in $BASE_LIB_DIR/*.[jw]ar;
-do
-  CLASSPATH=$CLASSPATH" $file \n"
-done
-echo generated from BASE_LIB_DIR CLASSPATH=$CLASSPATH
-
-# In some cases (AWS) $JAVA_HOME/bin doesn't contain jar.
-if [ -z "$JAVA_HOME" ] || [ ! -e "$JAVA_HOME/bin/jar" ]; then
-  JAR="jar"
-else
-  JAR="$JAVA_HOME/bin/jar"
-fi
-
-# Newlines and spaces are intended to ensure proper parsing of manifest in pathing jar
-printf "Class-Path: \n $CLASSPATH \n" > manifest.txt
-# Creates a new archive and adds custom manifest information to pathing.jar
-eval "$JAR -cvmf manifest.txt pathing.jar"
+# TODO add JARs from ADDITIONAL_CLASSPATH_DIR to runtime-framework-resources-pathing.jar as well
+printf "Class-Path: \n $RUNTIME_FRAMEWORK_RESOURCES_CLASSPATH \n" > runtime-framework-resources-manifest.txt
+eval "$JAR -cvmf runtime-framework-resources-manifest.txt runtime-framework-resources-pathing.jar"
 
 if [ -z "$JAVA_HOME" ]; then
   JAVA="java"
@@ -169,14 +182,13 @@ fi
 # Linkedin-specific: Add JVM option to guarantee exit on OOM
 JAVA_OPTS="${JAVA_OPTS} -XX:+ExitOnOutOfMemoryError"
 
-# HADOOP_CONF_DIR should be supplied to classpath explicitly for Yarn to parse configs
-echo $JAVA $JAVA_OPTS -cp $HADOOP_CONF_DIR:pathing.jar "$@"
+echo $JAVA $JAVA_OPTS -cp base-lib-pathing.jar:runtime-framework-resources-pathing.jar "$@"
 
 ## If localized resource lib directory is defined, then include it in the classpath.
 if [[ -z "${ADDITIONAL_CLASSPATH_DIR}" ]]; then
   # LI-specific: Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
-  exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar "$@"
+  exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp base-lib-pathing.jar:runtime-framework-resources-pathing.jar "$@"
 else
   # LI-specific: Adding option to invoke script on OOM here because adding it in JAVA_OPTS causes encoding issues https://stackoverflow.com/questions/12532051/xxonoutofmemoryerror-cmd-arg-gives-error-could-not-find-or-load-main-c
-  exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp $HADOOP_CONF_DIR:pathing.jar:$ADDITIONAL_CLASSPATH_DIR "$@"
+  exec $JAVA $JAVA_OPTS -XX:OnOutOfMemoryError="$BASE_LIB_DIR/../bin/handle-oom.sh $SAMZA_LOG_DIR" -cp base-lib-pathing.jar:runtime-framework-resources-pathing.jar:$ADDITIONAL_CLASSPATH_DIR "$@"
 fi
