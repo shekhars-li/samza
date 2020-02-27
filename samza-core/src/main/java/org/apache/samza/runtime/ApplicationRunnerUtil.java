@@ -19,7 +19,6 @@
 
 package org.apache.samza.runtime;
 
-import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.samza.application.ApplicationUtil;
 import org.apache.samza.config.Config;
 import org.apache.samza.util.ConfigUtil;
@@ -40,36 +39,24 @@ public class ApplicationRunnerUtil {
    * @return the {@link ApplicationRunner} object.
    */
   public static ApplicationRunner invoke(Config originalConfig, ApplicationRunnerOperation op) {
-
-    // Linkedin-only Offspring setup
-    ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
-    ProcessGeneratorHolder.getInstance().start();
-
     Config config = ConfigUtil.rewriteConfig(originalConfig);
+
     ApplicationRunner appRunner =
         ApplicationRunners.getApplicationRunner(ApplicationUtil.fromConfig(config), config);
 
-
-
-    try {
-      switch (op) {
-        case RUN:
-          appRunner.run(null);
-          break;
-        case KILL:
-          appRunner.kill();
-          break;
-        case STATUS:
-          System.out.println(appRunner.status());
-          break;
-        default:
-          throw new IllegalArgumentException("Unrecognized operation: " + op);
-      }
-    } finally {
-      // Linkedin-only Offspring shutdown
-      ProcessGeneratorHolder.getInstance().stop();
+    switch (op) {
+      case RUN:
+        appRunner.run(null);
+        break;
+      case KILL:
+        appRunner.kill();
+        break;
+      case STATUS:
+        System.out.println(appRunner.status());
+        break;
+      default:
+        throw new IllegalArgumentException("Unrecognized operation: " + op);
     }
-
     return appRunner;
   }
 }
