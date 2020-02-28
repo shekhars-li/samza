@@ -42,6 +42,7 @@ import org.apache.samza.job.model.ContainerModel
 import org.apache.samza.job.model.JobModel
 import org.apache.samza.job.model.TaskMode
 import org.apache.samza.job.model.TaskModel
+import org.apache.samza.lineage.LineageEmitter
 import org.apache.samza.metadatastore.MetadataStore
 import org.apache.samza.metrics.MetricsRegistry
 import org.apache.samza.metrics.MetricsRegistryMap
@@ -410,6 +411,9 @@ object JobModelManager extends Logging {
     } else {
       containerModels = taskNameGrouperProxy.group(taskModels, new util.ArrayList[String](grouperMetadata.getProcessorLocality.keySet()))
     }
+
+    // emit job lineage data to specified outside system if function is enabled
+    LineageEmitter.emit(config)
 
     val containerMap = containerModels.asScala.map(containerModel => containerModel.getId -> containerModel).toMap
     new JobModel(config, containerMap.asJava)
