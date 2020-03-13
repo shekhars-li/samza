@@ -182,6 +182,56 @@ fi
 # Linkedin-specific: Add JVM option to guarantee exit on OOM
 JAVA_OPTS="${JAVA_OPTS} -XX:+ExitOnOutOfMemoryError"
 
+# Linkedin-specific: Add pre-installed boot jars to JVM boot class path, e.g. support Jetty Http2 communication by ALPN
+function setup_boot_jars_in_jvm_boot_classpath() {
+  # Get and format java version to follow SI's convention, e.g. 1.8.0_172 to 1_8_0_172
+  RAW_JAVA_VERSION=$($JAVA -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  FORMATTED_JAVA_VERSION=${RAW_JAVA_VERSION//./_}
+
+  # The boot jars are pre-installed in different paths for Mac OS and Linux OS
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    BOOT_JAR_HOME_DIR="/Library/Java/Boot/${FORMATTED_JAVA_VERSION}/"
+  else
+    BOOT_JAR_HOME_DIR="/export/apps/jdkboot/${FORMATTED_JAVA_VERSION}/"
+  fi
+
+  # Add all the files under boot jar home dir in path separated with colons
+  BOOT_JAR_PATHS=""
+  if [ -d "${BOOT_JAR_HOME_DIR}" ]; then
+    for entry in "$BOOT_JAR_HOME_DIR"*
+    do
+      BOOT_JAR_PATHS="${BOOT_JAR_PATHS}${entry}:"
+    done
+  else
+    echo "No boot jar is pre-installed under dir: ${BOOT_JAR_HOME_DIR}"
+  fi
+  if [ -z "$BOOT_JAR_PATHS" ]; then
+    return
+  fi
+  # Remove last colon
+  BOOT_JAR_PATHS="$(echo $BOOT_JAR_PATHS | sed 's/.$//')"
+
+  JVM_BOOT_CLASSPATH_CONFIG_KEY="-Xbootclasspath"
+  # If "-Xbootclasspath" is already setup in JAVA_OPTS, rebuild the value with found boot jar paths
+  if [[ "$JAVA_OPTS" =~ "$JVM_BOOT_CLASSPATH_CONFIG_KEY" ]]; then
+    NEW_JAVA_OPTS=""
+    for option in $JAVA_OPTS
+    do
+      if [[ "$option" == "${JVM_BOOT_CLASSPATH_CONFIG_KEY}"* ]]; then
+        JVM_BOOT_CLASSPATH="${option}:${BOOT_JAR_PATHS}"
+      else
+        NEW_JAVA_OPTS="${NEW_JAVA_OPTS} $option"
+      fi
+    done
+    JAVA_OPTS="${NEW_JAVA_OPTS}"
+  else
+    JVM_BOOT_CLASSPATH="${JVM_BOOT_CLASSPATH_CONFIG_KEY}/p:${BOOT_JAR_PATHS}"
+  fi
+
+  JAVA_OPTS="${JAVA_OPTS} ${JVM_BOOT_CLASSPATH}"
+}
+setup_boot_jars_in_jvm_boot_classpath
+
 echo $JAVA $JAVA_OPTS -cp base-lib-pathing.jar:runtime-framework-resources-pathing.jar "$@"
 
 ## If localized resource lib directory is defined, then include it in the classpath.
