@@ -583,6 +583,15 @@ public class ClusterBasedJobCoordinator {
         // load full job config with ConfigLoader
         Config originalConfig = ConfigUtil.loadConfig(submissionConfig);
 
+        /*
+         * LinkedIn Only
+         *
+         * Start the ProcessGenerator with full job config, we don't need to stop and restart it after planning as
+         * planning is only expected to change samza related configs but not offspring components.
+         */
+        ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
+        ProcessGeneratorHolder.getInstance().start();
+
         JobCoordinatorLaunchUtil.run(ApplicationUtil.fromConfig(originalConfig), originalConfig);
       }
 
