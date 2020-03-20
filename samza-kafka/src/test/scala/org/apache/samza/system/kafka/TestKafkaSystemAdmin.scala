@@ -145,7 +145,6 @@ object TestKafkaSystemAdmin extends KafkaServerTestHarness {
     map.put(KAFKA_PRODUCER_PROPERTY_PREFIX + org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
       brokerList)
     map.put(JobConfig.JOB_NAME, "job.name")
-    map.put(KAFKA_CONSUMER_PROPERTY_PREFIX + KafkaConsumerConfig.ZOOKEEPER_CONNECT, zkConnect)
 
     val config: Config = new MapConfig(map)
 

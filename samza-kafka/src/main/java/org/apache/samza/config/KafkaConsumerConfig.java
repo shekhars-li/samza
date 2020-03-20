@@ -21,6 +21,8 @@
 
 package org.apache.samza.config;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.linkedin.kafka.linkedinclients.consumer.LinkedInKafkaAvroDeserializer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -43,8 +45,8 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
 
   public static final Logger LOG = LoggerFactory.getLogger(KafkaConsumerConfig.class);
 
-  public static final String ZOOKEEPER_CONNECT = "zookeeper.connect";
-  public static final String DESERIALIZATION_MODE = "deserialization.mode";
+  @VisibleForTesting
+  static final String DESERIALIZATION_MODE = "deserialization.mode";
   private static final int FETCH_MAX_BYTES = 1024 * 1024;
 
   private final String systemName;
@@ -74,9 +76,12 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
 
     Map<String, Object> consumerProps = new HashMap<>(subConf);
 
-    if(consumerProps.containsKey(DESERIALIZATION_MODE)) {
-      Object originMode = consumerProps.get(DESERIALIZATION_MODE);
-      consumerProps.put(DESERIALIZATION_MODE, originMode.toString().toUpperCase());
+    if(subConf.containsKey(DESERIALIZATION_MODE)) {
+      String originMode = subConf.get(DESERIALIZATION_MODE);
+      if (!StringUtils.isBlank(originMode))
+        consumerProps.put(DESERIALIZATION_MODE, originMode.toUpperCase());
+      else
+        consumerProps.put(DESERIALIZATION_MODE, LinkedInKafkaAvroDeserializer.Mode.GENERIC.toString());
     }
 
     consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -104,9 +109,6 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
       }
       consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
     }
-
-    // Always use default partition assignment strategy. Do not allow override.
-    consumerProps.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RangeAssignor.class.getName());
 
     // the consumer is fully typed, and deserialization can be too. But in case it is not provided we should
     // default to byte[]
@@ -140,10 +142,6 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
     } else  {
       return Integer.valueOf(fetchSize);
     }
-  }
-
-  public String getZkConnect() {
-    return (String) get(ZOOKEEPER_CONNECT);
   }
 
   // group id should be unique per job
