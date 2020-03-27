@@ -16,17 +16,15 @@
  */
 package org.apache.samza.config;
 
-import com.google.common.collect.ImmutableMap;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.RangeAssignor;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.samza.SamzaException;
 import org.junit.Assert;
 import org.junit.Test;
-
-import static org.apache.samza.config.KafkaConsumerConfig.DESERIALIZATION_MODE;
 
 
 public class TestKafkaConsumerConfig {
@@ -63,6 +61,9 @@ public class TestKafkaConsumerConfig {
 
     Assert.assertEquals(KafkaConsumerConfig.DEFAULT_KAFKA_CONSUMER_MAX_POLL_RECORDS,
         kafkaConsumerConfig.get(ConsumerConfig.MAX_POLL_RECORDS_CONFIG));
+
+    Assert.assertEquals(RangeAssignor.class.getName(),
+        kafkaConsumerConfig.get(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG));
 
     Assert.assertEquals("useThis:9092", kafkaConsumerConfig.get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
     Assert.assertEquals("100", kafkaConsumerConfig.get(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG));
@@ -163,28 +164,6 @@ public class TestKafkaConsumerConfig {
     KafkaConsumerConfig.getKafkaSystemConsumerConfig(config, SYSTEM_NAME, clientId);
 
     Assert.fail("didn't get exception for the missing config:" + ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG);
-  }
-
-  @Test
-  public void testWithDeserializationMode() {
-    Config config = new MapConfig(ImmutableMap.of("systems." + SYSTEM_NAME + ".consumer." + DESERIALIZATION_MODE, "specific",
-        JobConfig.JOB_NAME, "jobName",
-        JobConfig.JOB_ID, "jobId",
-        KAFKA_PRODUCER_PROPERTY_PREFIX + "bootstrap.servers", "ignroeThis:9092"));
-    String clientId = KafkaConsumerConfig.createClientId("clientId", config);
-    KafkaConsumerConfig kafkaConsumerConfig = KafkaConsumerConfig.getKafkaSystemConsumerConfig(config, SYSTEM_NAME, clientId);
-    Assert.assertEquals("SPECIFIC", kafkaConsumerConfig.get(DESERIALIZATION_MODE));
-  }
-
-  @Test
-  public void testWithNullDeserializationMode() {
-    Config config = new MapConfig(ImmutableMap.of("systems." + SYSTEM_NAME + ".consumer." + DESERIALIZATION_MODE, "",
-        JobConfig.JOB_NAME, "jobName",
-        JobConfig.JOB_ID, "jobId",
-        KAFKA_PRODUCER_PROPERTY_PREFIX + "bootstrap.servers", "ignroeThis:9092"));
-    String clientId = KafkaConsumerConfig.createClientId("clientId", config);
-    KafkaConsumerConfig kafkaConsumerConfig = KafkaConsumerConfig.getKafkaSystemConsumerConfig(config, SYSTEM_NAME, clientId);
-    Assert.assertEquals("GENERIC", kafkaConsumerConfig.get(DESERIALIZATION_MODE));
   }
 
   @Test

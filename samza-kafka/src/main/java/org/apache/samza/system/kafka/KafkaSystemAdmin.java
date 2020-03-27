@@ -126,13 +126,8 @@ public class KafkaSystemAdmin implements SystemAdmin {
   private final KafkaStartpointToOffsetResolver kafkaStartpointToOffsetResolver;
 
   public KafkaSystemAdmin(String systemName, Config config, Consumer metadataConsumer) {
-    this(systemName, config, metadataConsumer, createAdminWithProps(config, systemName));
-  }
-
-  public KafkaSystemAdmin(String systemName, Config config, Consumer metadataConsumer, AdminClient adminClient) {
-    this.config = config;
     this.systemName = systemName;
-    this.adminClient = adminClient;
+    this.config = config;
 
     if (metadataConsumer == null) {
       throw new SamzaException(
@@ -140,6 +135,10 @@ public class KafkaSystemAdmin implements SystemAdmin {
     }
     this.threadSafeKafkaConsumer = new ThreadSafeKafkaConsumer(metadataConsumer);
     this.kafkaStartpointToOffsetResolver = new KafkaStartpointToOffsetResolver(threadSafeKafkaConsumer);
+
+    Properties props = createAdminClientProperties();
+    LOG.info("New admin client with props:" + props);
+    adminClient = AdminClient.create(props);
 
     StreamConfig streamConfig = new StreamConfig(config);
 
@@ -171,12 +170,6 @@ public class KafkaSystemAdmin implements SystemAdmin {
     intermediateStreamProperties = getIntermediateStreamProperties(config);
 
     LOG.info(String.format("Created KafkaSystemAdmin for system %s", systemName));
-  }
-
-  static AdminClient createAdminWithProps(Config config, String systemName){
-    Properties props = createAdminClientProperties(config, systemName);
-    LOG.info("New admin client with props:" + props);
-    return AdminClient.create(props);
   }
 
   @Override
@@ -619,7 +612,7 @@ public class KafkaSystemAdmin implements SystemAdmin {
     }
   }
 
-  protected static Properties createAdminClientProperties(Config config, String systemName) {
+  protected Properties createAdminClientProperties() {
     // populate brokerList from either consumer or producer configs
     Properties props = new Properties();
     // included SSL settings if needed
