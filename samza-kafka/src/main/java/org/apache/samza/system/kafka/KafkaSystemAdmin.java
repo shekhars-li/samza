@@ -126,8 +126,14 @@ public class KafkaSystemAdmin implements SystemAdmin {
   private final KafkaStartpointToOffsetResolver kafkaStartpointToOffsetResolver;
 
   public KafkaSystemAdmin(String systemName, Config config, Consumer metadataConsumer) {
-    this.systemName = systemName;
+    this(systemName, config, metadataConsumer, createAdminWithProps(config, systemName));
+  }
+
+  // LinkedIn specific: pass in adminClient created by Kafka*FactoryFactory
+  public KafkaSystemAdmin(String systemName, Config config, Consumer metadataConsumer, AdminClient adminClient) {
     this.config = config;
+    this.systemName = systemName;
+    this.adminClient = adminClient;
 
     if (metadataConsumer == null) {
       throw new SamzaException(
@@ -136,9 +142,7 @@ public class KafkaSystemAdmin implements SystemAdmin {
     this.threadSafeKafkaConsumer = new ThreadSafeKafkaConsumer(metadataConsumer);
     this.kafkaStartpointToOffsetResolver = new KafkaStartpointToOffsetResolver(threadSafeKafkaConsumer);
 
-    Properties props = createAdminClientProperties();
-    LOG.info("New admin client with props:" + props);
-    adminClient = AdminClient.create(props);
+    // Li-specific: creating admin-client is moved to #createAdminWithProps
 
     StreamConfig streamConfig = new StreamConfig(config);
 
@@ -170,6 +174,14 @@ public class KafkaSystemAdmin implements SystemAdmin {
     intermediateStreamProperties = getIntermediateStreamProperties(config);
 
     LOG.info(String.format("Created KafkaSystemAdmin for system %s", systemName));
+  }
+
+  // LI-specific change: KafkaHI using kafka*FactoryFactory to create admin client and meanwhile we want to keep previous
+  // workflow, so we create the adminClient in constructor.
+  static AdminClient createAdminWithProps(Config config, String systemName){
+    Properties props = createAdminClientProperties(config, systemName);
+    LOG.info("New admin client with props:" + props);
+    return AdminClient.create(props);
   }
 
   @Override
@@ -612,7 +624,8 @@ public class KafkaSystemAdmin implements SystemAdmin {
     }
   }
 
-  protected Properties createAdminClientProperties() {
+  // li-specific change: to be called in static method to create admin client in constructor
+  protected static Properties createAdminClientProperties(Config config, String systemName) {
     // populate brokerList from either consumer or producer configs
     Properties props = new Properties();
     // included SSL settings if needed

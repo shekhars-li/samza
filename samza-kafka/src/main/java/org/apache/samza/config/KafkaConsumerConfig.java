@@ -21,6 +21,7 @@
 
 package org.apache.samza.config;
 
+import com.linkedin.kafka.linkedinclients.consumer.LinkedInKafkaAvroDeserializer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -74,9 +75,13 @@ public class KafkaConsumerConfig extends HashMap<String, Object> {
 
     Map<String, Object> consumerProps = new HashMap<>(subConf);
 
-    if(consumerProps.containsKey(DESERIALIZATION_MODE)) {
-      Object originMode = consumerProps.get(DESERIALIZATION_MODE);
-      consumerProps.put(DESERIALIZATION_MODE, originMode.toString().toUpperCase());
+    // Li specific: set DESERIALIZATION_MODE TO GENERIC if DESERIALIZATION_MODE is declared but not set in config
+    if(subConf.containsKey(DESERIALIZATION_MODE)) {
+      String originMode = subConf.get(DESERIALIZATION_MODE);
+      if (!StringUtils.isBlank(originMode))
+        consumerProps.put(DESERIALIZATION_MODE, originMode.toUpperCase());
+      else
+        consumerProps.put(DESERIALIZATION_MODE, LinkedInKafkaAvroDeserializer.Mode.GENERIC.toString());
     }
 
     consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);

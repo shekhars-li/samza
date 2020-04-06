@@ -16,6 +16,7 @@
  */
 package org.apache.samza.config;
 
+import com.google.common.collect.ImmutableMap;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +26,8 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.samza.SamzaException;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.samza.config.KafkaConsumerConfig.DESERIALIZATION_MODE;
 
 
 public class TestKafkaConsumerConfig {
@@ -164,6 +167,30 @@ public class TestKafkaConsumerConfig {
     KafkaConsumerConfig.getKafkaSystemConsumerConfig(config, SYSTEM_NAME, clientId);
 
     Assert.fail("didn't get exception for the missing config:" + ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG);
+  }
+
+  // Li Specfic: to test when DESERIALIZATION_MODE is set with value whether it is picked up and set correctly
+  @Test
+  public void testWithDeserializationMode() {
+    Config config = new MapConfig(ImmutableMap.of("systems." + SYSTEM_NAME + ".consumer." + DESERIALIZATION_MODE, "specific",
+        JobConfig.JOB_NAME, "jobName",
+        JobConfig.JOB_ID, "jobId",
+        KAFKA_PRODUCER_PROPERTY_PREFIX + "bootstrap.servers", "ignroeThis:9092"));
+    String clientId = KafkaConsumerConfig.createClientId("clientId", config);
+    KafkaConsumerConfig kafkaConsumerConfig = KafkaConsumerConfig.getKafkaSystemConsumerConfig(config, SYSTEM_NAME, clientId);
+    Assert.assertEquals("SPECIFIC", kafkaConsumerConfig.get(DESERIALIZATION_MODE));
+  }
+
+  // Li Specfic: to test when DESERIALIZATION_MODE is declared with null, default set it to GENERIC
+  @Test
+  public void testWithNullDeserializationMode() {
+    Config config = new MapConfig(ImmutableMap.of("systems." + SYSTEM_NAME + ".consumer." + DESERIALIZATION_MODE, "",
+        JobConfig.JOB_NAME, "jobName",
+        JobConfig.JOB_ID, "jobId",
+        KAFKA_PRODUCER_PROPERTY_PREFIX + "bootstrap.servers", "ignroeThis:9092"));
+    String clientId = KafkaConsumerConfig.createClientId("clientId", config);
+    KafkaConsumerConfig kafkaConsumerConfig = KafkaConsumerConfig.getKafkaSystemConsumerConfig(config, SYSTEM_NAME, clientId);
+    Assert.assertEquals("GENERIC", kafkaConsumerConfig.get(DESERIALIZATION_MODE));
   }
 
   @Test
