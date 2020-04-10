@@ -24,12 +24,13 @@ import org.apache.samza.config.Config;
 /**
  * The LineageReporterFactory class help to build lineage reporter {@link org.apache.samza.lineage.LineageReporter}
  */
-public interface LineageReporterFactory<T> {
+public interface LineageReporterFactory {
 
   /**
    * Build lineage reporter instance with required information from config, e.g. system stream, serde, etc.
    * @param config Samza job config
+   * @param reporterName reporter name
    * @return lineage reporter instance
    */
-  LineageReporter<T> getLineageReporter(Config config);
+  LineageReporter getLineageReporter(Config config, String reporterName);
 }

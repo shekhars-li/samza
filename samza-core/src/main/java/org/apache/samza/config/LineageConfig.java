@@ -18,6 +18,7 @@
  */
 package org.apache.samza.config;
 
+import com.google.common.base.Strings;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
@@ -30,17 +31,13 @@ import java.util.stream.Stream;
  */
 public class LineageConfig extends MapConfig {
 
-  public static final String LINEAGE_FACTORY = "lineage.factory";
   // reporter name list separated by comma, e.g. reporter1,reporter2
   public static final String LINEAGE_REPORTERS = "lineage.reporters";
   public static final String LINEAGE_REPORTER_FACTORY = "lineage.reporter.%s.factory";
 
+
   public LineageConfig(Config config) {
     super(config);
-  }
-
-  public Optional<String> getLineageFactoryClassName() {
-    return Optional.ofNullable(get(LINEAGE_FACTORY));
   }
 
   public Set<String> getLineageReporterNames() {
@@ -51,7 +48,12 @@ public class LineageConfig extends MapConfig {
     return Stream.of(reporterNames.get().split(",")).map(String::trim).collect(Collectors.toSet());
   }
 
-  public Optional<String> getLineageReporterFactoryClassName(String name) {
-    return Optional.ofNullable(get(String.format(LINEAGE_REPORTER_FACTORY, name)));
+  public String getLineageReporterFactoryClassName(String name) {
+    String configKey = String.format(LINEAGE_REPORTER_FACTORY, name);
+    String factoryClassName = get(configKey);
+    if (Strings.isNullOrEmpty(factoryClassName)) {
+      throw new ConfigException(String.format("Missing lineage reporter factory config: %s", configKey));
+    }
+    return factoryClassName;
   }
 }

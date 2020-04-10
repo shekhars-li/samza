@@ -16,24 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.lineage.mock;
+package org.apache.samza.lineage;
 
-import org.apache.samza.lineage.LineageReporter;
+import org.apache.samza.SamzaException;
 
+/**
+ * Specific {@link org.apache.samza.SamzaException}s thrown from lineage data capture task
+ */
+public class LineageException extends SamzaException {
 
-public class MockLineageReporter implements LineageReporter<MockLineage> {
-  @Override
-  public void start() {
-
+  public LineageException(String msg, Throwable exception) {
+    super(msg, exception);
   }
 
-  @Override
-  public void stop() {
-
+  public LineageException(String msg) {
+    super(msg);
   }
 
-  @Override
-  public void report(MockLineage lineage) {
-
+  public LineageException(Throwable exception) {
+    super(exception);
   }
 }

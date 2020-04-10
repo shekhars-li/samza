@@ -18,49 +18,37 @@
  */
 package org.apache.samza.lineage;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import org.apache.samza.config.Config;
 import org.apache.samza.config.ConfigException;
 import org.apache.samza.config.LineageConfig;
 import org.apache.samza.config.MapConfig;
 import org.junit.Test;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
 
 public class TestLineageEmitter {
 
   private final static String MOCK_REPORTER_NAME = "mockReporter";
-
-  @Test(expected = ConfigException.class)
-  public void testEmitWhenEnableLinageButNotConfigLineageFactory() {
-    Map<String, String> configs = new HashMap<>();
-    configs.put(LineageConfig.LINEAGE_REPORTERS, MOCK_REPORTER_NAME);
-    configs.put(String.format(LineageConfig.LINEAGE_REPORTER_FACTORY, MOCK_REPORTER_NAME),
-        "org.apache.samza.lineage.mock.MockLineageReporterFactory");
-    LineageEmitter.emit(new MapConfig(configs));
-  }
+  private final static LineageContext LINEAGE_CONTEXT = new LineageContext.Builder(LineagePhase.DEPLOYMENT).build();
 
   @Test(expected = ConfigException.class)
   public void testEmitWhenEnableLineageButNotConfigLineageReporterFactory() {
-    Map<String, String> configs = new HashMap<>();
-    configs.put(LineageConfig.LINEAGE_REPORTERS, MOCK_REPORTER_NAME);
-    configs.put(LineageConfig.LINEAGE_FACTORY, "org.apache.samza.lineage.mock.MockLineageFactory");
-    LineageEmitter.emit(new MapConfig(configs));
-  }
-
-  @Test
-  public void testEmitWhenNotConfigLineage() {
-    Map<String, String> configs = new HashMap<>();
-    LineageEmitter.emit(new MapConfig(configs));
+    new LineageEmitter(new MapConfig(ImmutableMap.of(LineageConfig.LINEAGE_REPORTERS, MOCK_REPORTER_NAME)));
   }
 
   @Test
   public void testEmit() {
-    Map<String, String> configs = new HashMap<>();
-    configs.put(LineageConfig.LINEAGE_REPORTERS, MOCK_REPORTER_NAME);
-    configs.put(LineageConfig.LINEAGE_FACTORY, "org.apache.samza.lineage.mock.MockLineageFactory");
-    configs.put(String.format(LineageConfig.LINEAGE_REPORTER_FACTORY, MOCK_REPORTER_NAME),
-        "org.apache.samza.lineage.mock.MockLineageReporterFactory");
-    LineageEmitter.emit(new MapConfig(configs));
+    Config config = new MapConfig(ImmutableMap.of(LineageConfig.LINEAGE_REPORTERS, MOCK_REPORTER_NAME));
+    LineageReporter reporter = mock(LineageReporter.class);
+    LineageEmitter emitter = new LineageEmitter(Lists.newArrayList(reporter), config);
+    emitter.emit(LINEAGE_CONTEXT);
+    verify(reporter).start();
+    verify(reporter).stop();
+    verify(reporter).report(LINEAGE_CONTEXT, config);
   }
 
 }

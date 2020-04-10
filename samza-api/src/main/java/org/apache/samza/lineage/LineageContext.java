@@ -16,16 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.lineage.mock;
+package org.apache.samza.lineage;
 
-import org.apache.samza.config.Config;
-import org.apache.samza.lineage.LineageReporter;
-import org.apache.samza.lineage.LineageReporterFactory;
+/**
+ * LineageContext represents the context information for running lineage data capture task.
+ */
+public class LineageContext {
+  private final LineagePhase phase;
 
+  private LineageContext(LineagePhase phase) {
+    this.phase = phase;
+  }
 
-public class MockLineageReporterFactory implements LineageReporterFactory<MockLineage> {
-  @Override
-  public LineageReporter<MockLineage> getLineageReporter(Config config) {
-    return new MockLineageReporter();
+  public LineagePhase getPhase() {
+    return phase;
+  }
+
+  public static class Builder {
+    private final LineagePhase phase;
+
+    public Builder(LineagePhase phase) {
+      this.phase = phase;
+    }
+
+    public LineageContext build() {
+      return new LineageContext(phase);
+    }
   }
 }

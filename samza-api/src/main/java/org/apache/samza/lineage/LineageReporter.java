@@ -18,12 +18,15 @@
  */
 package org.apache.samza.lineage;
 
+import org.apache.samza.config.Config;
+
+
 /**
- * The LineageReporter interface defines how Samza writes job lineage information to outside systems, such as messaging
- * systems like Kafka, or file systems.
- * Implementations are responsible for accepting lineage data and writing them to their underlying systems.
+ * The LineageReporter interface defines how Samza writes generated job lineage information to outside systems, such as
+ * messaging systems like Kafka, or file systems.<br/>
+ * Implementations are responsible for building lineage data and writing them to their underlying systems.
  */
-public interface LineageReporter<T> {
+public interface LineageReporter {
 
   /**
    * Start the reporter.
@@ -36,8 +39,17 @@ public interface LineageReporter<T> {
   void stop();
 
   /**
-   * Send the specified Samza job lineage data to outside system.
-   * @param lineage Samza job lineage data model
+   * Parse and generate job lineage data from given lineage context and Samza job config, and send the lineage data to
+   * outside system. The lineage data includes job's inputs, outputs and other metadata information.<p/>
+   *
+   * The config should include full inputs and outputs information, those information are usually populated by job
+   * planner and config rewriters. It is the callers' responsibility to make sure config contains all required
+   * information before call this function. <p/>
+   *
+   * The lineage data capture logic may be different depends on given context, e.g. deployment phase vs runtime phase.
+   *
+   * @param context lineage context
+   * @param config Samza job config
    */
-  void report(T lineage);
+  void report(LineageContext context, Config config);
 }

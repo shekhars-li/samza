@@ -18,11 +18,11 @@
  */
 package org.apache.samza.lineage;
 
-import java.util.Optional;
-import java.util.Set;
+import com.google.common.annotations.VisibleForTesting;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.Config;
-import org.apache.samza.config.ConfigException;
 import org.apache.samza.config.LineageConfig;
 import org.apache.samza.util.ReflectionUtil;
 import org.slf4j.Logger;
@@ -32,43 +32,46 @@ import org.slf4j.LoggerFactory;
 /**
  * The LineageEmitter class helps generate and emit job lineage data to configured sink stream.
  */
-public final class LineageEmitter {
+public class LineageEmitter {
 
-  public static final Logger LOGGER = LoggerFactory.getLogger(LineageEmitter.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(LineageEmitter.class);
+
+  private final List<LineageReporter> reporters;
+  private final Config config;
+
+  public LineageEmitter(Config config) {
+    this(new LineageConfig(config).getLineageReporterNames().stream().map(name -> {
+      String className = new LineageConfig(config).getLineageReporterFactoryClassName(name);
+      LineageReporterFactory lineageReporterFactory = ReflectionUtil.getObj(className, LineageReporterFactory.class);
+      return lineageReporterFactory.getLineageReporter(config, name);
+    }).collect(Collectors.toList()), config);
+  }
+
+  @VisibleForTesting
+  LineageEmitter(List<LineageReporter> reporters, Config config) {
+    this.reporters = reporters;
+    this.config = config;
+  }
 
   /**
-   * Emit the job lineage information to specified sink stream.
-   * @param config Samza job config
+   * Emit the job lineage information to specified sink stream
+   *
+   * @param context lineage context
    */
-  public static void emit(Config config) {
-    LineageConfig lineageConfig = new LineageConfig(config);
-    Set<String> reporterNames = lineageConfig.getLineageReporterNames();
-    if (reporterNames.isEmpty()) {
-      return;
-    }
-
-    reporterNames.forEach(name -> {
-      Optional<String> lineageFactoryClassName = lineageConfig.getLineageFactoryClassName();
-      Optional<String> lineageReporterFactoryClassName = lineageConfig.getLineageReporterFactoryClassName(name);
-
-      if (!lineageFactoryClassName.isPresent()) {
-        throw new ConfigException(String.format("Missing the lineage config: %s", LineageConfig.LINEAGE_FACTORY));
+  public void emit(LineageContext context) {
+    reporters.forEach(reporter -> {
+      try {
+        reporter.start();
+        reporter.report(context, config);
+        reporter.stop();
+        LOGGER.info("Emitted lineage data for job '{}' by lineage reporter '{}'",
+            new ApplicationConfig(config).getAppName(), reporter);
+      } catch (Exception e) {
+        // Swallow exception to avoid impacting the application's stability
+        // TODO collect exceptions in diagnostic stream or metrics
+        LOGGER.error(String.format("Failed to emit lineage data for job '%s' by lineage reporter '%s'",
+            new ApplicationConfig(config).getAppName(), reporter), e);
       }
-      if (!lineageReporterFactoryClassName.isPresent()) {
-        throw new ConfigException(String.format("Missing the lineage config: %s", LineageConfig.LINEAGE_REPORTER_FACTORY));
-      }
-
-      LineageFactory lineageFactory = ReflectionUtil.getObj(lineageFactoryClassName.get(), LineageFactory.class);
-      LineageReporterFactory lineageReporterFactory =
-          ReflectionUtil.getObj(lineageReporterFactoryClassName.get(), LineageReporterFactory.class);
-      LineageReporter lineageReporter = lineageReporterFactory.getLineageReporter(config);
-
-      lineageReporter.start();
-      lineageReporter.report(lineageFactory.getLineage(config));
-      lineageReporter.stop();
-
-      LOGGER.info("Emitted lineage data to sink stream for job {} by reporter {}",
-          new ApplicationConfig(config).getAppName(), name);
     });
   }
 }

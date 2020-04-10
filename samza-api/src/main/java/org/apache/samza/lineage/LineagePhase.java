@@ -16,15 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.samza.lineage.mock;
+package org.apache.samza.lineage;
 
-import org.apache.samza.config.Config;
-import org.apache.samza.lineage.LineageFactory;
-
-
-public class MockLineageFactory implements LineageFactory<MockLineage> {
-  @Override
-  public MockLineage getLineage(Config config) {
-    return new MockLineage();
-  }
+/**
+ * LineagePhase represents the phase to capture lineage data for Samza jobs, e.g. deployment phase, runtime phase.
+ */
+public enum LineagePhase {
+  DEPLOYMENT, RUNTIME
 }
