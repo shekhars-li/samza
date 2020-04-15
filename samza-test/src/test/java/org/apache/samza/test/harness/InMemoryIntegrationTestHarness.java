@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import com.linkedin.samza.context.DefaultLiExternalContextFactory;
 import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
-import org.apache.commons.lang.RandomStringUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.InMemorySystemConfig;
 import org.apache.samza.config.JobConfig;
