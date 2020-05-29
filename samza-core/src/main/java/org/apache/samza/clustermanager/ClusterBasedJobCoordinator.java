@@ -40,6 +40,8 @@ import org.apache.samza.clustermanager.container.placement.ContainerPlacementReq
 import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.ClusterManagerConfig;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.ConfigLoader;
+import org.apache.samza.config.ConfigLoaderFactory;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.ShellCommandConfig;
@@ -71,6 +73,7 @@ import org.apache.samza.system.SystemStream;
 import org.apache.samza.util.ConfigUtil;
 import org.apache.samza.util.CoordinatorStreamUtil;
 import org.apache.samza.util.DiagnosticsUtil;
+import org.apache.samza.util.ReflectionUtil;
 import org.apache.samza.util.SplitDeploymentUtil;
 import org.apache.samza.util.SystemClock;
 import org.slf4j.Logger;
@@ -530,8 +533,20 @@ public class ClusterBasedJobCoordinator {
           throw new SamzaException(JobConfig.CONFIG_LOADER_FACTORY + " is required to initialize job coordinator from config loader");
         }
 
-        // load full job config with ConfigLoader
-        Config originalConfig = ConfigUtil.loadConfig(submissionConfig);
+
+        // start LinkedIn-Specific code.
+
+        // We removed direct calling of loadConfig intended here
+        // since `RegExTopicGenerator` calling through loadConfig need to access kafka clients,
+        // which can not be accessed now because offSpring is not started.
+        // so instead of loading full job config with loadConfig,
+        // we execute loadConfig step by step and start offSpring before rewrite configs
+        // TODO: will uniform with OSS again after LISAMZA-14802 is done
+        ConfigLoaderFactory
+            factory = ReflectionUtil.getObj(jobConfig.getConfigLoaderFactory().get(), ConfigLoaderFactory.class);
+        ConfigLoader loader = factory.getLoader(submissionConfig.subset(ConfigLoaderFactory.CONFIG_LOADER_PROPERTIES_PREFIX));
+        // overrides config loaded with original config, which may contain overridden values.
+        Config originalConfig = ConfigUtil.override(loader.getConfig(), submissionConfig);
 
         /*
          * LinkedIn Only
@@ -542,7 +557,10 @@ public class ClusterBasedJobCoordinator {
         ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
         ProcessGeneratorHolder.getInstance().start();
 
-        JobCoordinatorLaunchUtil.run(ApplicationUtil.fromConfig(originalConfig), originalConfig);
+        Config rewrittenConfig = ConfigUtil.rewriteConfig(originalConfig);
+
+        JobCoordinatorLaunchUtil.run(ApplicationUtil.fromConfig(rewrittenConfig), rewrittenConfig);
+        // end Linkedin-Specific code
       }
 
       LOG.info("Finished running ClusterBasedJobCoordinator");

@@ -95,13 +95,15 @@ public class ConfigUtil {
 
   /**
    * Overrides original config with overridden values.
+   * Linkedin-specifc setting the function to be public
+   * TODO: will uniform with OSS again after LISAMZA-14802 is done
    *
    * @param original config to be overridden.
    * @param overrides overridden values.
    * @return the overridden config.
    */
   @SafeVarargs
-  private static Config override(Config original, Map<String, String>... overrides) {
+  public static Config override(Config original, Map<String, String>... overrides) {
     Map<String, String> map = new HashMap<>(original);
 
     for (Map<String, String> override : overrides) {
