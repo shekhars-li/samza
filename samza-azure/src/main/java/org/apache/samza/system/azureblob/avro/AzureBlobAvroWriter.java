@@ -178,6 +178,9 @@ public class AzureBlobAvroWriter implements AzureBlobWriter {
       }
       currentBlobWriterComponents.dataFileWriter.appendEncoded(ByteBuffer.wrap(encodedRecord));
       recordsInCurrentBlob++;
+      // incrementNumberOfRecordsInBlob should always be invoked every time appendEncoded above is invoked.
+      // this is to count the number records in a blob and then use that count as a metadata of the blob.
+      currentBlobWriterComponents.azureBlobOutputStream.incrementNumberOfRecordsInBlob();
     }
   }
   /**
@@ -284,10 +287,9 @@ public class AzureBlobAvroWriter implements AzureBlobWriter {
       // dataFileWriter.close calls close of the azureBlobOutputStream associated with it.
       dataFileWriter.close();
     } catch (Exception e) {
-      // ensure that close is called even if dataFileWriter.close fails.
-      // This is to avoid loss of all the blocks uploaded for the blob
-      // as commitBlockList happens in close of azureBlobOutputStream.
-      azureBlobOutputStream.close();
+      LOG.error("Exception occurred during DataFileWriter.close for blob  "
+          + blockBlobAsyncClient.getBlobUrl()
+          + ". All blocks uploaded so far for this blob will be discarded to avoid invalid blobs.");
       throw e;
     }
   }
