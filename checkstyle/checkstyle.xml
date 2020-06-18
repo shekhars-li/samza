@@ -95,6 +95,6 @@
     <module name="TypecastParenPad"/>
   </module>
   <module name="SuppressionFilter">
-    <property name="file" value="checkstyle/checkstyle-suppressions.xml"/>
+    <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
   </module>
 </module>
