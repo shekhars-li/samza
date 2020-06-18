@@ -1,1 +1,73 @@
-../../checkstyle/checkstyle-suppressions.xml
+<?xml version="1.0"?>
+
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<!--
+     // Licensed to the Apache Software Foundation (ASF) under one or more
+     // contributor license agreements.  See the NOTICE file distributed with
+     // this work for additional information regarding copyright ownership.
+     // The ASF licenses this file to You under the Apache License, Version 2.0
+     // (the "License"); you may not use this file except in compliance with
+     // the License.  You may obtain a copy of the License at
+     //
+     //    http://www.apache.org/licenses/LICENSE-2.0
+     //
+     // Unless required by applicable law or agreed to in writing, software
+     // distributed under the License is distributed on an "AS IS" BASIS,
+     // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     // See the License for the specific language governing permissions and
+     // limitations under the License.
+-->
+
+<suppressions>
+  <suppress checks="ConstantName"
+            files="ApplicationStatus.java"
+            lines="26-29"/>
+  <suppress id="preventJavadocUnusedImports"
+            files=".*samza-api.*"/>
+
+  <!--
+    Linkedin-specific suppressions
+    For consistency, we use the same checkstyle configuration file for samza-li and open source code, so we need to use
+    the same suppressions file too.
+
+    Note: the "files" attribute is a regex, so it can match against samza-li code, even though samza-li code is not in
+    the samza directory.
+  -->
+
+  <!-- Open source uses a different checkstyle tool version than Linkedin, and different versions can have different
+       results for the same rules, so exclude the open source modules from Linkedin checkstyle. Open source build
+       will run checkstyle against these modules. -->
+  <suppress files="samza-api/src/main" checks=".*" />
+  <suppress files="samza-autoscaling/src/main" checks=".*" />
+  <suppress files="samza-aws/src/main" checks=".*" />
+  <suppress files="samza-azure/src/main" checks=".*" />
+  <suppress files="samza-core/src/main" checks=".*" />
+  <suppress files="samza-elasticsearch/src/main" checks=".*" />
+  <suppress files="samza-hdfs/src/main" checks=".*" />
+  <suppress files="samza-kafka/src/main" checks=".*" />
+  <suppress files="samza-kv/src/main" checks=".*" />
+  <suppress files="samza-kv-rocksdb/src/main" checks=".*" />
+  <suppress files="samza-kv-inmemory/src/main" checks=".*" />
+  <suppress files="samza-log4j/src/main" checks=".*" />
+  <suppress files="samza-log4j2/src/main" checks=".*" />
+  <suppress files="samza-rest/src/main" checks=".*" />
+  <suppress files="samza-shell/src/main" checks=".*" />
+  <suppress files="samza-sql/src/main" checks=".*" />
+  <suppress files="samza-sql-shell/src/main" checks=".*" />
+  <suppress files="samza-test/src/main" checks=".*" />
+  <suppress files="samza-tools/src/main" checks=".*" />
+  <suppress files="samza-yarn/src/main" checks=".*" />
+
+  <!-- don't need to check for license header in Linkedin builds
+       doing this suppression here to avoid changing the checkstyle.xml too much for Linkedin -->
+  <suppress files=".*" checks="RegexpHeader" />
+
+  <!-- suppress avro auto-generated classes -->
+  <suppress files="samza-li-kafka/src/main/avro/generated" checks=".*" />
+
+  <!-- don't require FQDNs to be used in descriptor javadocs -->
+  <suppress files="samza-li-kafka/src/main/java/com/linkedin/samza/system/kafka/descriptors" id="preventJavadocUnusedImports" />
+</suppressions>
