@@ -337,10 +337,10 @@ public class TestRunner {
     SystemConsumer consumer = factory.getConsumer(systemName, config, null);
     String name = (String) outputDescriptor.getPhysicalName().orElse(streamId);
     metadata.get(name).getSystemStreamPartitionMetadata().keySet().forEach(partition -> {
-        SystemStreamPartition temp = new SystemStreamPartition(systemName, streamId, partition);
-        ssps.add(temp);
-        consumer.register(temp, "0");
-      });
+      SystemStreamPartition temp = new SystemStreamPartition(systemName, streamId, partition);
+      ssps.add(temp);
+      consumer.register(temp, "0");
+    });
 
     long t = System.currentTimeMillis();
     Map<SystemStreamPartition, List<IncomingMessageEnvelope>> output = new HashMap<>();
@@ -378,7 +378,7 @@ public class TestRunner {
     return output.entrySet()
         .stream()
         .collect(Collectors.toMap(entry -> entry.getKey().getPartition().getPartitionId(),
-            entry -> entry.getValue().stream().map(e -> (StreamMessageType) e.getMessage()).collect(Collectors.toList())));
+          entry -> entry.getValue().stream().map(e -> (StreamMessageType) e.getMessage()).collect(Collectors.toList())));
   }
 
   /**
@@ -412,18 +412,18 @@ public class TestRunner {
     InMemorySystemProducer producer = (InMemorySystemProducer) factory.getProducer(systemName, config, null);
     SystemStream sysStream = new SystemStream(systemName, streamName);
     partitionData.forEach((partitionId, partition) -> {
-        partition.forEach(e -> {
-            Object key = e instanceof KV ? ((KV) e).getKey() : null;
-            Object value = e instanceof KV ? ((KV) e).getValue() : e;
-            if (value instanceof IncomingMessageEnvelope) {
-              producer.send((IncomingMessageEnvelope) value);
-            } else {
-              producer.send(systemName, new OutgoingMessageEnvelope(sysStream, Integer.valueOf(partitionId), key, value));
-            }
-          });
-        producer.send(systemName, new OutgoingMessageEnvelope(sysStream, Integer.valueOf(partitionId), null,
-            new EndOfStreamMessage(null)));
+      partition.forEach(e -> {
+        Object key = e instanceof KV ? ((KV) e).getKey() : null;
+        Object value = e instanceof KV ? ((KV) e).getValue() : e;
+        if (value instanceof IncomingMessageEnvelope) {
+          producer.send((IncomingMessageEnvelope) value);
+        } else {
+          producer.send(systemName, new OutgoingMessageEnvelope(sysStream, Integer.valueOf(partitionId), key, value));
+        }
       });
+      producer.send(systemName, new OutgoingMessageEnvelope(sysStream, Integer.valueOf(partitionId), null,
+          new EndOfStreamMessage(null)));
+    });
   }
 
   private void deleteStoreDirectories() {

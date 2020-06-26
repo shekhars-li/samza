@@ -17,45 +17,25 @@
  * under the License.
  */
 
-package org.apache.samza.sql.client.interfaces;
+package org.apache.samza.sql.util;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.samza.sql.SamzaSqlRelRecord;
+import org.junit.Assert;
+import org.junit.Test;
 
 
-/**
- * defines the enumeration of Commands of a certain type
- */
-public interface CommandType {
+public class SampleRelTableKeyConverterTest {
 
-  /**
-   * @return list of names of all commands in this enumeration
-   */
-  static List<String> getAllCommands() {
-    return new ArrayList<>();
+  @Test
+  public void testNullValue() {
+    SampleRelTableKeyConverter sampleRelTableKeyConverter = new SampleRelTableKeyConverter();
+    List<Object> values = new ArrayList<>();
+    values.add(null);
+    SamzaSqlRelRecord samzaSqlRelRecord = new SamzaSqlRelRecord(ImmutableList.of("c1"), values);
+    Object key = sampleRelTableKeyConverter.convertToTableKeyFormat(samzaSqlRelRecord);
+    Assert.assertNull(key);
   }
-
-  /**
-   * returns the name of the command
-   * @return String
-   */
-  String getCommandName();
-
-  /**
-   * returns the description of the command
-   * @return String
-   */
-  String getDescription();
-
-  /**
-   * returns the description of the command
-   * @return String
-   */
-  String getUsage();
-
-  /**
-   * returns the flag which specifies if the arguments of this command are optional or not
-   * @return true if arguments of this command are optional
-   */
-  boolean argsAreOptional();
 }

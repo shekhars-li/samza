@@ -159,8 +159,8 @@ public class WatermarkIntegrationTest extends IntegrationTestHarness {
             .map(KV::getValue)
             .partitionBy(pv -> pv.getMemberId(), pv -> pv, KVSerde.of(new NoOpSerde<>(), new NoOpSerde<>()), "p1")
             .sink((m, collector, coordinator) -> {
-                received.add(m.getValue());
-              });
+              received.add(m.getValue());
+            });
       }
     }
 
