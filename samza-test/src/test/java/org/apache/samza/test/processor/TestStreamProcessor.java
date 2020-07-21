@@ -298,7 +298,9 @@ public class TestStreamProcessor extends IntegrationTestHarness {
           Option$.MODULE$.<Properties>apply(new Properties()),
           new StringSerializer(),
           new ByteArraySerializer(),
-          Option$.MODULE$.<Properties>apply(new Properties()));
+          Option$.MODULE$.<Properties>apply(new Properties()),
+          // Linkedin-specific: the Linkedin version of TestUtils.createProducer has an extra deliveryTimeoutMs argument
+          30 * 1000);
     }
   }
 }
