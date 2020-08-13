@@ -30,8 +30,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
@@ -89,14 +87,16 @@ public class StreamAppender extends AbstractAppender {
   private SystemStream systemStream = null;
   private SystemProducer systemProducer = null;
   private String key = null;
+  private byte[] keyBytes; // Serialize the key once, since we will use it for every event.
   private String containerName = null;
   private int partitionCount = 0;
   private boolean isApplicationMaster;
   private Serde<LogEvent> serde = null;
-  private Logger log = LogManager.getLogger(StreamAppender.class);
+
   private Thread transferThread;
   private Config config = null;
   private String streamName = null;
+  private final boolean usingAsyncLogger;
 
   /**
    * used to detect if this thread is called recursively
@@ -109,9 +109,11 @@ public class StreamAppender extends AbstractAppender {
   protected StreamAppenderMetrics metrics;
   protected long queueTimeoutS = DEFAULT_QUEUE_TIMEOUT_S;
 
-  protected StreamAppender(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions, String streamName) {
+  protected StreamAppender(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions,
+      boolean usingAsyncLogger, String streamName) {
     super(name, filter, layout, ignoreExceptions);
     this.streamName = streamName;
+    this.usingAsyncLogger = usingAsyncLogger;
   }
 
   @Override
@@ -125,11 +127,18 @@ public class StreamAppender extends AbstractAppender {
           ". This is used as the key for the log appender, so can't proceed.");
     }
     key = containerName; // use the container name as the key for the logs
+    try {
+      // Serialize the key once, since we will use it for every event.
+      keyBytes = key.getBytes("UTF-8");
+    } catch (UnsupportedEncodingException e) {
+      throw new SamzaException(
+          String.format("Container name: %s could not be encoded to bytes. %s cannot proceed.", key, getName()), e);
+    }
 
   }
 
   /**
-   * Getter for the StreamName parameter. See also {@link #createAppender(String, Filter, Layout, boolean, String)} for when this is called.
+   * Getter for the StreamName parameter. See also {@link #createAppender(String, Filter, Layout, boolean, boolean, String)} for when this is called.
    * Example: {@literal <param name="StreamName" value="ExampleStreamName"/>}
    * @return The configured stream name.
    */
@@ -148,7 +157,7 @@ public class StreamAppender extends AbstractAppender {
   }
 
   /**
-   * Getter for the number of partitions to create on a new StreamAppender stream. See also {@link #createAppender(String, Filter, Layout, boolean, String)} for when this is called.
+   * Getter for the number of partitions to create on a new StreamAppender stream. See also {@link #createAppender(String, Filter, Layout, boolean, boolean, String)} for when this is called.
    * Example: {@literal <param name="PartitionCount" value="4"/>}
    * @return The configured partition count of the StreamAppender stream. If not set, returns {@link JobConfig#getContainerCount()}.
    */
@@ -160,7 +169,7 @@ public class StreamAppender extends AbstractAppender {
   }
 
   /**
-   * Setter for the number of partitions to create on a new StreamAppender stream. See also {@link #createAppender(String, Filter, Layout, boolean, String)} for when this is called.
+   * Setter for the number of partitions to create on a new StreamAppender stream. See also {@link #createAppender(String, Filter, Layout, boolean, boolean, String)} for when this is called.
    * Example: {@literal <param name="PartitionCount" value="4"/>}
    * @param partitionCount Configurable partition count.
    */
@@ -175,8 +184,9 @@ public class StreamAppender extends AbstractAppender {
       @PluginElement("Filter") final Filter filter,
       @PluginElement("Layout") Layout layout,
       @PluginAttribute(value = "ignoreExceptions", defaultBoolean = true) final boolean ignoreExceptions,
+      @PluginAttribute(value = "usingAsyncLogger", defaultBoolean = false) final boolean usingAsyncLogger,
       @PluginAttribute("streamName") String streamName) {
-    return new StreamAppender(name, filter, layout, ignoreExceptions, streamName);
+    return new StreamAppender(name, filter, layout, ignoreExceptions, usingAsyncLogger, streamName);
   }
 
   @Override
@@ -204,35 +214,11 @@ public class StreamAppender extends AbstractAppender {
                 }
               }
           } else {
-            log.trace("Waiting for the JobCoordinator/Container to be instantiated...");
+            System.out.println("Waiting for the JobCoordinator to be instantiated...");
           }
         } else {
-          // Serialize the event before adding to the queue to leverage the caller thread
-          // and ensure that the transferThread can keep up.
-          if (!logQueue.offer(encodeLogEventToBytes(event), queueTimeoutS, TimeUnit.SECONDS)) {
-            // Do NOT retry adding system to the queue. Dropping the event allows us to alleviate the unlikely
-            // possibility of a deadlock, which can arise due to a circular dependency between the SystemProducer
-            // which is used for StreamAppender and the log, which uses StreamAppender. Any locks held in the callstack
-            // of those two code paths can cause a deadlock. Dropping the event allows us to proceed.
-
-            // Scenario:
-            // T1: holds L1 and is waiting for L2
-            // T2: holds L2 and is waiting to produce to BQ1 which is drained by T3 (SystemProducer) which is waiting for L1
-
-            // This has happened due to locks in Kafka and log4j (see SAMZA-1537), which are both out of our control,
-            // so dropping events in the StreamAppender is our best recourse.
-
-            // Drain the queue instead of dropping one message just to reduce the frequency of warn logs above.
-            int messagesDropped = logQueue.drainTo(new ArrayList<>()) + 1; // +1 because of the current log event
-            log.warn(String.format("Exceeded timeout %ss while trying to log to %s. Dropping %d log messages.",
-                queueTimeoutS,
-                systemStream.toString(),
-                messagesDropped));
-
-            // Emit a metric which can be monitored to ensure it doesn't happen often.
-            metrics.logMessagesDropped.inc(messagesDropped);
-          }
-          metrics.bufferFillPct.set(Math.round(100f * logQueue.size() / DEFAULT_QUEUE_SIZE));
+          // handle event based on if async or sync logger is being used
+          handleEvent(event);
         }
       } catch (Exception e) {
         if (metrics != null) { // setupSystem() may not have been invoked yet so metrics can be null here.
@@ -246,6 +232,46 @@ public class StreamAppender extends AbstractAppender {
     } else if (metrics != null) { // setupSystem() may not have been invoked yet so metrics can be null here.
       metrics.recursiveCalls.inc();
     }
+  }
+
+  /**
+   * If async-Logger is enabled, the log-event is sent directly to the systemProducer. Else, the event is serialized
+   * and added to a bounded blocking queue, before returning to the "synchronous" caller.
+   * @param event the log event to append
+   * @throws InterruptedException
+   */
+  private void handleEvent(LogEvent event) throws InterruptedException {
+    if (usingAsyncLogger) {
+      sendEventToSystemProducer(encodeLogEventToBytes(event));
+      return;
+    }
+
+    // Serialize the event before adding to the queue to leverage the caller thread
+    // and ensure that the transferThread can keep up.
+    if (!logQueue.offer(encodeLogEventToBytes(event), queueTimeoutS, TimeUnit.SECONDS)) {
+      // Do NOT retry adding system to the queue. Dropping the event allows us to alleviate the unlikely
+      // possibility of a deadlock, which can arise due to a circular dependency between the SystemProducer
+      // which is used for StreamAppender and the log, which uses StreamAppender. Any locks held in the callstack
+      // of those two code paths can cause a deadlock. Dropping the event allows us to proceed.
+
+      // Scenario:
+      // T1: holds L1 and is waiting for L2
+      // T2: holds L2 and is waiting to produce to BQ1 which is drained by T3 (SystemProducer) which is waiting for L1
+
+      // This has happened due to locks in Kafka and log4j (see SAMZA-1537), which are both out of our control,
+      // so dropping events in the StreamAppender is our best recourse.
+
+      // Drain the queue instead of dropping one message just to reduce the frequency of warn logs above.
+      int messagesDropped = logQueue.drainTo(new ArrayList<>()) + 1; // +1 because of the current log event
+      System.err.println(String.format("Exceeded timeout %ss while trying to log to %s. Dropping %d log messages.",
+          queueTimeoutS,
+          systemStream.toString(),
+          messagesDropped));
+
+      // Emit a metric which can be monitored to ensure it doesn't happen often.
+      metrics.logMessagesDropped.inc(messagesDropped);
+    }
+    metrics.bufferFillPct.set(Math.round(100f * logQueue.size() / DEFAULT_QUEUE_SIZE));
   }
 
   protected byte[] encodeLogEventToBytes(LogEvent event) {
@@ -284,12 +310,12 @@ public class StreamAppender extends AbstractAppender {
 
   @Override
   public void stop() {
-    log.info(String.format("Shutting down the %s...", getName()));
+    System.out.println(String.format("Shutting down the %s...", getName()));
     transferThread.interrupt();
     try {
       transferThread.join();
     } catch (InterruptedException e) {
-      log.error("Interrupted while waiting for transfer thread to finish.", e);
+      System.err.println("Interrupted while waiting for transfer thread to finish." + e);
       Thread.currentThread().interrupt();
     }
 
@@ -386,55 +412,46 @@ public class StreamAppender extends AbstractAppender {
 
     setupStream(systemFactory, systemName);
 
-    systemProducer = systemFactory.getProducer(systemName, config, metricsRegistry);
+    systemProducer = systemFactory.getProducer(systemName, config, metricsRegistry, this.getClass().getSimpleName());
     systemStream = new SystemStream(systemName, streamName);
     systemProducer.register(SOURCE);
     systemProducer.start();
 
-    log.info(SOURCE + " has been registered in " + systemName + ". So all the logs will be sent to " + streamName
+    System.out.println(SOURCE + " has been registered in " + systemName + ". So all the logs will be sent to " + streamName
         + " in " + systemName + ". Logs are partitioned by " + key);
 
     startTransferThread();
   }
 
   private void startTransferThread() {
-
-    try {
-      // Serialize the key once, since we will use it for every event.
-      final byte[] keyBytes = key.getBytes("UTF-8");
-
-      Runnable transferFromQueueToSystem = () -> {
-        while (!Thread.currentThread().isInterrupted()) {
-          try {
-            byte[] serializedLogEvent = logQueue.take();
-
-            metrics.logMessagesBytesSent.inc(serializedLogEvent.length);
-            metrics.logMessagesCountSent.inc();
-
-            OutgoingMessageEnvelope outgoingMessageEnvelope =
-                new OutgoingMessageEnvelope(systemStream, keyBytes, serializedLogEvent);
-            systemProducer.send(SOURCE, outgoingMessageEnvelope);
-
-          } catch (InterruptedException e) {
-            // Preserve the interrupted status for the loop condition.
-            Thread.currentThread().interrupt();
-          } catch (Throwable t) {
-            metrics.logMessagesErrors.inc();
-            log.error("Error sending " + getName() + " event to SystemProducer", t);
-          }
+    Runnable transferFromQueueToSystem = () -> {
+      while (!Thread.currentThread().isInterrupted()) {
+        try {
+          sendEventToSystemProducer(logQueue.take());
+        } catch (InterruptedException e) {
+          // Preserve the interrupted status for the loop condition.
+          Thread.currentThread().interrupt();
+        } catch (Throwable t) {
+          metrics.logMessagesErrors.inc();
+          System.err.println("Error sending " + getName() + " event to SystemProducer " + t);
         }
-      };
+      }
+    };
 
-      transferThread = new Thread(transferFromQueueToSystem);
-      transferThread.setDaemon(true);
-      transferThread.setName("Samza " + getName() + " Producer " + transferThread.getName());
-      transferThread.start();
+    transferThread = new Thread(transferFromQueueToSystem);
+    transferThread.setDaemon(true);
+    transferThread.setName("Samza " + getName() + " Producer " + transferThread.getName());
+    transferThread.start();
+  }
 
-    } catch (UnsupportedEncodingException e) {
-      throw new SamzaException(String.format(
-          "Container name: %s could not be encoded to bytes. %s cannot proceed.", key, getName()),
-          e);
-    }
+  /**
+   * Helper method to send a serialized log-event to the systemProducer, and increment respective methods.
+   * @param serializedLogEvent
+   */
+  private void sendEventToSystemProducer(byte[] serializedLogEvent) {
+    metrics.logMessagesBytesSent.inc(serializedLogEvent.length);
+    metrics.logMessagesCountSent.inc();
+    systemProducer.send(SOURCE, new OutgoingMessageEnvelope(systemStream, keyBytes, serializedLogEvent));
   }
 
   protected String getStreamName(String jobName, String jobId) {
