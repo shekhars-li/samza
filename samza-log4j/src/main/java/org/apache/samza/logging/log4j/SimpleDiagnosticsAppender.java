@@ -21,8 +21,10 @@ package org.apache.samza.logging.log4j;
 
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.spi.LoggingEvent;
+import org.apache.log4j.Priority;
 import org.apache.samza.diagnostics.DiagnosticsExceptionEvent;
 import org.apache.samza.diagnostics.DiagnosticsManager;
+import org.xeril.log.Level;
 
 
 /**
@@ -64,7 +66,8 @@ public class SimpleDiagnosticsAppender extends AppenderSkeleton {
 
     try {
       // if an event with a non-null throwable is received => exception event
-      if (loggingEvent.getThrowableInformation() != null) {
+      // and its level is error or higher (e.g., FATAL)
+      if (loggingEvent.getThrowableInformation() != null && loggingEvent.getLevel().isGreaterOrEqual(Priority.ERROR)) {
         DiagnosticsExceptionEvent diagnosticsExceptionEvent =
             new DiagnosticsExceptionEvent(loggingEvent.timeStamp, loggingEvent.getThrowableInformation().getThrowable(),
                 loggingEvent.getProperties());

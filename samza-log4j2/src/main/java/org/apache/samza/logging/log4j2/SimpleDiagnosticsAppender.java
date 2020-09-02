@@ -19,6 +19,7 @@
 
 package org.apache.samza.logging.log4j2;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LogEvent;
@@ -72,7 +73,8 @@ public class SimpleDiagnosticsAppender extends AbstractAppender {
   public void append(LogEvent logEvent) {
     try {
       // if an event with a non-null throwable is received => exception event
-      if (logEvent.getThrown() != null) {
+      // and its level is error or higher (e.g., FATAL)
+      if (logEvent.getThrown() != null && logEvent.getLevel().isMoreSpecificThan(Level.ERROR)) {
         DiagnosticsExceptionEvent diagnosticsExceptionEvent =
             new DiagnosticsExceptionEvent(logEvent.getTimeMillis(), logEvent.getThrown(),
                 logEvent.getContextData().toMap());
