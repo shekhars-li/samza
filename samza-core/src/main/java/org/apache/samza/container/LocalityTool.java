@@ -12,9 +12,9 @@ import org.apache.samza.config.JobConfig;
 import org.apache.samza.container.grouper.task.TaskAssignmentManager;
 import org.apache.samza.coordinator.metadatastore.CoordinatorStreamStore;
 import org.apache.samza.coordinator.metadatastore.NamespaceAwareCoordinatorStreamStore;
-import org.apache.samza.coordinator.stream.messages.SetContainerHostMapping;
 import org.apache.samza.coordinator.stream.messages.SetTaskContainerMapping;
 import org.apache.samza.coordinator.stream.messages.SetTaskModeMapping;
+import org.apache.samza.job.model.ProcessorLocality;
 import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.util.CommandLine;
@@ -130,18 +130,18 @@ public class LocalityTool extends CommandLine {
 
   public void printAllContainerLocality() {
     LOG.info("Container Locality:");
-    for (Map.Entry<String, Map<String, String>> entry : localityManager.readContainerLocality().entrySet()) {
-      LOG.info("--containerId={} --host={}", entry.getKey(), entry.getValue().get(SetContainerHostMapping.HOST_KEY));
+    for (Map.Entry<String, ProcessorLocality> entry : localityManager.readLocality().getProcessorLocalities().entrySet()) {
+      LOG.info("--containerId={} --host={}", entry.getKey(), entry.getValue().host());
     }
   }
 
-  public void printContainerLocality(String containerId) {
-    Map<String, String> containerLocality = localityManager.readContainerLocality().get(containerId);
+  public void printContainerLocality(String processorId) {
+    ProcessorLocality processorLocality = localityManager.readLocality().getProcessorLocality(processorId);
     LOG.info("Container Locality:");
-    if (containerLocality != null) {
-      LOG.info("--containerId={} --host={}", containerId, containerLocality.get(SetContainerHostMapping.HOST_KEY));
+    if (processorLocality != null) {
+      LOG.info("--containerId={} --host={}", processorId, processorLocality.host());
     } else {
-      LOG.info("Container \"{}\" has no preferred host", containerId);
+      LOG.info("Container \"{}\" has no preferred host", processorId);
     }
   }
 
