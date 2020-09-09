@@ -19,11 +19,11 @@
 package org.apache.samza.clustermanager;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.apache.samza.SamzaException;
@@ -32,8 +32,6 @@ import org.apache.samza.clustermanager.container.placement.ContainerPlacementReq
 import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.ClusterManagerConfig;
 import org.apache.samza.config.Config;
-import org.apache.samza.config.ConfigLoader;
-import org.apache.samza.config.ConfigLoaderFactory;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.StorageConfig;
 import org.apache.samza.config.TaskConfig;
@@ -61,8 +59,6 @@ import org.apache.samza.system.StreamMetadataCache;
 import org.apache.samza.system.SystemAdmins;
 import org.apache.samza.system.SystemStream;
 import org.apache.samza.util.DiagnosticsUtil;
-import org.apache.samza.util.ReflectionUtil;
-import org.apache.samza.util.SplitDeploymentUtil;
 import org.apache.samza.util.SystemClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -194,8 +190,8 @@ public class ClusterBasedJobCoordinator {
     // ProcessGeneratorHolder is expected to have already started before the constructor is being invoked.
 
     // build a JobModelManager and ChangelogStreamManager and perform partition assignments.
-    this.changelogStreamManager = new ChangelogStreamManager(
-        new NamespaceAwareCoordinatorStreamStore(metadataStore, SetChangelogMapping.TYPE));
+    this.changelogStreamManager =
+        new ChangelogStreamManager(new NamespaceAwareCoordinatorStreamStore(metadataStore, SetChangelogMapping.TYPE));
     this.jobModelManager =
         JobModelManager.apply(config, changelogStreamManager.readPartitionMapping(), metadataStore, metrics);
 
@@ -224,8 +220,8 @@ public class ClusterBasedJobCoordinator {
     containerPlacementRequestAllocator =
         new ContainerPlacementRequestAllocator(containerPlacementMetadataStore, containerProcessManager,
             new ApplicationConfig(config));
-    this.containerPlacementRequestAllocatorThread =
-        new Thread(containerPlacementRequestAllocator, "Samza-" + ContainerPlacementRequestAllocator.class.getSimpleName());
+    this.containerPlacementRequestAllocatorThread = new Thread(containerPlacementRequestAllocator,
+        "Samza-" + ContainerPlacementRequestAllocator.class.getSimpleName());
   }
 
   /**
@@ -296,9 +292,7 @@ public class ClusterBasedJobCoordinator {
 
       boolean isInterrupted = false;
 
-      while (!containerProcessManager.shouldShutdown()
-          && !checkAndThrowException()
-          && !isInterrupted
+      while (!containerProcessManager.shouldShutdown() && !checkAndThrowException() && !isInterrupted
           && checkcontainerPlacementRequestAllocatorThreadIsAlive()) {
         try {
           Thread.sleep(jobCoordinatorSleepInterval);
@@ -385,15 +379,18 @@ public class ClusterBasedJobCoordinator {
         new JobConfig(config).getMonitorPartitionChangeFrequency(), streamsChanged -> {
       // Fail the jobs with durable state store. Otherwise, application state.status remains UNDEFINED s.t. YARN job will be restarted
       if (hasDurableStores) {
-        LOG.error("Input topic partition count changed in a job with durable state. Failing the job. " +
-            "Changed topics: {}", streamsChanged.toString());
+        LOG.error(
+            "Input topic partition count changed in a job with durable state. Failing the job. " + "Changed topics: {}",
+            streamsChanged.toString());
         state.status = SamzaApplicationState.SamzaAppStatus.FAILED;
       }
-      coordinatorException = new PartitionChangeException("Input topic partition count changes detected for topics: " + streamsChanged.toString());
+      coordinatorException = new PartitionChangeException(
+          "Input topic partition count changes detected for topics: " + streamsChanged.toString());
     }));
   }
 
-  private Optional<StreamRegexMonitor> getInputRegexMonitor(Config config, SystemAdmins systemAdmins, Set<SystemStream> inputStreamsToMonitor) {
+  private Optional<StreamRegexMonitor> getInputRegexMonitor(Config config, SystemAdmins systemAdmins,
+      Set<SystemStream> inputStreamsToMonitor) {
     JobConfig jobConfig = new JobConfig(config);
 
     // if input regex monitor is not enabled return empty
@@ -427,17 +424,17 @@ public class ClusterBasedJobCoordinator {
 
     return Optional.of(new StreamRegexMonitor(inputStreamsToMonitor, inputRegexesToMonitor, streamMetadata, metrics,
         jobConfig.getMonitorRegexFrequency(), new StreamRegexMonitor.Callback() {
-          @Override
-          public void onInputStreamsChanged(Set<SystemStream> initialInputSet, Set<SystemStream> newInputStreams,
-              Map<String, Pattern> regexesMonitored) {
-            if (hasDurableStores) {
-              LOG.error("New input system-streams discovered. Failing the job. New input streams: {}" +
-                  " Existing input streams: {}", newInputStreams, inputStreamsToMonitor);
-              state.status = SamzaApplicationState.SamzaAppStatus.FAILED;
-            }
-            coordinatorException = new InputStreamsDiscoveredException("New input streams discovered: " + newInputStreams);
-          }
-        }));
+      @Override
+      public void onInputStreamsChanged(Set<SystemStream> initialInputSet, Set<SystemStream> newInputStreams,
+          Map<String, Pattern> regexesMonitored) {
+        if (hasDurableStores) {
+          LOG.error("New input system-streams discovered. Failing the job. New input streams: {}"
+              + " Existing input streams: {}", newInputStreams, inputStreamsToMonitor);
+          state.status = SamzaApplicationState.SamzaAppStatus.FAILED;
+        }
+        coordinatorException = new InputStreamsDiscoveredException("New input streams discovered: " + newInputStreams);
+      }
+    }));
   }
 
   // The following two methods are package-private and for testing only

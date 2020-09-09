@@ -37,7 +37,6 @@ import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.ShellCommandConfig;
 import org.apache.samza.coordinator.metadatastore.CoordinatorStreamStore;
-import org.apache.samza.metadatastore.MetadataStore;
 import org.apache.samza.metrics.MetricsRegistryMap;
 import org.apache.samza.serializers.model.SamzaObjectMapper;
 import org.apache.samza.util.ConfigUtil;
@@ -84,8 +83,7 @@ public class ClusterBasedJobCoordinatorRunner {
       try {
         //Read and parse the coordinator system config.
         LOG.info("Parsing submission config {}", submissionEnv);
-        submissionConfig =
-            new MapConfig(SamzaObjectMapper.getObjectMapper().readValue(submissionEnv, Config.class));
+        submissionConfig = new MapConfig(SamzaObjectMapper.getObjectMapper().readValue(submissionEnv, Config.class));
         LOG.info("Using the submission config: {}.", submissionConfig);
       } catch (IOException e) {
         LOG.error("Exception while reading submission config", e);
@@ -113,9 +111,9 @@ public class ClusterBasedJobCoordinatorRunner {
         JobConfig jobConfig = new JobConfig(submissionConfig);
 
         if (!jobConfig.getConfigLoaderFactory().isPresent()) {
-          throw new SamzaException(JobConfig.CONFIG_LOADER_FACTORY + " is required to initialize job coordinator from config loader");
+          throw new SamzaException(
+              JobConfig.CONFIG_LOADER_FACTORY + " is required to initialize job coordinator from config loader");
         }
-
 
         // start LinkedIn-Specific code.
 
@@ -125,9 +123,10 @@ public class ClusterBasedJobCoordinatorRunner {
         // so instead of loading full job config with loadConfig,
         // we execute loadConfig step by step and start offSpring before rewrite configs
         // TODO: will uniform with OSS again after LISAMZA-14802 is done
-        ConfigLoaderFactory
-            factory = ReflectionUtil.getObj(jobConfig.getConfigLoaderFactory().get(), ConfigLoaderFactory.class);
-        ConfigLoader loader = factory.getLoader(submissionConfig.subset(ConfigLoaderFactory.CONFIG_LOADER_PROPERTIES_PREFIX));
+        ConfigLoaderFactory factory =
+            ReflectionUtil.getObj(jobConfig.getConfigLoaderFactory().get(), ConfigLoaderFactory.class);
+        ConfigLoader loader =
+            factory.getLoader(submissionConfig.subset(ConfigLoaderFactory.CONFIG_LOADER_PROPERTIES_PREFIX));
         // overrides config loaded with original config, which may contain overridden values.
         Config originalConfig = ConfigUtil.override(loader.getConfig(), submissionConfig);
 
@@ -170,7 +169,7 @@ public class ClusterBasedJobCoordinatorRunner {
    * Initialize {@link ClusterBasedJobCoordinator} with coordinator stream config, full job config will be fetched from
    * coordinator stream.
    *
-   * @param metadataStoreConfig to initialize {@link MetadataStore}
+   * @param metadataStoreConfig to initialize {@link org.apache.samza.metadatastore.MetadataStore}
    * @return {@link ClusterBasedJobCoordinator}
    */
   // TODO SAMZA-2432: Clean this up once SAMZA-2405 is completed when legacy flow is removed.
