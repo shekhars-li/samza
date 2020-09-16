@@ -27,19 +27,14 @@ import java.util.Arrays;
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.samza.SamzaException;
-import org.apache.samza.application.ApplicationUtil;
 import org.apache.samza.classloader.IsolatingClassLoaderFactory;
 import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.Config;
-import org.apache.samza.config.ConfigLoader;
-import org.apache.samza.config.ConfigLoaderFactory;
-import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.ShellCommandConfig;
 import org.apache.samza.coordinator.metadatastore.CoordinatorStreamStore;
 import org.apache.samza.metrics.MetricsRegistryMap;
 import org.apache.samza.serializers.model.SamzaObjectMapper;
-import org.apache.samza.util.ConfigUtil;
 import org.apache.samza.util.CoordinatorStreamUtil;
 import org.apache.samza.util.ReflectionUtil;
 import org.apache.samza.util.SplitDeploymentUtil;
@@ -97,55 +92,16 @@ public class ClusterBasedJobCoordinatorRunner {
        * For Beam jobs, app.main.class will be Beam's main class
        * and app.main.args will be Beam's pipeline options.
        */
-      if (appConfig.getAppMainClass().isPresent()) {
-        String className = appConfig.getAppMainClass().get();
-        LOG.info("Invoke main {}", className);
-        try {
-          Class<?> cls = Class.forName(className);
-          Method mainMethod = cls.getMethod("main", String[].class);
-          mainMethod.invoke(null, (Object) toArgs(appConfig));
-        } catch (Exception e) {
-          throw new SamzaException(e);
-        }
-      } else {
-        JobConfig jobConfig = new JobConfig(submissionConfig);
-
-        if (!jobConfig.getConfigLoaderFactory().isPresent()) {
-          throw new SamzaException(
-              JobConfig.CONFIG_LOADER_FACTORY + " is required to initialize job coordinator from config loader");
-        }
-
-        // start LinkedIn-Specific code.
-
-        // We removed direct calling of loadConfig intended here
-        // since `RegExTopicGenerator` calling through loadConfig need to access kafka clients,
-        // which can not be accessed now because offSpring is not started.
-        // so instead of loading full job config with loadConfig,
-        // we execute loadConfig step by step and start offSpring before rewrite configs
-        // TODO: will uniform with OSS again after LISAMZA-14802 is done
-        ConfigLoaderFactory factory =
-            ReflectionUtil.getObj(jobConfig.getConfigLoaderFactory().get(), ConfigLoaderFactory.class);
-        ConfigLoader loader =
-            factory.getLoader(submissionConfig.subset(ConfigLoaderFactory.CONFIG_LOADER_PROPERTIES_PREFIX));
-        // overrides config loaded with original config, which may contain overridden values.
-        Config originalConfig = ConfigUtil.override(loader.getConfig(), submissionConfig);
-
-        /*
-         * LinkedIn Only
-         *
-         * Start the ProcessGenerator with full job config, we don't need to stop and restart it after planning as
-         * planning is only expected to change samza related configs but not offspring components.
-         */
-        ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
-        ProcessGeneratorHolder.getInstance().start();
-
-        Config rewrittenConfig = ConfigUtil.rewriteConfig(originalConfig);
-
-        JobCoordinatorLaunchUtil.run(ApplicationUtil.fromConfig(rewrittenConfig), rewrittenConfig);
-        // end Linkedin-Specific code
+      String className = appConfig.getAppMainClass();
+      String[] arguments = toArgs(appConfig);
+      LOG.info("Invoke main {} with args {}", className, arguments);
+      try {
+        Class<?> cls = Class.forName(className);
+        Method mainMethod = cls.getMethod("main", String[].class);
+        mainMethod.invoke(null, (Object) arguments);
+      } catch (Exception e) {
+        throw new SamzaException(e);
       }
-
-      LOG.info("Finished running ClusterBasedJobCoordinator");
     } else {
       // TODO: Clean this up once SAMZA-2405 is completed when legacy flow is removed.
       Config coordinatorSystemConfig;
@@ -161,8 +117,9 @@ public class ClusterBasedJobCoordinatorRunner {
       }
       ClusterBasedJobCoordinator jc = createFromMetadataStore(coordinatorSystemConfig);
       jc.run();
-      LOG.info("Finished running ClusterBasedJobCoordinator");
     }
+
+    LOG.info("Finished running ClusterBasedJobCoordinator");
   }
 
   /**

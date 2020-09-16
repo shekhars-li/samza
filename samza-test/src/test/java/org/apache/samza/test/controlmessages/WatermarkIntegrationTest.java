@@ -19,6 +19,7 @@
 
 package org.apache.samza.test.controlmessages;
 
+import org.apache.samza.config.ApplicationConfig;
 import org.apache.samza.config.TaskConfig;
 import com.linkedin.samza.task.wrapper.BaseLiTask;
 import java.lang.reflect.Field;
@@ -125,7 +126,7 @@ public class WatermarkIntegrationTest extends IntegrationTestHarness {
   @Test
   public void testWatermark() throws Exception {
     Map<String, String> configs = new HashMap<>();
-    configs.put("app.runner.class", MockLocalApplicationRunner.class.getName());
+    configs.put(ApplicationConfig.APP_RUNNER_CLASS, MockLocalApplicationRunner.class.getName());
     configs.put("systems.test.samza.factory", TestSystemFactory.class.getName());
     configs.put("streams.PageView.samza.system", "test");
     configs.put("streams.PageView.partitionCount", String.valueOf(PARTITION_COUNT));
