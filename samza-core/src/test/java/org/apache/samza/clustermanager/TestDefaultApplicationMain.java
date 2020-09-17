@@ -18,19 +18,23 @@
  */
 package org.apache.samza.clustermanager;
 
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import org.apache.samza.application.ApplicationUtil;
 import org.apache.samza.application.StreamApplication;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.loaders.PropertiesConfigLoaderFactory;
 import org.apache.samza.util.ConfigUtil;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.powermock.api.mockito.PowerMockito.doNothing;
 import static org.powermock.api.mockito.PowerMockito.mock;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
@@ -43,9 +47,11 @@ import static org.powermock.api.mockito.PowerMockito.when;
     ApplicationUtil.class,
     ConfigUtil.class,
     JobCoordinatorLaunchUtil.class,
-    ClusterBasedJobCoordinatorRunner.class})
+    ClusterBasedJobCoordinatorRunner.class,
+    ProcessGeneratorHolder.class})
 public class TestDefaultApplicationMain {
 
+  @Ignore("LI specific logic in run(), ignore the original unit test.")
   @Test
   public void testRun() throws Exception {
     String[] args = new String[] {
@@ -70,5 +76,36 @@ public class TestDefaultApplicationMain {
 
     verifyStatic(times(1));
     JobCoordinatorLaunchUtil.run(mockApplication, mockConfig);
+  }
+
+  /**
+   * LI special unit tests on {@link DefaultApplicationMain#run(String[])} with offspring integration.
+   */
+  @Test
+  public void testRun_withOffspring() throws Exception {
+    String[] args = new String[] {
+        "--config",
+        JobConfig.CONFIG_LOADER_FACTORY + "=" + PropertiesConfigLoaderFactory.class.getName(),
+        "--config",
+        PropertiesConfigLoaderFactory.CONFIG_LOADER_PROPERTIES_PREFIX + "path=" + getClass().getResource("/test.properties").getPath()
+    };
+
+    StreamApplication mockApplication = mock(StreamApplication.class);
+    mockStatic(JobCoordinatorLaunchUtil.class, ApplicationUtil.class, ConfigUtil.class);
+    mockStatic(ProcessGeneratorHolder.class);
+    ProcessGeneratorHolder mockHolder = mock(ProcessGeneratorHolder.class);
+    when(ProcessGeneratorHolder.getInstance()).thenReturn(mockHolder);
+
+    when(ApplicationUtil.fromConfig(any()))
+        .thenReturn(mockApplication);
+    doNothing()
+        .when(JobCoordinatorLaunchUtil.class, "run",
+            eq(mockApplication), any());
+    DefaultApplicationMain.run(args);
+
+    verifyStatic(times(1));
+    JobCoordinatorLaunchUtil.run(eq(mockApplication), any());
+    verify(mockHolder, times(1)).createGenerator(any());
+    verify(mockHolder, times(1)).start();
   }
 }

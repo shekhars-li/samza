@@ -19,11 +19,17 @@
 package org.apache.samza.clustermanager;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.linkedin.samza.generator.internal.ProcessGeneratorHolder;
 import joptsimple.OptionSet;
 import org.apache.samza.application.ApplicationUtil;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.ConfigException;
+import org.apache.samza.config.ConfigLoader;
+import org.apache.samza.config.ConfigLoaderFactory;
+import org.apache.samza.config.JobConfig;
 import org.apache.samza.runtime.ApplicationRunnerMain;
 import org.apache.samza.util.ConfigUtil;
+import org.apache.samza.util.ReflectionUtil;
 
 
 public class DefaultApplicationMain {
@@ -39,9 +45,34 @@ public class DefaultApplicationMain {
     cmdLine.parser().allowsUnrecognizedOptions();
 
     final OptionSet options = cmdLine.parser().parse(args);
-    // load full job config with ConfigLoader
-    final Config originalConfig = ConfigUtil.loadConfig(cmdLine.loadConfig(options));
+    // start LinkedIn-Specific code.
+    // We removed direct calling of loadConfig intended here
+    // since `RegExTopicGenerator` calling through loadConfig need to access kafka clients,
+    // which can not be accessed now because offSpring is not started.
+    // so instead of loading full job config with loadConfig,
+    // we execute loadConfig step by step and start offSpring before rewrite configs
+    // TODO: will uniform with OSS again after LISAMZA-14802 is done
+    final Config submissionConfig = cmdLine.loadConfig(options);
+    JobConfig jobConfig = new JobConfig(submissionConfig);
 
-    JobCoordinatorLaunchUtil.run(ApplicationUtil.fromConfig(originalConfig), originalConfig);
+    if (!jobConfig.getConfigLoaderFactory().isPresent()) {
+      throw new ConfigException("Missing key " + JobConfig.CONFIG_LOADER_FACTORY + ".");
+    }
+
+    ConfigLoaderFactory factory = ReflectionUtil.getObj(jobConfig.getConfigLoaderFactory().get(), ConfigLoaderFactory.class);
+    ConfigLoader loader = factory.getLoader(jobConfig.subset(ConfigLoaderFactory.CONFIG_LOADER_PROPERTIES_PREFIX));
+    // overrides config loaded with original config, which may contain overridden values.
+    Config originalConfig = ConfigUtil.override(loader.getConfig(), submissionConfig);
+    /*
+     * LinkedIn Only
+     *
+     * Start the ProcessGenerator with full job config, we don't need to stop and restart it after planning as
+     * planning is only expected to change samza related configs but not offspring components.
+     */
+    ProcessGeneratorHolder.getInstance().createGenerator(originalConfig);
+    ProcessGeneratorHolder.getInstance().start();
+    Config rewrittenConfig = ConfigUtil.rewriteConfig(originalConfig);
+    JobCoordinatorLaunchUtil.run(ApplicationUtil.fromConfig(rewrittenConfig), rewrittenConfig);
+    // end Linkedin-Specific code
   }
 }
