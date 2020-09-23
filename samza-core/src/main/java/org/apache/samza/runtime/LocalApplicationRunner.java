@@ -355,7 +355,7 @@ public class LocalApplicationRunner implements ApplicationRunner {
       return false;
     }
     SystemStream coordinatorSystemStream = CoordinatorStreamUtil.getCoordinatorSystemStream(config);
-    SystemAdmins systemAdmins = new SystemAdmins(config);
+    SystemAdmins systemAdmins = new SystemAdmins(config, this.getClass().getSimpleName());
     systemAdmins.start();
     try {
       SystemAdmin coordinatorSystemAdmin = systemAdmins.getSystemAdmin(coordinatorSystemStream.getSystem());
