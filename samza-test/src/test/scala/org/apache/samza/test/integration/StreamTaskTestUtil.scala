@@ -303,7 +303,6 @@ class StreamTaskTestUtil {
     checkpointManagerOption match {
       case Some(checkpointManager) =>
         checkpointManager.createResources()
-        checkpointManager.stop()
       case _ => throw new ConfigException("No checkpoint manager factory configured")
     }
 
