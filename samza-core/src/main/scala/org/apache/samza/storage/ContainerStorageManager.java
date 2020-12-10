@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -53,6 +54,9 @@ import org.apache.samza.container.SamzaContainerMetrics;
 import org.apache.samza.container.TaskInstanceMetrics;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.context.ContainerContext;
+import org.apache.samza.context.Context;
+import org.apache.samza.context.ContextImpl;
+import org.apache.samza.context.ExternalContext;
 import org.apache.samza.context.JobContext;
 import org.apache.samza.job.model.ContainerModel;
 import org.apache.samza.job.model.TaskMode;
@@ -85,6 +89,7 @@ import org.apache.samza.util.ReflectionUtil;
 import org.apache.samza.util.ScalaJavaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Option;
 import scala.collection.JavaConversions;
 
 
@@ -108,6 +113,7 @@ import scala.collection.JavaConversions;
 public class ContainerStorageManager {
   private static final Logger LOG = LoggerFactory.getLogger(ContainerStorageManager.class);
   private static final String RESTORE_THREAD_NAME = "Samza Restore Thread-%d";
+  private static final String STORE_INIT_THREAD_NAME = "Samza Store Init Thread-%d";
   private static final String SIDEINPUTS_THREAD_NAME = "SideInputs Thread";
   private static final String SIDEINPUTS_METRICS_PREFIX = "side-inputs-";
   // We use a prefix to differentiate the SystemConsumersMetrics for sideInputs from the ones in SamzaContainer
@@ -137,12 +143,15 @@ public class ContainerStorageManager {
   private final ContainerModel containerModel;
   private final JobContext jobContext;
   private final ContainerContext containerContext;
+  private final Optional<ExternalContext> externalContextOptional;
+  private final Context context;
 
   private final File loggedStoreBaseDirectory;
   private final File nonLoggedStoreBaseDirectory;
   private final Set<Path> storeDirectoryPaths; // the set of store directory paths, used by SamzaContainer to initialize its disk-space-monitor
 
   private final int parallelRestoreThreadPoolSize;
+  private final int parallelInitThreadPoolSize;
   private final int maxChangeLogStreamPartitions; // The partition count of each changelog-stream topic. This is used for validating changelog streams before restoring.
 
   /* Sideinput related parameters */
@@ -179,6 +188,7 @@ public class ContainerStorageManager {
       SamzaContainerMetrics samzaContainerMetrics,
       JobContext jobContext,
       ContainerContext containerContext,
+      Optional<ExternalContext> externalContextOptional,
       Map<TaskName, TaskInstanceCollector> taskInstanceCollectors,
       File loggedStoreBaseDirectory,
       File nonLoggedStoreBaseDirectory,
@@ -221,6 +231,12 @@ public class ContainerStorageManager {
     this.jobContext = jobContext;
     this.containerContext = containerContext;
 
+    this.externalContextOptional = externalContextOptional;
+
+    // ContainerStorageManager gets constructed before the TaskInstance hence the taskContext is passed as empty here
+    this.context = new ContextImpl(jobContext, containerContext, Optional.empty(), Optional.empty(), Optional.empty(),
+        externalContextOptional);
+
     this.taskInstanceCollectors = taskInstanceCollectors;
 
     // initializing the set of store directory paths
@@ -228,6 +244,9 @@ public class ContainerStorageManager {
 
     // Setting the restore thread pool size equal to the number of taskInstances
     this.parallelRestoreThreadPoolSize = containerModel.getTasks().size();
+
+    // Setting the init thread pool size equal to the number of taskInstances
+    this.parallelInitThreadPoolSize = containerModel.getTasks().size();
 
     this.maxChangeLogStreamPartitions = maxChangeLogStreamPartitions;
     this.streamMetadataCache = streamMetadataCache;
@@ -417,9 +436,11 @@ public class ContainerStorageManager {
 
         // add created store to map
         taskStores.get(taskName).put(storeName, storageEngine);
-
         LOG.info("Created store {} for task {} in mode {}", storeName, taskName, storeMode);
       }
+
+      // initialize the Store init time metrics
+      samzaContainerMetrics.addStoresInitGauge(taskName);
     }
 
     return taskStores;
@@ -518,7 +539,7 @@ public class ContainerStorageManager {
             : new MetricsRegistryMap();
 
     return storageEngineFactories.get(storeName)
-        .getStorageEngine(storeName, storeDirectory, keySerde, messageSerde, taskInstanceCollectors.get(taskName),
+        .getStorageEngine(storeName, taskModel, storeDirectory, keySerde, messageSerde, taskInstanceCollectors.get(taskName),
             storeMetricsRegistry, changeLogSystemStreamPartition, jobContext, containerContext, storeMode);
   }
 
@@ -662,11 +683,54 @@ public class ContainerStorageManager {
         }
       });
     }
+
+    // Restore needs to happen first before the store init
     LOG.info("Checkpointed changelog ssp offsets: {}", checkpointedChangelogSSPOffsets);
     restoreStores(checkpointedChangelogSSPOffsets);
+    // Init Stores is called by CSM after restoration because restore is a Samza added abstraction
+    // This assumes that for any restoration requirements a store does not need to be constructed
+    initStores();
     if (this.hasSideInputs) {
       startSideInputs();
     }
+  }
+
+
+  private void initStores() throws InterruptedException {
+    LOG.info("Store Init started");
+
+    // Create a thread pool for parallel restores (and stopping of persistent stores)
+    // TODO: Add a config to use init threadpool
+    ExecutorService executorService = Executors.newFixedThreadPool(this.parallelInitThreadPoolSize,
+        new ThreadFactoryBuilder().setDaemon(true).setNameFormat(STORE_INIT_THREAD_NAME).build());
+
+    List<Future> taskInitFutures = new ArrayList<>(this.taskStores.entrySet().size());
+
+    // Submit restore callable for each taskInstance
+    this.taskStores.forEach((taskName, taskStores) -> {
+      taskInitFutures.add(executorService.submit(
+          new TaskInitCallable(this.samzaContainerMetrics, taskName, taskStores)));
+    });
+
+    // loop-over the future list to wait for each thread to finish, catch any exceptions during restore and throw
+    // as samza exceptions
+    for (Future future : taskInitFutures) {
+      try {
+        future.get();
+      } catch (InterruptedException e) {
+        LOG.warn("Received an interrupt during store init. Issuing interrupts to the store init workers to exit "
+            + "prematurely without completing the init of state store");
+        executorService.shutdownNow();
+        throw e;
+      } catch (Exception e) {
+        LOG.error("Exception during store init ", e);
+        throw new SamzaException("Exception during store init ", e);
+      }
+    }
+
+    executorService.shutdown();
+
+    LOG.info("Store Init complete");
   }
 
   // Restoration of all stores, in parallel across tasks
@@ -952,4 +1016,45 @@ public class ContainerStorageManager {
       return null;
     }
   }
+
+  /**
+   * Callable for performing the init on a StorageEngine
+   *
+   */
+  private class TaskInitCallable implements Callable<Void> {
+
+    private TaskName taskName;
+    private Map<String, StorageEngine> taskStores;
+    private SamzaContainerMetrics samzaContainerMetrics;
+
+    public TaskInitCallable(SamzaContainerMetrics samzaContainerMetrics, TaskName taskName,
+        Map<String, StorageEngine> taskStores) {
+      this.samzaContainerMetrics = samzaContainerMetrics;
+      this.taskName = taskName;
+      this.taskStores = taskStores;
+    }
+
+    @Override
+    public Void call() {
+      long startTime = System.currentTimeMillis();
+      try {
+        LOG.info("Starting store init in task instance {}", this.taskName.getTaskName());
+        for (Map.Entry<String, StorageEngine> store : taskStores.entrySet()) {
+          store.getValue().init(context);
+        }
+      }
+      finally {
+        long timeToInit = System.currentTimeMillis() - startTime;
+        if (this.samzaContainerMetrics != null) {
+          Gauge taskGauge = this.samzaContainerMetrics.taskStoreInitMetrics().getOrDefault(this.taskName, null);
+          if (taskGauge != null) {
+            taskGauge.set(timeToInit);
+          }
+        }
+      }
+
+      return null;
+    }
+  }
+
 }

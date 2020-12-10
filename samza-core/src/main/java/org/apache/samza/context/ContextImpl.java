@@ -52,6 +52,31 @@ public class ContextImpl implements Context {
     this.externalContextOptional = externalContextOptional;
   }
 
+  /**
+   * Partial Context construction for cases when StorageEngine is constructed before TaskInstance by the ContaineStorageManager
+   * This partial context contains application provided {@code @externalContextOptional} which can be used for constructing
+   * KeyValueStore that get constructed using OffSpring
+   *
+   * @param jobContext non-null job contex
+   * @param containerContext non-null framework container context
+   * @param taskContextOptional optional framework task context
+   * @param applicationContainerContextOptional optional application-defined container context
+   * @param applicationTaskContextOptional optional application-defined task context
+   * @param externalContextOptional optinal extenral context
+   */
+   public ContextImpl(JobContext jobContext, ContainerContext containerContext,
+      Optional<TaskContext> taskContextOptional,
+      Optional<ApplicationContainerContext> applicationContainerContextOptional,
+      Optional<ApplicationTaskContext> applicationTaskContextOptional,
+      Optional<ExternalContext> externalContextOptional) {
+    this.jobContext = Preconditions.checkNotNull(jobContext, "Job context can not be null");
+    this.containerContext = Preconditions.checkNotNull(containerContext, "Container context can not be null");
+    this.taskContext = taskContextOptional.orElse(null);
+    this.applicationContainerContextOptional = applicationContainerContextOptional;
+    this.applicationTaskContextOptional = applicationTaskContextOptional;
+    this.externalContextOptional = externalContextOptional;
+  }
+
   @Override
   public JobContext getJobContext() {
     return this.jobContext;

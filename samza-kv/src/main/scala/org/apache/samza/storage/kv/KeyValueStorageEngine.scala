@@ -31,6 +31,7 @@ import java.util.Optional
 
 import com.google.common.annotations.VisibleForTesting
 import org.apache.samza.checkpoint.CheckpointId
+import org.apache.samza.context.Context
 
 /**
  * A key value store.
@@ -262,5 +263,10 @@ class KeyValueStorageEngine[K, V](
   @VisibleForTesting
   private[kv] def getWrapperStore: KeyValueStore[K, V] = {
     wrapperStore
+  }
+
+  override def init(context: Context): Unit = {
+    info("Calling init for raw store: " + storeName)
+    rawStore.init(context);
   }
 }

@@ -27,6 +27,7 @@ import org.apache.samza.config.MetricsConfig;
 import org.apache.samza.config.StorageConfig;
 import org.apache.samza.context.ContainerContext;
 import org.apache.samza.context.JobContext;
+import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.serializers.Serde;
 import org.apache.samza.storage.StorageEngine;
@@ -46,6 +47,8 @@ import org.apache.samza.util.ScalaJavaUtil;
 public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageEngineFactory<K, V> {
   private static final String INMEMORY_KV_STORAGE_ENGINE_FACTORY =
       "org.apache.samza.storage.kv.inmemory.InMemoryKeyValueStorageEngineFactory";
+  private static final String DAVINCI_KV_STORAGE_ENGINE_FACTORY =
+      "com.linkedin.samza.kv.davinci.DaVinciStorageEngineFactory";
   private static final String WRITE_BATCH_SIZE = "write.batch.size";
   private static final int DEFAULT_WRITE_BATCH_SIZE = 500;
   private static final String OBJECT_CACHE_SIZE = "object.cache.size";
@@ -64,6 +67,7 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
    * @return A raw KeyValueStore instance
    */
   protected abstract KeyValueStore<byte[], byte[]> getKVStore(String storeName,
+      TaskModel taskModel,
       File storeDir,
       MetricsRegistry registry,
       SystemStreamPartition changeLogSystemStreamPartition,
@@ -84,6 +88,7 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
    * @param containerContext Information about the container in which the task is executing.
    **/
   public StorageEngine getStorageEngine(String storeName,
+      TaskModel taskModel,
       File storeDir,
       Serde<K> keySerde,
       Serde<V> msgSerde,
@@ -101,7 +106,9 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
       throw new SamzaException(
           String.format("Store factory not defined for store %s. Cannot proceed with KV store creation!", storeName));
     }
-    if (!storeFactory.get().equals(INMEMORY_KV_STORAGE_ENGINE_FACTORY)) {
+    // DaVinci is persisted to disk from DaVinci client and samza does not control it but it will be logged since we do not
+    // want to delete DaVinci store directories
+    if (!StringUtils.equalsAny(storeFactory.get(), INMEMORY_KV_STORAGE_ENGINE_FACTORY, DAVINCI_KV_STORAGE_ENGINE_FACTORY)) {
       storePropertiesBuilder.setPersistedToDisk(true);
     }
     int batchSize = storageConfigSubset.getInt(WRITE_BATCH_SIZE, DEFAULT_WRITE_BATCH_SIZE);
@@ -121,7 +128,7 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
     }
 
     KeyValueStore<byte[], byte[]> rawStore =
-        getKVStore(storeName, storeDir, registry, changelogSSP, jobContext, containerContext, storeMode);
+        getKVStore(storeName, taskModel, storeDir, registry, changelogSSP, jobContext, containerContext, storeMode);
     KeyValueStore<byte[], byte[]> maybeLoggedStore = buildMaybeLoggedStore(changelogSSP,
         storeName, registry, storePropertiesBuilder, rawStore, changelogCollector);
     // this also applies serialization and caching layers

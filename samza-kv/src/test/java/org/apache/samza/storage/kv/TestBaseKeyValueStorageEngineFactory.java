@@ -21,13 +21,16 @@ package org.apache.samza.storage.kv;
 import java.io.File;
 import java.util.Map;
 import com.google.common.collect.ImmutableMap;
+import java.util.Optional;
 import org.apache.samza.Partition;
 import org.apache.samza.SamzaException;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.StorageConfig;
 import org.apache.samza.context.ContainerContext;
+import org.apache.samza.context.ExternalContext;
 import org.apache.samza.context.JobContext;
+import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.Gauge;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.serializers.Serde;
@@ -68,6 +71,8 @@ public class TestBaseKeyValueStorageEngineFactory {
   @Mock
   private File storeDir;
   @Mock
+  private TaskModel taskModel;
+  @Mock
   private Serde<String> keySerde;
   @Mock
   private Serde<String> msgSerde;
@@ -107,7 +112,7 @@ public class TestBaseKeyValueStorageEngineFactory {
   public void testMissingKeySerde() {
     Config config = new MapConfig(BASE_CONFIG);
     when(this.jobContext.getConfig()).thenReturn(config);
-    new MockKeyValueStorageEngineFactory(this.rawKeyValueStore).getStorageEngine(STORE_NAME, this.storeDir, null,
+    new MockKeyValueStorageEngineFactory(this.rawKeyValueStore).getStorageEngine(STORE_NAME, this.taskModel, this.storeDir, null,
         this.msgSerde, this.changelogCollector, this.metricsRegistry, null, this.jobContext, this.containerContext,
         STORE_MODE);
   }
@@ -116,7 +121,7 @@ public class TestBaseKeyValueStorageEngineFactory {
   public void testMissingValueSerde() {
     Config config = new MapConfig(BASE_CONFIG);
     when(this.jobContext.getConfig()).thenReturn(config);
-    new MockKeyValueStorageEngineFactory(this.rawKeyValueStore).getStorageEngine(STORE_NAME, this.storeDir,
+    new MockKeyValueStorageEngineFactory(this.rawKeyValueStore).getStorageEngine(STORE_NAME, this.taskModel, this.storeDir,
         this.keySerde, null, this.changelogCollector, this.metricsRegistry, null, this.jobContext,
         this.containerContext, STORE_MODE);
   }
@@ -288,8 +293,8 @@ public class TestBaseKeyValueStorageEngineFactory {
    */
   private StorageEngine callGetStorageEngine(Config config, SystemStreamPartition changelogSSP) {
     when(this.jobContext.getConfig()).thenReturn(config);
-    return new MockKeyValueStorageEngineFactory(this.rawKeyValueStore).getStorageEngine(STORE_NAME, this.storeDir,
-        this.keySerde, this.msgSerde, this.changelogCollector, this.metricsRegistry, changelogSSP, this.jobContext,
-        this.containerContext, STORE_MODE);
+    return new MockKeyValueStorageEngineFactory(this.rawKeyValueStore).getStorageEngine(STORE_NAME, this.taskModel,
+        this.storeDir, this.keySerde, this.msgSerde, this.changelogCollector, this.metricsRegistry, changelogSSP,
+        this.jobContext, this.containerContext, STORE_MODE);
   }
 }

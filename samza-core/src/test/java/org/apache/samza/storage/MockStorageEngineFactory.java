@@ -22,6 +22,7 @@ package org.apache.samza.storage;
 import java.io.File;
 import org.apache.samza.context.ContainerContext;
 import org.apache.samza.context.JobContext;
+import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.serializers.Serde;
 import org.apache.samza.system.SystemStreamPartition;
@@ -30,6 +31,7 @@ import org.apache.samza.task.MessageCollector;
 public class MockStorageEngineFactory implements StorageEngineFactory<Object, Object> {
   @Override
   public StorageEngine getStorageEngine(String storeName,
+      TaskModel taskModel,
       File storeDir,
       Serde<Object> keySerde,
       Serde<Object> msgSerde,

@@ -22,6 +22,7 @@ package org.apache.samza.storage;
 import java.io.File;
 import org.apache.samza.context.ContainerContext;
 import org.apache.samza.context.JobContext;
+import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.serializers.Serde;
 import org.apache.samza.system.SystemStreamPartition;
@@ -54,6 +55,7 @@ public interface StorageEngineFactory<K, V> {
    * Create an instance of the given storage engine.
    *
    * @param storeName The name of the storage engine.
+   * @param taskModel Task Model for the task
    * @param storeDir The directory of the storage engine.
    * @param keySerde The serializer to use for serializing keys when reading or writing to the store.
    * @param msgSerde The serializer to use for serializing messages when reading or writing to the store.
@@ -67,6 +69,7 @@ public interface StorageEngineFactory<K, V> {
    */
   StorageEngine getStorageEngine(
     String storeName,
+    TaskModel taskModel,
     File storeDir,
     Serde<K> keySerde,
     Serde<V> msgSerde,

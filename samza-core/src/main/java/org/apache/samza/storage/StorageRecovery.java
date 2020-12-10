@@ -253,6 +253,7 @@ public class StorageRecovery {
               new SamzaContainerMetrics(containerModel.getId(), new MetricsRegistryMap(), ""),
               JobContextImpl.fromConfigWithDefaults(jobConfig, jobModel),
               containerContext,
+              Optional.empty(),
               new HashMap<>(),
               storeBaseDir,
               storeBaseDir,

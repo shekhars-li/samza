@@ -534,6 +534,7 @@ object SamzaContainer extends Logging {
       samzaContainerMetrics,
       jobContext,
       containerContext,
+      Optional.ofNullable(externalContextOption.orNull),
       taskCollectors.asJava,
       loggedStorageBaseDir,
       nonLoggedStorageBaseDir,

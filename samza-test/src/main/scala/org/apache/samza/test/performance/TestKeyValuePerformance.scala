@@ -136,6 +136,7 @@ object TestKeyValuePerformance extends Logging {
         val byteSerde = new ByteSerde
         val engine = storageEngine.getStorageEngine(
           storeName,
+          null,
           output,
           byteSerde,
           byteSerde,
@@ -145,6 +146,7 @@ object TestKeyValuePerformance extends Logging {
           JobContextImpl.fromConfigWithDefaults(storageConfig, null),
           new ContainerContextImpl(new ContainerModel("0", tasks.asJava), new MetricsRegistryMap), StoreMode.ReadWrite
         )
+
 
         val db = if(!engine.isInstanceOf[KeyValueStorageEngine[_,_]]) {
           throw new SamzaException("This test can only run with KeyValueStorageEngine configured as store factory.")

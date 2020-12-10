@@ -21,6 +21,8 @@ package org.apache.samza.storage.kv.inmemory;
 import java.io.File;
 import org.apache.samza.context.ContainerContext;
 import org.apache.samza.context.JobContext;
+import org.apache.samza.job.model.TaskMode;
+import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.storage.kv.BaseKeyValueStorageEngineFactory;
 import org.apache.samza.storage.kv.KeyValueStore;
@@ -31,6 +33,7 @@ import org.apache.samza.system.SystemStreamPartition;
 public class InMemoryKeyValueStorageEngineFactory<K, V> extends BaseKeyValueStorageEngineFactory<K, V> {
   @Override
   protected KeyValueStore<byte[], byte[]> getKVStore(String storeName,
+      TaskModel taskModel,
       File storeDir,
       MetricsRegistry registry,
       SystemStreamPartition changeLogSystemStreamPartition,

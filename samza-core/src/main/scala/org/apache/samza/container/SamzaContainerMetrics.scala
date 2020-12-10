@@ -51,8 +51,14 @@ class SamzaContainerMetrics(
 
   val taskStoreRestorationMetrics: util.Map[TaskName, Gauge[Long]] = new util.HashMap[TaskName, Gauge[Long]]()
 
+  val taskStoreInitMetrics: util.Map[TaskName, Gauge[Long]] = new util.HashMap[TaskName, Gauge[Long]]()
+
   def addStoresRestorationGauge(taskName: TaskName) {
     taskStoreRestorationMetrics.put(taskName, newGauge("%s-restore-time" format(taskName.toString), -1L))
+  }
+
+  def addStoresInitGauge(taskName: TaskName) {
+    taskStoreRestorationMetrics.put(taskName, newGauge("%s-store-init-time" format(taskName.toString), -1L))
   }
 
   override def getPrefix: String = prefix

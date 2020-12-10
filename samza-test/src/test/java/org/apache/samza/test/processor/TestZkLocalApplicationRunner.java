@@ -1287,6 +1287,7 @@ public class TestZkLocalApplicationRunner extends IntegrationTestHarness {
   public static class MockStoreFactory implements StorageEngineFactory<Object, Object> {
     @Override
     public StorageEngine getStorageEngine(String storeName,
+        TaskModel taskModel,
         File storeDir,
         Serde<Object> keySerde,
         Serde<Object> msgSerde,

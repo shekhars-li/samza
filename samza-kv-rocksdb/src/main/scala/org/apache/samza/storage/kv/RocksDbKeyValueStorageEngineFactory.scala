@@ -23,6 +23,7 @@ import java.io.File
 
 import org.apache.samza.config.StorageConfig
 import org.apache.samza.context.{ContainerContext, JobContext}
+import org.apache.samza.job.model.TaskModel
 import org.apache.samza.metrics.MetricsRegistry
 import org.apache.samza.storage.StorageEngineFactory.StoreMode
 import org.apache.samza.system.SystemStreamPartition
@@ -39,6 +40,7 @@ class RocksDbKeyValueStorageEngineFactory [K, V] extends BaseKeyValueStorageEngi
    * @return A valid KeyValueStore instance
    */
   override def getKVStore(storeName: String,
+    taskModel: TaskModel,
     storeDir: File,
     registry: MetricsRegistry,
     changeLogSystemStreamPartition: SystemStreamPartition,

@@ -21,11 +21,12 @@ package org.apache.samza.storage
 
 import java.io.{File, FileOutputStream, ObjectOutputStream}
 import java.util
+import java.util.Optional
 
 import org.apache.samza.Partition
 import org.apache.samza.config._
 import org.apache.samza.container.{SamzaContainerMetrics, TaskInstanceMetrics, TaskName}
-import org.apache.samza.context.{ContainerContext, JobContext}
+import org.apache.samza.context.{ContainerContext, ExternalContext, JobContext}
 import org.apache.samza.job.model.{ContainerModel, TaskMode, TaskModel}
 import org.apache.samza.serializers.{Serde, StringSerdeFactory}
 import org.apache.samza.storage.StoreProperties.StorePropertiesBuilder
@@ -39,7 +40,7 @@ import org.junit.runners.Parameterized
 import org.junit.runners.Parameterized.Parameters
 import org.junit.{After, Before, Test}
 import org.mockito.Matchers._
-import org.mockito.{Mockito}
+import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
@@ -871,13 +872,13 @@ class TaskStorageManagerBuilder extends MockitoSugar {
     var storageEngineFactories : mutable.Map[String, StorageEngineFactory[AnyRef, AnyRef]] =  scala.collection.mutable.Map[String, StorageEngineFactory[AnyRef, AnyRef]]()
 
     if(taskStores.contains("store1")) {
-      Mockito.when(mockStorageEngineFactory.getStorageEngine(org.mockito.Matchers.eq("store1"), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+      Mockito.when(mockStorageEngineFactory.getStorageEngine(org.mockito.Matchers.eq("store1"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(taskStores.get("store1").get)
       storageEngineFactories += ("store1" -> mockStorageEngineFactory)
     }
 
     if(taskStores.contains("loggedStore1")) {
-      Mockito.when(mockStorageEngineFactory.getStorageEngine(org.mockito.Matchers.eq("loggedStore1"), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+      Mockito.when(mockStorageEngineFactory.getStorageEngine(org.mockito.Matchers.eq("loggedStore1"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(taskStores.get("loggedStore1").get)
       storageEngineFactories += ("loggedStore1" -> mockStorageEngineFactory)
     }
@@ -920,6 +921,7 @@ class TaskStorageManagerBuilder extends MockitoSugar {
       Mockito.mock(classOf[SamzaContainerMetrics]),
       Mockito.mock(classOf[JobContext]),
       Mockito.mock(classOf[ContainerContext]),
+      Optional.empty(),
       new HashMap[TaskName, TaskInstanceCollector].asJava,
       loggedStoreBaseDir,
       TaskStorageManagerBuilder.defaultStoreBaseDir,

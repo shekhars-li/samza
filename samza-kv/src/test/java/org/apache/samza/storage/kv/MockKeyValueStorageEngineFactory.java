@@ -21,6 +21,7 @@ package org.apache.samza.storage.kv;
 import java.io.File;
 import org.apache.samza.context.ContainerContext;
 import org.apache.samza.context.JobContext;
+import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.system.SystemStreamPartition;
 
@@ -37,7 +38,7 @@ public class MockKeyValueStorageEngineFactory extends BaseKeyValueStorageEngineF
   }
 
   @Override
-  protected KeyValueStore<byte[], byte[]> getKVStore(String storeName, File storeDir, MetricsRegistry registry,
+  protected KeyValueStore<byte[], byte[]> getKVStore(String storeName, TaskModel taskModel, File storeDir, MetricsRegistry registry,
       SystemStreamPartition changeLogSystemStreamPartition, JobContext jobContext, ContainerContext containerContext,
       StoreMode storeMode) {
     return this.rawKeyValueStore;
