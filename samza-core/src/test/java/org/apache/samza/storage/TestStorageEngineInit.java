@@ -138,6 +138,7 @@ public class TestStorageEngineInit {
     configMap.put("stores." + STORE_NAME + ".key.serde", "stringserde");
     configMap.put("stores." + STORE_NAME + ".msg.serde", "stringserde");
     configMap.put("serializers.registry.stringserde.class", StringSerdeFactory.class.getName());
+    configMap.put("stores." + STORE_NAME + ".factory", mockStorageEngineFactory.getClass().getName());
     Config config = new MapConfig(configMap);
 
     Map<String, Serde<Object>> serdes = new HashMap<>();

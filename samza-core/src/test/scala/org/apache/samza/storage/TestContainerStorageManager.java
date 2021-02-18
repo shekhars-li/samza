@@ -70,6 +70,9 @@ public class TestContainerStorageManager {
   private static final File DEFAULT_STORE_BASE_DIR = new File(System.getProperty("java.io.tmpdir") + File.separator + "store");
   private static final File
       DEFAULT_LOGGED_STORE_BASE_DIR = new File(System.getProperty("java.io.tmpdir") + File.separator + "loggedStore");
+  private static final String DAVINCI_STORE_NAME = "davinci";
+  private static final String DAVINCI_KV_STORAGE_ENGINE_FACTORY =
+      "com.linkedin.samza.kv.davinci.DaVinciStorageEngineFactory";
 
   private ContainerStorageManager containerStorageManager;
   private Map<TaskName, Gauge<Object>> taskRestoreMetricGauges;
@@ -133,6 +136,8 @@ public class TestContainerStorageManager {
         any(), any(), any(), any(), any(), any());
 
     storageEngineFactories.put(STORE_NAME, mockStorageEngineFactory);
+    storageEngineFactories.put(DAVINCI_STORE_NAME, mockStorageEngineFactory);
+
 
     // Add instrumentation to mocked storage engine, to record the number of store.restore() calls
     doAnswer(invocation -> {
@@ -172,6 +177,10 @@ public class TestContainerStorageManager {
     Map<String, String> configMap = new HashMap<>();
     configMap.put("stores." + STORE_NAME + ".key.serde", "stringserde");
     configMap.put("stores." + STORE_NAME + ".msg.serde", "stringserde");
+    configMap.put("stores." + STORE_NAME + ".factory", mockStorageEngineFactory.getClass().getName());
+    configMap.put("stores." + DAVINCI_STORE_NAME + ".key.serde", "stringserde");
+    configMap.put("stores." + DAVINCI_STORE_NAME + ".msg.serde", "stringserde");
+    configMap.put("stores." + DAVINCI_STORE_NAME + ".factory", DAVINCI_KV_STORAGE_ENGINE_FACTORY);
     configMap.put("serializers.registry.stringserde.class", StringSerdeFactory.class.getName());
     configMap.put(TaskConfig.TRANSACTIONAL_STATE_RETAIN_EXISTING_STATE, "true");
     Config config = new MapConfig(configMap);
@@ -260,5 +269,14 @@ public class TestContainerStorageManager {
         this.systemConsumerCreationCount == 1);
     Assert.assertTrue("systemConsumerStopCount count should be 1", this.systemConsumerStopCount == 1);
     Assert.assertTrue("systemConsumerStartCount count should be 1", this.systemConsumerStartCount == 1);
+  }
+
+  @Test
+  public void testDaVinciStoreFiltering() throws InterruptedException {
+    this.containerStorageManager.getNonDaVinciStores(new TaskName("task 0")).entrySet().forEach(e -> {
+      Assert.assertNotEquals(e.getKey(), "davinci");
+      Assert.assertEquals(e.getKey(), "store");
+    });
+    Assert.assertNotNull(this.containerStorageManager.getAllStores(new TaskName("task 0")).get(DAVINCI_STORE_NAME));
   }
 }

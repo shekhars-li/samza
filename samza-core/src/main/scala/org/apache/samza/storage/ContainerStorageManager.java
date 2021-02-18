@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.samza.SamzaException;
 import org.apache.samza.checkpoint.Checkpoint;
 import org.apache.samza.checkpoint.CheckpointManager;
@@ -112,6 +113,9 @@ import scala.collection.JavaConversions;
  */
 public class ContainerStorageManager {
   private static final Logger LOG = LoggerFactory.getLogger(ContainerStorageManager.class);
+  private static final String DAVINCI_KV_STORAGE_ENGINE_FACTORY =
+      "com.linkedin.samza.kv.davinci.DaVinciStorageEngineFactory";
+
   private static final String RESTORE_THREAD_NAME = "Samza Restore Thread-%d";
   private static final String STORE_INIT_THREAD_NAME = "Samza Store Init Thread-%d";
   private static final String SIDEINPUTS_THREAD_NAME = "SideInputs Thread";
@@ -389,10 +393,11 @@ public class ContainerStorageManager {
 
   private Map<TaskName, TaskRestoreManager> createTaskRestoreManagers(SystemAdmins systemAdmins, Clock clock, SamzaContainerMetrics samzaContainerMetrics) {
     Map<TaskName, TaskRestoreManager> taskRestoreManagers = new HashMap<>();
+    // DaVinci data subscription occurs in StorageEngine#init hence restoration is skipped
     containerModel.getTasks().forEach((taskName, taskModel) -> {
       taskRestoreManagers.put(taskName,
           TaskRestoreManagerFactory.create(
-              taskModel, changelogSystemStreams, getNonSideInputStores(taskName), systemAdmins,
+              taskModel, changelogSystemStreams, getNonSideInputNonDaVinciStores(taskName), systemAdmins,
               streamMetadataCache, sspMetadataCache, storeConsumers, maxChangeLogStreamPartitions,
               loggedStoreBaseDirectory, nonLoggedStoreBaseDirectory, config, clock));
       samzaContainerMetrics.addStoresRestorationGauge(taskName);
@@ -459,7 +464,7 @@ public class ContainerStorageManager {
     for (Map.Entry<TaskName, TaskModel> task : containerModel.getTasks().entrySet()) {
       TaskName taskName = task.getKey();
       TaskModel taskModel = task.getValue();
-      Map<String, StorageEngine> nonSideInputStores = getNonSideInputStores(taskName);
+      Map<String, StorageEngine> nonSideInputStores = getNonSideInputNonDaVinciStores(taskName);
 
       for (String storeName : nonSideInputStores.keySet()) {
 
@@ -660,6 +665,15 @@ public class ContainerStorageManager {
   private Map<String, StorageEngine> getNonSideInputStores(TaskName taskName) {
     return taskStores.get(taskName).entrySet().stream().
         filter(e -> !this.taskSideInputStoreSSPs.get(taskName).containsKey(e.getKey())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  private Map<String, StorageEngine> getNonSideInputNonDaVinciStores(TaskName taskName) {
+    StorageConfig storageConfig = new StorageConfig(config);
+    return getNonSideInputStores(taskName).entrySet()
+        .stream()
+        .filter(e -> !StringUtils.equals(storageConfig.getStorageFactoryClassName(e.getKey()).get(),
+            DAVINCI_KV_STORAGE_ENGINE_FACTORY))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   private Set<TaskSideInputHandler> getSideInputHandlers() {
@@ -923,6 +937,18 @@ public class ContainerStorageManager {
    */
   public Map<String, StorageEngine> getAllStores(TaskName taskName) {
     return this.taskStores.get(taskName);
+  }
+
+  /**
+   * Get all {@link StorageEngine} instance used by a given task exceptDaVinciStores
+   * @param taskName
+   * @return
+   */
+  public Map<String, StorageEngine> getNonDaVinciStores(TaskName taskName) {
+    StorageConfig storageConfig = new StorageConfig(config);
+    return taskStores.get(taskName).entrySet().stream().
+        filter(e -> !StringUtils.equals(
+            storageConfig.getStorageFactoryClassName(e.getKey()).get(), DAVINCI_KV_STORAGE_ENGINE_FACTORY)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   /**

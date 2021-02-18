@@ -52,7 +52,7 @@ class NonTransactionalStateTaskStorageManager(
 
   def flush(): Map[SystemStreamPartition, Option[String]] = {
     debug("Flushing stores.")
-    containerStorageManager.getAllStores(taskName).asScala.values.foreach(_.flush)
+    containerStorageManager.getNonDaVinciStores(taskName).asScala.values.foreach(_.flush)
     val newestChangelogSSPOffsets = getNewestChangelogSSPOffsets()
     writeChangelogOffsetFiles(newestChangelogSSPOffsets)
     newestChangelogSSPOffsets

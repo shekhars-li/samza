@@ -69,7 +69,7 @@ public class TestTransactionalStateTaskStorageManager {
     ContainerStorageManager csm = mock(ContainerStorageManager.class);
     StorageEngine mockStore = mock(StorageEngine.class);
     java.util.Map<String, StorageEngine> taskStores = ImmutableMap.of("mockStore", mockStore);
-    when(csm.getAllStores(any())).thenReturn(taskStores);
+    when(csm.getNonDaVinciStores(any())).thenReturn(taskStores);
 
     TransactionalStateTaskStorageManager tsm = spy(buildTSM(csm, mock(Partition.class), new StorageManagerUtil()));
     // stub actual method call
@@ -299,7 +299,7 @@ public class TestTransactionalStateTaskStorageManager {
         "loggedInMemStore", mockLIStore,
         "inMemStore", mockIStore
     );
-    when(csm.getAllStores(any())).thenReturn(taskStores);
+    when(csm.getNonDaVinciStores(any())).thenReturn(taskStores);
 
     TransactionalStateTaskStorageManager tsm = spy(buildTSM(csm, mock(Partition.class), new StorageManagerUtil()));
     // stub actual method call
@@ -336,7 +336,7 @@ public class TestTransactionalStateTaskStorageManager {
     when(mockLPStore.checkpoint(any())).thenThrow(new IllegalStateException());
     java.util.Map<String, StorageEngine> taskStores =
         ImmutableMap.of("loggedPersistentStore", mockLPStore);
-    when(csm.getAllStores(any())).thenReturn(taskStores);
+    when(csm.getNonDaVinciStores(any())).thenReturn(taskStores);
 
     TransactionalStateTaskStorageManager tsm = spy(buildTSM(csm, mock(Partition.class), new StorageManagerUtil()));
 
