@@ -62,7 +62,6 @@ public class TestContainerAllocatorWithoutHostAffinity {
 
   private final SamzaApplicationState state = new SamzaApplicationState(jobModelManager);
   private final MockClusterResourceManager manager = new MockClusterResourceManager(callback, state);
-  private final FaultDomainManager faultDomainManager = mock(FaultDomainManager.class);
 
   private CoordinatorStreamStore coordinatorStreamStore;
   private ContainerPlacementMetadataStore containerPlacementMetadataStore;
@@ -84,7 +83,7 @@ public class TestContainerAllocatorWithoutHostAffinity {
     containerPlacementMetadataStore = new ContainerPlacementMetadataStore(coordinatorStreamStore);
     containerPlacementMetadataStore.start();
     containerAllocator = new ContainerAllocator(manager, config, state, false,
-        new ContainerManager(containerPlacementMetadataStore, state, manager, false, false, mockLocalityManager, faultDomainManager, config));
+        new ContainerManager(containerPlacementMetadataStore, state, manager, false, false, mockLocalityManager));
     requestState = new MockContainerRequestState(manager, false);
     Field requestStateField = containerAllocator.getClass().getDeclaredField("resourceRequestState");
     requestStateField.setAccessible(true);
@@ -180,11 +179,9 @@ public class TestContainerAllocatorWithoutHostAffinity {
     });
     LocalityManager mockLocalityManager = mock(LocalityManager.class);
     when(mockLocalityManager.readLocality()).thenReturn(new LocalityModel(new HashMap<>()));
-    ContainerManager containerManager = new ContainerManager(containerPlacementMetadataStore, state, manager, false,
-        false, mockLocalityManager, faultDomainManager, config);
     containerAllocator =
         MockContainerAllocatorWithoutHostAffinity.createContainerAllocatorWithConfigOverride(manager, config, state,
-            containerManager,
+            new ContainerManager(containerPlacementMetadataStore, state, manager, false, false, mockLocalityManager),
             override);
     MockContainerAllocatorWithoutHostAffinity mockAllocator =
         (MockContainerAllocatorWithoutHostAffinity) containerAllocator;
@@ -334,7 +331,7 @@ public class TestContainerAllocatorWithoutHostAffinity {
     ClusterResourceManager.Callback mockCPM = mock(ClusterResourceManager.Callback.class);
     ClusterResourceManager mockManager = new MockClusterResourceManager(mockCPM, state);
     ContainerManager spyContainerManager =
-        spy(new ContainerManager(containerPlacementMetadataStore, state, mockManager, false, false, mock(LocalityManager.class), faultDomainManager, config));
+        spy(new ContainerManager(containerPlacementMetadataStore, state, mockManager, false, false, mock(LocalityManager.class)));
     spyAllocator = Mockito.spy(
         new ContainerAllocator(mockManager, config, state, false, spyContainerManager));
     // Mock the callback from ClusterManager to add resources to the allocator
