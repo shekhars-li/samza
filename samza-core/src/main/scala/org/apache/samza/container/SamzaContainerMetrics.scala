@@ -59,7 +59,7 @@ class SamzaContainerMetrics(
   }
 
   def addStoresInitGauge(taskName: TaskName) {
-    taskStoreRestorationMetrics.put(taskName, newGauge("%s-store-init-time" format(taskName.toString), -1L))
+    taskStoreInitMetrics.put(taskName, newGauge("%s-store-init-time" format(taskName.toString), -1L))
   }
 
   override def getPrefix: String = prefix
