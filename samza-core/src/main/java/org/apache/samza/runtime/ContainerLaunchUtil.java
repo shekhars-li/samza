@@ -100,8 +100,7 @@ public class ContainerLaunchUtil {
     try {
       DiagnosticsUtil.writeMetadataFile(jobName, jobId, containerId, execEnvContainerId, config);
       if (StandbyTaskUtil.isStandbyContainer(containerId)) {
-        log.info("Skipping external context for standby container: {}", containerId);
-        run(appDesc, jobName, jobId, containerId, execEnvContainerId, jobModel, config, Optional.empty());
+        run(appDesc, jobName, jobId, containerId, execEnvContainerId, jobModel, config, buildExternalContext(config));
       } else {
         run(appDesc, jobName, jobId, containerId, execEnvContainerId, jobModel, config, buildExternalContext(config));
       }
