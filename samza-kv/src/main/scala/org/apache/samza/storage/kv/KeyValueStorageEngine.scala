@@ -50,6 +50,11 @@ class KeyValueStorageEngine[K, V](
   batchSize: Int = 500,
   val clock: () => Long = { System.nanoTime }) extends StorageEngine with KeyValueStore[K, V] with TimerUtil with Logging {
 
+  override def init(context: Context): Unit = {
+    info("Calling init for wrapped store: " + storeName)
+    wrapperStore.init(context);
+  }
+  
   /* delegate to underlying store */
   def get(key: K): V = {
     updateTimer(metrics.getNs) {
@@ -263,10 +268,5 @@ class KeyValueStorageEngine[K, V](
   @VisibleForTesting
   private[kv] def getWrapperStore: KeyValueStore[K, V] = {
     wrapperStore
-  }
-
-  override def init(context: Context): Unit = {
-    info("Calling init for raw store: " + storeName)
-    rawStore.init(context);
   }
 }
