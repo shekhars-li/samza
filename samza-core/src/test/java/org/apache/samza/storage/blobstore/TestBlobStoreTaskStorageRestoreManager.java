@@ -151,7 +151,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
 
     blobStoreTaskStorageRestoreManager =
         new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, config, storageManagerUtil, blobStoreUtil,
-            storageManagerUtil.getLoggedStoreBaseDir(), null);
+            Files.createTempDirectory("logged-store-").toFile(), null);
   }
 
   @Test
@@ -338,7 +338,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
   }
 
   @Test
-  public void testInitRemovesStoresDeletedFromConfig() {
+  public void testInitRemovesStoresDeletedFromConfig() throws IOException {
     // Setup: removing 1 store from config
     Map.Entry<String, String> entry =
         new MapConfig(mapConfig).regexSubset("stores.*.factory").entrySet().iterator().next();
@@ -346,7 +346,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
     Config config = new MapConfig(mapConfig);
     blobStoreTaskStorageRestoreManager =
         new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, config, storageManagerUtil, blobStoreUtil,
-            storageManagerUtil.getLoggedStoreBaseDir(), null);
+            Files.createTempDirectory("logged-store-").toFile(), null);
 
     String storeRemovedFromConfig =
         entry.getKey().substring(entry.getKey().indexOf('.') + 1, entry.getKey().lastIndexOf('.'));

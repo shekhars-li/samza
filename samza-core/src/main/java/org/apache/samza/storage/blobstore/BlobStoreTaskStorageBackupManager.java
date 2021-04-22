@@ -99,8 +99,8 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
       prevStoreSnapshotIndexesFuture;
 
   public BlobStoreTaskStorageBackupManager(JobModel jobModel, ContainerModel containerModel, TaskModel taskModel,
-      ExecutorService backupExecutor, Config config, Clock clock, StorageManagerUtil storageManagerUtil,
-      BlobStoreUtil blobStoreUtil) {
+      ExecutorService backupExecutor, Config config, Clock clock, File loggedStoreBaseDir,
+      StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil) {
     this.jobModel = jobModel;
     this.jobName = new JobConfig(config).getName().get();
     this.jobId = new JobConfig(config).getJobId();
@@ -111,9 +111,10 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
     this.config = config;
     this.clock = clock;
     this.storageManagerUtil = storageManagerUtil;
-    this.taskStoreNames = new StorageConfig(config)
+    StorageConfig storageConfig = new StorageConfig(config);
+    this.taskStoreNames = storageConfig
         .getBackupStoreNamesForStateBackupFactory(BlobStoreStateBackendFactory.class.getName());
-    this.loggedStoreBaseDir = this.storageManagerUtil.getLoggedStoreBaseDir();
+    this.loggedStoreBaseDir = loggedStoreBaseDir;
     this.blobStoreUtil = blobStoreUtil;
     this.prevStoreSnapshotIndexesFuture = CompletableFuture.completedFuture(ImmutableMap.of());
   }

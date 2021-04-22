@@ -52,7 +52,9 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
       ExecutorService backupExecutor,
       MetricsRegistry metricsRegistry,
       Config config,
-      Clock clock) {
+      Clock clock,
+      File loggedStoreBaseDir,
+      File nonLoggedStoreBaseDir) {
     StorageConfig storageConfig = new StorageConfig(config);
     String blobStoreManagerFactory = storageConfig.getBlobStoreManagerFactory();
     Preconditions.checkState(StringUtils.isNotBlank(blobStoreManagerFactory));
@@ -60,7 +62,7 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     BlobStoreManager backupBlobStoreManager = factory.getBackupBlobStoreManager(config, backupExecutor);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(backupBlobStoreManager, backupExecutor);
     return new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, backupExecutor, config, clock,
-        new StorageManagerUtil(), blobStoreUtil);
+        loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
   }
 
   @Override

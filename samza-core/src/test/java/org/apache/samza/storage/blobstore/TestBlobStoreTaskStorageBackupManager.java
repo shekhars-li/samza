@@ -25,6 +25,7 @@ import com.linkedin.util.Pair;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -130,7 +131,7 @@ public class TestBlobStoreTaskStorageBackupManager {
 
     blobStoreTaskStorageBackupManager =
         new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor, config, clock,
-            storageManagerUtil, blobStoreUtil);
+            Files.createTempDirectory("logged-store-").toFile(), storageManagerUtil, blobStoreUtil);
   }
 
   @Test
