@@ -21,15 +21,6 @@ package org.apache.samza.storage.blobstore.util;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
-import org.apache.samza.storage.blobstore.BlobStoreManager;
-import org.apache.samza.storage.blobstore.PutMetadata;
-import org.apache.samza.storage.blobstore.diff.DirDiff;
-import org.apache.samza.storage.blobstore.index.DirIndex;
-import org.apache.samza.storage.blobstore.index.FileBlob;
-import org.apache.samza.storage.blobstore.index.FileIndex;
-import org.apache.samza.storage.blobstore.index.FileMetadata;
-import org.apache.samza.storage.blobstore.index.SnapshotIndex;
-import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,6 +48,15 @@ import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.samza.SamzaException;
 import org.apache.samza.checkpoint.CheckpointId;
+import org.apache.samza.storage.blobstore.BlobStoreManager;
+import org.apache.samza.storage.blobstore.PutMetadata;
+import org.apache.samza.storage.blobstore.diff.DirDiff;
+import org.apache.samza.storage.blobstore.index.DirIndex;
+import org.apache.samza.storage.blobstore.index.FileBlob;
+import org.apache.samza.storage.blobstore.index.FileIndex;
+import org.apache.samza.storage.blobstore.index.FileMetadata;
+import org.apache.samza.storage.blobstore.index.SnapshotIndex;
+import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
 import org.apache.samza.util.FileUtil;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -559,7 +559,6 @@ public class TestBlobStoreUtil {
   }
 
   @Test
-  @Ignore // TODO remove
   public void testRestoreDirRestoresMultiPartFilesCorrectly() throws IOException {
     // remote file == 26 blobs, blob ids from a to z, blob contents from a to z, offsets 0 to 25.
     DirIndex mockDirIndex = mock(DirIndex.class);

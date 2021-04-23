@@ -209,7 +209,8 @@ public class DirDiffUtil {
       String remoteFileName = remoteFile.getFileName();
       if (localFiles.containsKey(remoteFileName) &&
           areSameFile.test(localFiles.get(remoteFileName), remoteFile)) {
-        LOG.debug("File {} present in both local and remote snapshot and is the same.", remoteFile.getFileName());
+        String localFilePath = localFiles.get(remoteFileName).getPath();
+        LOG.debug("File {} present in both local and remote snapshot and is the same.", localFilePath);
         filesToRetain.add(remoteFile);
       }
     }

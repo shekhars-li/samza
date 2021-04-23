@@ -342,7 +342,7 @@ public class BlobStoreUtil {
       File fileToRestore = Paths.get(baseDir.getAbsolutePath(), fileIndex.getFileName()).toFile();
       List<FileBlob> fileBlobs = fileIndex.getBlobs();
 
-      OutputStream outputStream = null;
+      FileOutputStream outputStream = null;
       try {
         // TODO HIGH shesharm ensure that ambry + standby is handled correctly (i.e. no continuous restore for ambry
         //  backed stores, but restore is done correctly on a failover).
@@ -350,7 +350,7 @@ public class BlobStoreUtil {
         fileToRestore.createNewFile(); // create file for 0 byte files (fileIndex entry but no fileBlobs).
 
         outputStream = new FileOutputStream(fileToRestore);
-        final OutputStream finalOutputStream = outputStream;
+        final FileOutputStream finalOutputStream = outputStream;
         // create a copy to ensure list being sorted is mutable.
         List<FileBlob> fileBlobsCopy = new ArrayList<>(fileBlobs);
         fileBlobsCopy.sort(Comparator.comparingInt(FileBlob::getOffset)); // sort by offset.
@@ -371,6 +371,8 @@ public class BlobStoreUtil {
         resultFuture.thenRunAsync(() -> {
           LOG.debug("Finished restore for file: {}. Closing output stream.", fileToRestore);
           try {
+            // flush the file contents to disk
+            finalOutputStream.getFD().sync();
             finalOutputStream.close();
           } catch (Exception e) {
             throw new SamzaException(String.format("Error closing output stream for file: %s",
@@ -640,8 +642,8 @@ public class BlobStoreUtil {
         }
       }
 
-      LOG.debug("Local dir: {} and remote dir: {} are {} the same. Comparing timestamps: {}",
-          localDir.getAbsolutePath(), remoteDirName, areSameDir ? "" : "not", compareTimestamps);
+      LOG.debug("Local dir: {} and remote dir: {} are {}the same. Comparing timestamps: {}",
+          localDir.getAbsolutePath(), remoteDirName, areSameDir ? "" : "not ", compareTimestamps);
       return areSameDir;
     };
   }
