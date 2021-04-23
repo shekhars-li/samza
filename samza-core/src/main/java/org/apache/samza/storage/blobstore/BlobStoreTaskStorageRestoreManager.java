@@ -142,12 +142,16 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
       // if a store checkpoint directory exists for the last successful task checkpoint, try to use it.
       boolean restoreStore;
       if (Files.exists(storeCheckpointDirPath)) {
+        if (new StorageConfig(config).getCleanLoggedStoreDirsOnStart(storeName)) {
+          LOG.debug("Deleting local store checkpoint directory: {} since the store is configured to be " +
+              "cleaned on each restart.", storeCheckpointDirPath);
+          restoreStore = true;
+        } else if (blobStoreUtil.areSameDir(filesToIgnore, true).test(storeCheckpointDirPath.toFile(), dirIndex)) {
         // check if the checkpoint directory contents are valid (i.e. identical to remote snapshot)
         // exclude the "OFFSET" family of files files etc that are written to the checkpoint dir
         // after the remote upload is complete as part of TaskStorageCommitManager#writeCheckpointToStoreDirectories.
         // TODO HIGH shesharm add tests that the exclude works correctly and that it doesn't always restore fully
 
-        if (blobStoreUtil.areSameDir(filesToIgnore, true).test(storeCheckpointDirPath.toFile(), dirIndex)) {
           LOG.debug("Renaming store checkpoint directory: {} to store directory: {} since its contents are identical " +
               "to the remote snapshot.", storeCheckpointDirPath, storeDir);
           // atomically rename the checkpoint dir to the store dir
