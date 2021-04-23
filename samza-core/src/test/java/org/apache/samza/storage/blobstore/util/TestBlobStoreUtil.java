@@ -22,6 +22,7 @@ package org.apache.samza.storage.blobstore.util;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -597,6 +598,9 @@ public class TestBlobStoreUtil {
           OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
           // blob contents = blob id
           outputStream.write(blobId.getBytes());
+
+          // force flush so that the checksum calculation later uses the full file contents.
+          ((FileOutputStream) outputStream).getFD().sync();
           return CompletableFuture.completedFuture(null);
         });
 
