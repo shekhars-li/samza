@@ -310,7 +310,7 @@ class BootstrappingChooser(
   }
 }
 
-class BootstrappingChooserMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+class BootstrappingChooserMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper(registry = registry) {
   def setLaggingSystemStreams(getValue: () => Int) {
     newGauge("lagging-batch-streams", getValue)
   }

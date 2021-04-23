@@ -61,8 +61,8 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager backupBlobStoreManager = factory.getBackupBlobStoreManager(config, backupExecutor);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(backupBlobStoreManager, backupExecutor);
-    return new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, backupExecutor, config, clock,
-        loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
+    return new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, backupExecutor, metricsRegistry,
+        config, clock, loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
   }
 
   @Override
@@ -83,7 +83,7 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager blobStoreManager = factory.getRestoreBlobStoreManager(config, restoreExecutor);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, restoreExecutor);
-    return new BlobStoreTaskStorageRestoreManager(taskModel, restoreExecutor, config, new StorageManagerUtil(),
+    return new BlobStoreTaskStorageRestoreManager(taskModel, restoreExecutor, metricsRegistry, config, new StorageManagerUtil(),
         blobStoreUtil, loggedStoreBaseDir, nonLoggedStoreBaseDir);
   }
 

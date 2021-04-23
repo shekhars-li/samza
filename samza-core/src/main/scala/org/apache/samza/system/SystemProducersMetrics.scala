@@ -24,7 +24,7 @@ import org.apache.samza.metrics.MetricsRegistryMap
 import org.apache.samza.metrics.MetricsHelper
 import org.apache.samza.metrics.Counter
 
-class SystemProducersMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+class SystemProducersMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper(registry = registry) {
   val flushes = newCounter("flushes")
   val sends = newCounter("sends")
   val sourceFlushes = scala.collection.mutable.Map[String, Counter]()

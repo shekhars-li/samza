@@ -27,7 +27,7 @@ import org.apache.samza.system.SystemStreamPartition
 class TaskInstanceMetrics(
   val source: String = "unknown",
   val registry: ReadableMetricsRegistry = new MetricsRegistryMap,
-  val prefix: String = "") extends MetricsHelper {
+  val prefix: String = "") extends MetricsHelper(registry = registry) {
 
   val commits = newCounter("commit-calls")
   val windows = newCounter("window-calls")

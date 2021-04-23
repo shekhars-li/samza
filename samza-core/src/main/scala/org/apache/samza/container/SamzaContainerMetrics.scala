@@ -27,7 +27,7 @@ import org.apache.samza.metrics.{Gauge, ReadableMetricsRegistry, MetricsRegistry
 class SamzaContainerMetrics(
   val source: String = "unknown",
   val registry: ReadableMetricsRegistry = new MetricsRegistryMap,
-  val prefix: String = "") extends MetricsHelper {
+  val prefix: String = "") extends MetricsHelper (registry = registry) {
 
   val commits = newCounter("commit-calls")
   val windows = newCounter("window-calls")

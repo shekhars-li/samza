@@ -30,7 +30,7 @@ import org.apache.samza.util.Logging
   */
 class ContainerProcessManagerMetrics(val config: Config,
   val state: SamzaApplicationState,
-  val registry: ReadableMetricsRegistry) extends MetricsHelper with Logging {
+  val registry: ReadableMetricsRegistry) extends MetricsHelper(registry = registry) with Logging {
   val clusterManagerConfig = new ClusterManagerConfig(config)
 
   val mRunningContainers = newGauge("running-containers", () => state.runningProcessors.size)

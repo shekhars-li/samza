@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import org.apache.samza.system.SystemStreamPartition
 
-class OffsetManagerMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+class OffsetManagerMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper(registry = registry) {
 
   val checkpointedOffsets = new ConcurrentHashMap[SystemStreamPartition, Gauge[String]]
 

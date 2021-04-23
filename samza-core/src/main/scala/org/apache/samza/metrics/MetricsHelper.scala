@@ -28,9 +28,8 @@ import org.apache.samza.metrics.MetricGroup.ValueFunction
  * The name of the class that extends this trait will be used as the
  * metric group name
  */
-trait MetricsHelper {
+abstract class MetricsHelper (registry: MetricsRegistry) {
   val group = this.getClass.getName
-  val registry: MetricsRegistry
 
   val metricGroup = new MetricGroup(group, getPrefix, registry)
 

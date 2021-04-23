@@ -25,7 +25,7 @@ import org.apache.samza.metrics.MetricsRegistryMap
 
 class LoggedStoreMetrics(
   val storeName: String = "unknown",
-  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper(registry = registry) {
 
   val gets = newCounter("gets")
   val ranges = newCounter("ranges")

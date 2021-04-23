@@ -23,7 +23,7 @@ import org.apache.samza.metrics.{MetricsHelper, MetricsRegistry, MetricsRegistry
 
 class KeyValueStoreMetrics(
   val storeName: String = "unknown",
-  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper (registry = registry) {
 
   val gets = newCounter("gets")
   val getAlls = newCounter("getAlls")

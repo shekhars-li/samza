@@ -22,18 +22,21 @@ package org.apache.samza.storage.blobstore.util;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -561,19 +564,23 @@ public class TestBlobStoreUtil {
 
   @Test
   public void testRestoreDirRestoresMultiPartFilesCorrectly() throws IOException {
+    Path restoreDirBasePath = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
+
     // remote file == 26 blobs, blob ids from a to z, blob contents from a to z, offsets 0 to 25.
     DirIndex mockDirIndex = mock(DirIndex.class);
     when(mockDirIndex.getDirName()).thenReturn(DirIndex.ROOT_DIR_NAME);
     FileIndex mockFileIndex = mock(FileIndex.class);
     when(mockFileIndex.getFileName()).thenReturn("1.sst");
 
-    // setup mock file attributes. create a temp file to get current user/group so that they
+    // setup mock file attributes. create a temp file to get current user/group/permissions so that they
     // match with restored files.
-    Path tempFile = Files.createTempFile(BlobStoreTestUtil.TEMP_DIR_PREFIX, "tempfile");
-    PosixFileAttributes attrs = Files.readAttributes(tempFile, PosixFileAttributes.class);
-    FileMetadata fileMetadata = new FileMetadata(1234L, 1243L, 26,
-        attrs.owner().getName(), attrs.group().getName(), "rw-r--r--");
+    File tmpFile = Paths.get(restoreDirBasePath.toString(), "tempfile-" + new Random().nextInt()).toFile();
+    tmpFile.createNewFile();
+    PosixFileAttributes attrs = Files.readAttributes(tmpFile.toPath(), PosixFileAttributes.class);
+    FileMetadata fileMetadata = new FileMetadata(1234L, 1243L, 26, // ctime mtime does not matter. size == 26
+        attrs.owner().getName(), attrs.group().getName(), PosixFilePermissions.toString(attrs.permissions()));
     when(mockFileIndex.getFileMetadata()).thenReturn(fileMetadata);
+    Files.delete(tmpFile.toPath()); // delete so that it doesn't show up in restored dir contents.
 
     List<FileBlob> mockFileBlobs = new ArrayList<>();
     StringBuilder fileContents = new StringBuilder();
@@ -604,7 +611,6 @@ public class TestBlobStoreUtil {
           return CompletableFuture.completedFuture(null);
         });
 
-    Path restoreDirBasePath = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR);
     blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex);
 

@@ -21,7 +21,8 @@ package org.apache.samza.system.kafka
 
 import org.apache.samza.metrics.{MetricsHelper, MetricsRegistry, MetricsRegistryMap}
 
-class KafkaSystemProducerMetrics(val systemName: String = "unknown", val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+class KafkaSystemProducerMetrics(val systemName: String = "unknown", val registry: MetricsRegistry = new MetricsRegistryMap)
+  extends MetricsHelper(registry = registry) {
   /* Tracks the number of calls made to send in KafkaSystemProducer */
   val sends = newCounter("producer-sends")
   /* Tracks the number of calls made to flush in KafkaSystemProducer */

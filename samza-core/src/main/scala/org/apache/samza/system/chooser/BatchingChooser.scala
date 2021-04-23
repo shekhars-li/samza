@@ -63,8 +63,8 @@ class BatchingChooser(
   var batchCount = 0
 
   def update(envelope: IncomingMessageEnvelope) {
-    // If we get an envelope for the SSP we're batching, hold on to it so we 
-    // can bypass the wrapped chooser, and forcibly return it when choose is 
+    // If we get an envelope for the SSP we're batching, hold on to it so we
+    // can bypass the wrapped chooser, and forcibly return it when choose is
     // called.
     if (envelope.getSystemStreamPartition.equals(preferredSystemStreamPartition)) {
       debug("Bypassing wrapped.update to cache preferred envelope: %s" format preferredEnvelope)
@@ -89,7 +89,7 @@ class BatchingChooser(
     if (preferredEnvelope == null) {
       val envelope = wrapped.choose
 
-      // Change preferred SSP to the envelope's SSP, so we can keep batching 
+      // Change preferred SSP to the envelope's SSP, so we can keep batching
       // on this SSP (as long as an envelope is available).
       if (envelope != null) {
         setPreferredSystemStreamPartition(envelope)
@@ -103,7 +103,7 @@ class BatchingChooser(
 
       trace("Have preferred envelope: %s" format envelope)
 
-      // If we've hit our batching threshold, reset the batch to give other 
+      // If we've hit our batching threshold, reset the batch to give other
       // SSPs a chance to get picked by the wrapped chooser.
       if (batchCount >= batchSize) {
         resetBatch
@@ -116,7 +116,7 @@ class BatchingChooser(
   private def setPreferredSystemStreamPartition(envelope: IncomingMessageEnvelope) {
     debug("Setting preferred system stream partition to: %s" format envelope.getSystemStreamPartition)
 
-    // Set batch count to 1 since the envelope we're returning is the 
+    // Set batch count to 1 since the envelope we're returning is the
     // first one in the batch.
     batchCount = 1
     preferredSystemStreamPartition = envelope.getSystemStreamPartition
@@ -140,7 +140,7 @@ class BatchingChooser(
   def register(systemStreamPartition: SystemStreamPartition, offset: String) = wrapped.register(systemStreamPartition, offset)
 }
 
-class BatchingChooserMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+class BatchingChooserMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper(registry = registry) {
   val batches = newCounter("batch-resets")
 
   def setBatchedEnvelopes(getValue: () => Int) {

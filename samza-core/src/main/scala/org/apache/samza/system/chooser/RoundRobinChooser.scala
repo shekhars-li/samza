@@ -59,7 +59,7 @@ class RoundRobinChooser(metrics: RoundRobinChooserMetrics = new RoundRobinChoose
   def choose = q.poll
 }
 
-class RoundRobinChooserMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
+class RoundRobinChooserMetrics(val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper(registry = registry) {
   def setBufferedMessages(getValue: () => Int) {
     newGauge("buffered-messages", getValue)
   }

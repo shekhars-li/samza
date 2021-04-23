@@ -25,7 +25,7 @@ import org.apache.samza.metrics.MetricsHelper
 import org.apache.samza.metrics.ReadableMetricsRegistry
 
 class SystemConsumersMetrics(val registry: ReadableMetricsRegistry = new MetricsRegistryMap,
-  val prefix: String = "") extends MetricsHelper {
+  val prefix: String = "") extends MetricsHelper(registry = registry) {
   val choseNull = newCounter("chose-null")
   val choseObject = newCounter("chose-object")
   val deserializationError = newCounter("deserialization error")
