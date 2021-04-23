@@ -78,11 +78,10 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
       Config config, StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil, File loggedBaseDir,
       File nonLoggedBaseDir) {
     this.taskModel = taskModel;
-    this.executor = ForkJoinPool.commonPool(); // TODO BLOCKER pmaheshw temp fix for demo
-//    this.executor = restoreExecutor; // TODO BLOCKER pmaheshw dont block on restore executor
+    this.executor = restoreExecutor; // TODO BLOCKER pmaheshw dont block on restore executor
     this.config = config;
     this.storageManagerUtil = storageManagerUtil;
-    this.blobStoreUtil = blobStoreUtil; // TODO BLOCKER pmaheshw change to restoreExecutor
+    this.blobStoreUtil = blobStoreUtil;
     this.prevStoreSnapshotIndexes = new HashMap<>();
     this.loggedBaseDir = loggedBaseDir;
     this.nonLoggedBaseDir = nonLoggedBaseDir;
