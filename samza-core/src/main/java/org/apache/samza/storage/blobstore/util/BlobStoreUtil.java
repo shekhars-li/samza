@@ -341,57 +341,67 @@ public class BlobStoreUtil {
       File fileToRestore = Paths.get(baseDir.getAbsolutePath(), fileIndex.getFileName()).toFile();
       List<FileBlob> fileBlobs = fileIndex.getBlobs();
 
-      FileOutputStream outputStream = null;
-      try {
-        // TODO HIGH shesharm ensure that ambry + standby is handled correctly (i.e. no continuous restore for ambry
-        //  backed stores, but restore is done correctly on a failover).
-        // TODO HIGH shesharm add integration tests to ensure empty files and directories are handled correctly E2E.
-        fileToRestore.createNewFile(); // create file for 0 byte files (fileIndex entry but no fileBlobs).
-
-        outputStream = new FileOutputStream(fileToRestore);
-        final FileOutputStream finalOutputStream = outputStream;
-        // create a copy to ensure list being sorted is mutable.
-        List<FileBlob> fileBlobsCopy = new ArrayList<>(fileBlobs);
-        fileBlobsCopy.sort(Comparator.comparingInt(FileBlob::getOffset)); // sort by offset.
-
-        // chain the futures such that write to file for blobs is sequential.
-        // can be optimized to write concurrently to the file later.
-        CompletableFuture<Void> resultFuture = CompletableFuture.completedFuture(null);
-        for (FileBlob fileBlob : fileBlobsCopy) {
-          resultFuture = resultFuture
-              .thenComposeAsync(v -> {
-                LOG.debug("Starting restore for file: {} with blob id: {} at offset: {}",
-                    fileToRestore, fileBlob.getBlobId(), fileBlob.getOffset());
-                // TODO BLOCKER pmaheshw: add retries. delete file between retries.
-                return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream);
-              }, executor);
-        }
-
-        resultFuture.thenRunAsync(() -> {
-          LOG.debug("Finished restore for file: {}. Closing output stream.", fileToRestore);
-          try {
-            // flush the file contents to disk
-            finalOutputStream.getFD().sync();
-            finalOutputStream.close();
-          } catch (Exception e) {
-            throw new SamzaException(String.format("Error closing output stream for file: %s",
-                fileToRestore.getAbsolutePath()), e);
-          }
-        }, executor);
-
-        downloadFutures.add(resultFuture);
-      } catch (Exception e) {
+      String opName = "restoreFile: " + fileToRestore.getAbsolutePath();
+      CompletableFuture<Void> fileRestoreFuture = FutureUtil.executeAsyncWithRetries(opName, () -> {
+        FileOutputStream outputStream = null;
         try {
-          if (outputStream != null) {
-            outputStream.close();
+          // TODO HIGH shesharm ensure that ambry + standby is handled correctly (i.e. no continuous restore for ambry
+          //  backed stores, but restore is done correctly on a failover).
+          if (fileToRestore.exists()) {
+            // delete the file if it already exists, e.g. from a previous retry.
+            Files.delete(fileToRestore.toPath());
           }
-        } catch (Exception err) {
-          LOG.error("Error closing output stream for file: {}", fileToRestore.getAbsolutePath(), err);
-        }
 
-        throw new SamzaException(String.format("Error restoring file: %s in directory: %s",
-            fileIndex.getFileName(), dirIndex.getDirName()), e);
-      }
+          // TODO HIGH shesharm add integration tests to ensure empty files and directories are handled correctly E2E.
+          fileToRestore.createNewFile(); // create file for 0 byte files (fileIndex entry but no fileBlobs).
+
+          outputStream = new FileOutputStream(fileToRestore);
+          final FileOutputStream finalOutputStream = outputStream;
+          // create a copy to ensure list being sorted is mutable.
+          List<FileBlob> fileBlobsCopy = new ArrayList<>(fileBlobs);
+          fileBlobsCopy.sort(Comparator.comparingInt(FileBlob::getOffset)); // sort by offset.
+
+          // chain the futures such that write to file for blobs is sequential.
+          // can be optimized to write concurrently to the file later.
+          CompletableFuture<Void> resultFuture = CompletableFuture.completedFuture(null);
+          for (FileBlob fileBlob : fileBlobsCopy) {
+            resultFuture = resultFuture
+                .thenComposeAsync(v -> {
+                  LOG.debug("Starting restore for file: {} with blob id: {} at offset: {}",
+                      fileToRestore, fileBlob.getBlobId(), fileBlob.getOffset());
+                  // TODO BLOCKER pmaheshw: add retries. delete file between retries.
+                  return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream);
+                }, executor);
+          }
+
+          resultFuture = resultFuture.thenRunAsync(() -> {
+            LOG.debug("Finished restore for file: {}. Closing output stream.", fileToRestore);
+            try {
+              // flush the file contents to disk
+              finalOutputStream.getFD().sync();
+              finalOutputStream.close();
+            } catch (Exception e) {
+              throw new SamzaException(String.format("Error closing output stream for file: %s",
+                  fileToRestore.getAbsolutePath()), e);
+            }
+          }, executor);
+
+          return resultFuture;
+        } catch (Exception e) {
+          try {
+            if (outputStream != null) {
+              outputStream.close();
+            }
+          } catch (Exception err) {
+            LOG.error("Error closing output stream for file: {}", fileToRestore.getAbsolutePath(), err);
+          }
+
+          throw new SamzaException(String.format("Error restoring file: %s in directory: %s",
+              fileIndex.getFileName(), dirIndex.getDirName()), e);
+        }
+      }, isCauseNonRetriable(), executor);
+
+      downloadFutures.add(fileRestoreFuture);
     }
 
     // restore any sub-directories

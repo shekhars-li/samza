@@ -40,6 +40,7 @@ import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +56,7 @@ import org.apache.samza.checkpoint.CheckpointId;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
 import org.apache.samza.storage.blobstore.PutMetadata;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
+import org.apache.samza.storage.blobstore.exceptions.RetriableException;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.FileBlob;
 import org.apache.samza.storage.blobstore.index.FileIndex;
@@ -62,6 +64,7 @@ import org.apache.samza.storage.blobstore.index.FileMetadata;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
 import org.apache.samza.util.FileUtil;
+import org.apache.samza.util.FutureUtil;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -612,9 +615,121 @@ public class TestBlobStoreUtil {
         });
 
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR);
-    blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex);
+    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
 
     assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
+  }
+
+  @Test
+  public void testRestoreDirRetriesFileRestoreOnRetriableExceptions() throws IOException {
+    Path restoreDirBasePath = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
+
+    DirIndex mockDirIndex = mock(DirIndex.class);
+    when(mockDirIndex.getDirName()).thenReturn(DirIndex.ROOT_DIR_NAME);
+    FileIndex mockFileIndex = mock(FileIndex.class);
+    when(mockFileIndex.getFileName()).thenReturn("1.sst");
+
+    // setup mock file attributes. create a temp file to get current user/group/permissions so that they
+    // match with restored files.
+    File tmpFile = Paths.get(restoreDirBasePath.toString(), "tempfile-" + new Random().nextInt()).toFile();
+    tmpFile.createNewFile();
+    byte[] fileContents = "fileContents".getBytes();
+    PosixFileAttributes attrs = Files.readAttributes(tmpFile.toPath(), PosixFileAttributes.class);
+    FileMetadata fileMetadata = new FileMetadata(1234L, 1243L, fileContents.length, // ctime mtime does not matter. size == 26
+        attrs.owner().getName(), attrs.group().getName(), PosixFilePermissions.toString(attrs.permissions()));
+    when(mockFileIndex.getFileMetadata()).thenReturn(fileMetadata);
+    Files.delete(tmpFile.toPath()); // delete so that it doesn't show up in restored dir contents.
+
+    List<FileBlob> mockFileBlobs = new ArrayList<>();
+    FileBlob mockFileBlob = mock(FileBlob.class);
+    when(mockFileBlob.getBlobId()).thenReturn("fileBlobId");
+    when(mockFileBlob.getOffset()).thenReturn(0);
+    mockFileBlobs.add(mockFileBlob);
+    when(mockFileIndex.getBlobs()).thenReturn(mockFileBlobs);
+
+
+    CRC32 checksum = new CRC32();
+    checksum.update(fileContents);
+    when(mockFileIndex.getChecksum()).thenReturn(checksum.getValue());
+    when(mockDirIndex.getFilesPresent()).thenReturn(ImmutableList.of(mockFileIndex));
+
+    BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
+    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class)))
+        .thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> { // first try, retriable error
+          String blobId = invocationOnMock.getArgumentAt(0, String.class);
+          OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
+          // write garbage data on first retry to verify that final file contents are correct
+          outputStream.write("bad-data".getBytes());
+          ((FileOutputStream) outputStream).getFD().sync();
+          return FutureUtil.failedFuture(new RetriableException()); // retriable error
+        }).thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> { // 2nd try
+          String blobId = invocationOnMock.getArgumentAt(0, String.class);
+          OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
+          // write correct data on first retry to verify that final file contents are correct
+          outputStream.write(fileContents);
+          ((FileOutputStream) outputStream).getFD().sync();
+          return CompletableFuture.completedFuture(null); // success
+        });
+
+    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR);
+    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
+
+    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
+  }
+
+  @Test
+  public void testRestoreDirFailsRestoreOnNonRetriableExceptions() throws IOException {
+    Path restoreDirBasePath = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
+
+    DirIndex mockDirIndex = mock(DirIndex.class);
+    when(mockDirIndex.getDirName()).thenReturn(DirIndex.ROOT_DIR_NAME);
+    FileIndex mockFileIndex = mock(FileIndex.class);
+    when(mockFileIndex.getFileName()).thenReturn("1.sst");
+
+    // setup mock file attributes. create a temp file to get current user/group/permissions so that they
+    // match with restored files.
+    File tmpFile = Paths.get(restoreDirBasePath.toString(), "tempfile-" + new Random().nextInt()).toFile();
+    tmpFile.createNewFile();
+    byte[] fileContents = "fileContents".getBytes();
+    PosixFileAttributes attrs = Files.readAttributes(tmpFile.toPath(), PosixFileAttributes.class);
+    FileMetadata fileMetadata = new FileMetadata(1234L, 1243L, fileContents.length, // ctime mtime does not matter. size == 26
+        attrs.owner().getName(), attrs.group().getName(), PosixFilePermissions.toString(attrs.permissions()));
+    when(mockFileIndex.getFileMetadata()).thenReturn(fileMetadata);
+    Files.delete(tmpFile.toPath()); // delete so that it doesn't show up in restored dir contents.
+
+    List<FileBlob> mockFileBlobs = new ArrayList<>();
+    FileBlob mockFileBlob = mock(FileBlob.class);
+    when(mockFileBlob.getBlobId()).thenReturn("fileBlobId");
+    when(mockFileBlob.getOffset()).thenReturn(0);
+    mockFileBlobs.add(mockFileBlob);
+    when(mockFileIndex.getBlobs()).thenReturn(mockFileBlobs);
+
+
+    CRC32 checksum = new CRC32();
+    checksum.update(fileContents);
+    when(mockFileIndex.getChecksum()).thenReturn(checksum.getValue());
+    when(mockDirIndex.getFilesPresent()).thenReturn(ImmutableList.of(mockFileIndex));
+
+    BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
+    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class)))
+        .thenReturn(FutureUtil.failedFuture(new IllegalArgumentException())) // non retriable error
+        .thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> {
+          String blobId = invocationOnMock.getArgumentAt(0, String.class);
+          OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
+          outputStream.write(fileContents);
+
+          // force flush so that the checksum calculation later uses the full file contents.
+          ((FileOutputStream) outputStream).getFD().sync();
+          return CompletableFuture.completedFuture(null);
+        });
+
+    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR);
+    try {
+      FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
+      fail("Should have failed on non-retriable errors during file restore");
+    } catch (CompletionException e) {
+      assertTrue(e.getCause() instanceof IllegalArgumentException);
+    }
   }
 
   @Test
@@ -662,7 +777,7 @@ public class TestBlobStoreUtil {
 
     Path restoreDirBasePath = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR);
-    blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), dirIndex);
+    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), dirIndex)).join();
 
     assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false)
         .test(restoreDirBasePath.toFile(), dirIndex));
