@@ -67,15 +67,23 @@ public class DirDiff {
     Set<String> addedFilesSet = filesAdded.stream().map(File::getName).collect(Collectors.toSet());
     Set<String> retainedFilesSet = filesRetained.stream().map(FileIndex::getFileName).collect(Collectors.toSet());
     Set<String> removedFilesSet = filesRemoved.stream().map(FileIndex::getFileName).collect(Collectors.toSet());
-    Preconditions.checkState(Sets.intersection(addedFilesSet, retainedFilesSet).isEmpty());
-    Preconditions.checkState(Sets.intersection(retainedFilesSet, removedFilesSet).isEmpty());
+    Sets.SetView<String> addedAndRetainedFilesSet = Sets.intersection(addedFilesSet, retainedFilesSet);
+    Preconditions.checkState(addedAndRetainedFilesSet.isEmpty(),
+        String.format("Files present in both added and retained sets: %s", addedAndRetainedFilesSet.toString()));
+    Sets.SetView<String> retainedAndRemovedFilesSet = Sets.intersection(retainedFilesSet, removedFilesSet);
+    Preconditions.checkState(retainedAndRemovedFilesSet.isEmpty(),
+        String.format("Files present in both retained and removed sets: %s", retainedAndRemovedFilesSet.toString()));
 
     // validate that a subDir is not present in multiple lists
     Set<String> addedSubDirsSet = subDirsAdded.stream().map(DirDiff::getDirName).collect(Collectors.toSet());
     Set<String> retainedSubDirsSet = subDirsRetained.stream().map(DirDiff::getDirName).collect(Collectors.toSet());
     Set<String> removedSubDirsSet = subDirsRemoved.stream().map(DirIndex::getDirName).collect(Collectors.toSet());
-    Preconditions.checkState(Sets.intersection(addedSubDirsSet, retainedSubDirsSet).isEmpty());
-    Preconditions.checkState(Sets.intersection(retainedSubDirsSet, removedSubDirsSet).isEmpty());
+    Sets.SetView<String> addedAndRetainedSubDirsSet = Sets.intersection(addedSubDirsSet, retainedSubDirsSet);
+    Preconditions.checkState(addedAndRetainedSubDirsSet.isEmpty(),
+        String.format("Sub-dirs present in both added and retained sets: %s", addedAndRetainedSubDirsSet.toString()));
+    Sets.SetView<String> retainedAndRemovedSubDirsSet = Sets.intersection(retainedSubDirsSet, removedSubDirsSet);
+    Preconditions.checkState(retainedAndRemovedSubDirsSet.isEmpty(),
+        String.format("Sub-dirs present in both retained and removed sets: %s", retainedAndRemovedSubDirsSet.toString()));
 
     this.dirName = dirName;
     this.filesAdded = filesAdded;

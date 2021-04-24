@@ -62,7 +62,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.samza.SamzaException;
 import org.apache.samza.util.FutureUtil;
@@ -533,6 +532,12 @@ public class BlobStoreUtil {
               localFile.getAbsolutePath(), remoteFile.getFileName(),
               fileAttributesToString(localFileAttrs), remoteFile.getFileMetadata().toString(), compareTimestamps);
           return false;
+        } else {
+          LOG.trace("Local file {}. Remote file {}. " +
+                  "Local file attributes: {}. Remote file attributes: {}. " +
+                  "Comparing timestamps: {}",
+              localFile.getAbsolutePath(), remoteFile.getFileName(),
+              fileAttributesToString(localFileAttrs), remoteFile.getFileMetadata().toString(), compareTimestamps);
         }
 
         if (localFile.getName().endsWith(SST_FILE_EXTENSION)) {
@@ -544,15 +549,21 @@ public class BlobStoreUtil {
           return true;
         } else {
           try {
-            long localFileChecksum = FileUtils.checksumCRC32(localFile);
+            FileInputStream fis = new FileInputStream(localFile);
+            CheckedInputStream cis = new CheckedInputStream(fis, new CRC32());
+            byte[] buffer = new byte[8 * 1024]; // 8 KB
+            while (cis.read(buffer, 0, buffer.length) >= 0) {}
+            long localFileChecksum = cis.getChecksum().getValue();
+            cis.close();
+
             boolean areSameChecksum = localFileChecksum == remoteFile.getChecksum();
             if (!areSameChecksum) {
               LOG.debug("Local file {} and remote file {} are not same. " +
                       "Local checksum: {}. Remote checksum: {}",
                   localFile.getAbsolutePath(), remoteFile.getFileName(), localFileChecksum, remoteFile.getChecksum());
             } else {
-              LOG.debug("Local file {} and remote file: {} are same.",
-                  localFile.getAbsolutePath(), remoteFile.getFileName());
+              LOG.debug("Local file {} and remote file: {} are same. Local checksum: {}. Remote checksum: {}",
+                  localFile.getAbsolutePath(), remoteFile.getFileName(), localFileChecksum, remoteFile.getChecksum());
             }
             return areSameChecksum;
           } catch (IOException e) {
