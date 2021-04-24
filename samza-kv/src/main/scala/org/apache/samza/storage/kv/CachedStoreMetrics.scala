@@ -25,7 +25,7 @@ import org.apache.samza.metrics.MetricsRegistryMap
 
 class CachedStoreMetrics(
   val storeName: String = "unknown",
-  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper(registry = registry) {
+  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
 
   val gets = newCounter("gets")
   val ranges = newCounter("ranges")
@@ -43,6 +43,6 @@ class CachedStoreMetrics(
   def setCacheSize(getValue: () => Int) {
     newGauge("cache-size", getValue)
   }
-
+  
   override def getPrefix = storeName + "-"
 }

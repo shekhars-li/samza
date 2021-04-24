@@ -38,7 +38,7 @@ object SamzaAppMasterMetrics {
  */
 class SamzaAppMasterMetrics(val config: Config,
   val state: SamzaApplicationState,
-  val registry: ReadableMetricsRegistry) extends MetricsHelper(registry = registry) with Logging {
+  val registry: ReadableMetricsRegistry) extends MetricsHelper with Logging {
 
   private val metricsConfig = new MetricsConfig(config)
   val containersFromPreviousAttempts = newCounter("container-from-previous-attempt")

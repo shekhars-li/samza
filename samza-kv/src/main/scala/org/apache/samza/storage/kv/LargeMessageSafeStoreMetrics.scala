@@ -22,7 +22,7 @@ import org.apache.samza.metrics.{MetricsHelper, MetricsRegistry, MetricsRegistry
 
 class LargeMessageSafeStoreMetrics(
   val storeName: String,
-  val registry: MetricsRegistry) extends MetricsHelper(registry = registry) {
+  val registry: MetricsRegistry) extends MetricsHelper {
 
   val ignoredLargeMessages = newCounter("ignored-large-messages")
 

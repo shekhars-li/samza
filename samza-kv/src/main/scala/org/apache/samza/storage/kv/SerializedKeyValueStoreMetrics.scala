@@ -24,7 +24,7 @@ import org.apache.samza.metrics.{MetricsHelper, MetricsRegistry, MetricsRegistry
 
 class SerializedKeyValueStoreMetrics(
   val storeName: String = "unknown",
-  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper (registry = registry) {
+  val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
 
   val gets = newCounter("gets")
   val ranges = newCounter("ranges")

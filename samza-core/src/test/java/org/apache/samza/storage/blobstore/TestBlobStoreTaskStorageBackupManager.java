@@ -54,11 +54,6 @@ import org.apache.samza.job.model.ContainerModel;
 import org.apache.samza.job.model.JobModel;
 import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.job.model.TaskModel;
-import org.apache.samza.metrics.Counter;
-import org.apache.samza.metrics.Gauge;
-import org.apache.samza.metrics.MetricsRegistry;
-import org.apache.samza.metrics.MetricsRegistryMap;
-import org.apache.samza.metrics.Timer;
 import org.apache.samza.storage.StorageEngine;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
@@ -77,7 +72,11 @@ import org.mockito.stubbing.Answer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 
 public class TestBlobStoreTaskStorageBackupManager {
@@ -89,10 +88,6 @@ public class TestBlobStoreTaskStorageBackupManager {
   private final Clock clock = mock(Clock.class);
   private final BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
   private final StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
-  private final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
-  private final Counter counter = mock(Counter.class);
-  private final Timer timer = mock(Timer.class);
-  private final Gauge gauge = mock(Gauge.class);
 
   //job and store definition
   private final CheckpointId checkpointId = CheckpointId.fromString("1234-567");
@@ -134,12 +129,8 @@ public class TestBlobStoreTaskStorageBackupManager {
     when(taskModel.getTaskName().getTaskName()).thenReturn(taskName);
     when(taskModel.getTaskMode()).thenReturn(TaskMode.Active);
 
-    when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
-    when(metricsRegistry.newGauge(anyString(), any(Gauge.class))).thenReturn(gauge);
-    when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
-
     blobStoreTaskStorageBackupManager =
-        new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor, metricsRegistry, config, clock,
+        new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor, config, clock,
             Files.createTempDirectory("logged-store-").toFile(), storageManagerUtil, blobStoreUtil);
   }
 

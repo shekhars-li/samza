@@ -35,7 +35,7 @@ import scala.collection._
 /**
  * Straight up ripoff of Hadoop's metrics2 JvmMetrics class.
  */
-class JvmMetrics(val registry: MetricsRegistry) extends MetricsHelper(registry = registry) with Runnable with Logging {
+class JvmMetrics(val registry: MetricsRegistry) extends MetricsHelper with Runnable with Logging {
   final val M = 1024 * 1024.0F
   final val PCT = 100.0
 

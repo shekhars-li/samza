@@ -23,8 +23,7 @@ package org.apache.samza.system.hdfs
 import org.apache.samza.metrics.{MetricsRegistry, MetricsHelper, Gauge, MetricsRegistryMap}
 
 
-class HdfsSystemProducerMetrics(val systemName: String = "unknown", val registry: MetricsRegistry = new MetricsRegistryMap)
-  extends MetricsHelper(registry = registry) {
+class HdfsSystemProducerMetrics(val systemName: String = "unknown", val registry: MetricsRegistry = new MetricsRegistryMap) extends MetricsHelper {
 
   /* Tracks the number of calls made to send in producer */
   val sends = newCounter("producer-sends")
