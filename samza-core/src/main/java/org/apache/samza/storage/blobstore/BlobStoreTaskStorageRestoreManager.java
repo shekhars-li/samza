@@ -142,11 +142,11 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
       boolean restoreStore;
       if (Files.exists(storeCheckpointDirPath)) {
         if (new StorageConfig(config).getCleanLoggedStoreDirsOnStart(storeName)) {
-          LOG.debug("Deleting local store checkpoint directory: {} since the store is configured to be " +
-              "cleaned on each restart.", storeCheckpointDirPath);
+          LOG.debug("Restoring task: {} store: {} from remote snapshot since the store is configured to be " +
+              "restored on each restart.", taskName, storeName);
           restoreStore = true;
         } else if (blobStoreUtil.areSameDir(filesToIgnore, true).test(storeCheckpointDirPath.toFile(), dirIndex)) {
-        // check if the checkpoint directory contents are valid (i.e. identical to remote snapshot)
+        // TODO BLOCKER shesharm check if the checkpoint directory contents are valid (i.e. identical to remote snapshot)
         // exclude the "OFFSET" family of files files etc that are written to the checkpoint dir
         // after the remote upload is complete as part of TaskStorageCommitManager#writeCheckpointToStoreDirectories.
         // TODO HIGH shesharm add tests that the exclude works correctly and that it doesn't always restore fully
@@ -176,6 +176,22 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
       }
 
       if (restoreStore) { // restore the store from the remote blob store
+        LOG.debug("Deleting local store checkpoint directory: {} before restore.", storeCheckpointDirPath);
+        // if we only delete the store directory and don't delete the checkpoint directories,
+        // the store size on disk will grow to 2x after restore until the first commit is completed and
+        // older checkpoint dirs are deleted. This is because the hard-linked checkpoint dir files
+        // will no longer be de-duped with the now-deleted main store directory contents and will take
+        // up additional space of their own during the restore.
+        try {
+          // TODO HIGH shesharm: should delete all older task checkpoint dirs,
+          // not just the one with the latest checkpoint id.
+          FileUtils.deleteDirectory(storeCheckpointDirPath.toFile());
+        } catch (Exception e) {
+          throw new SamzaException(
+              String.format("Error deleting local store checkpoint directory: %s before restore.",
+                  storeCheckpointDirPath));
+        }
+
         CompletableFuture<Void> restoreFuture =
             FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex))
                 .thenRunAsync(() -> {
