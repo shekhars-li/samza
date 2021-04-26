@@ -87,11 +87,12 @@ public class TaskStorageCommitManager {
     this.durableStoreBaseDir = durableStoreBaseDir;
     this.storeChangelogs = storeChangelogs;
     this.storageManagerUtil = storageManagerUtil;
-<<<<<<< HEAD
     this.metrics = metrics;
-=======
-    this.disableRocksDBCheckpoints = config.getBoolean(DISABLE_ROCKSDB_CHECKPOINTS_KEY, false);
->>>>>>> Add config to disable rocksdb checkpoints.
+    if (config != null) {
+      this.disableRocksDBCheckpoints = config.getBoolean(DISABLE_ROCKSDB_CHECKPOINTS_KEY, false);
+    } else {
+      this.disableRocksDBCheckpoints = false;
+    }
   }
 
   public void init() {
