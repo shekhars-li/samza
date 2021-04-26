@@ -20,6 +20,8 @@
 package org.apache.samza.storage.blobstore;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.samza.container.TaskName;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
@@ -177,15 +179,18 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
 
       if (restoreStore) { // restore the store from the remote blob store
         LOG.debug("Deleting local store checkpoint directory: {} before restore.", storeCheckpointDirPath);
-        // if we only delete the store directory and don't delete the checkpoint directories,
-        // the store size on disk will grow to 2x after restore until the first commit is completed and
-        // older checkpoint dirs are deleted. This is because the hard-linked checkpoint dir files
-        // will no longer be de-duped with the now-deleted main store directory contents and will take
-        // up additional space of their own during the restore.
+        // delet all store chckpoint directories. if we only delete the store directory and don't
+        // delete the checkpoint directories, the store size on disk will grow to 2x after restore
+        // until the first commit is completed and older checkpoint dirs are deleted. This is
+        // because the hard-linked checkpoint dir files will no longer be de-duped with the
+        // now-deleted main store directory contents and will take up additional space of their
+        // own during the restore.
         try {
-          // TODO HIGH shesharm: should delete all older task checkpoint dirs,
-          // not just the one with the latest checkpoint id.
-          FileUtils.deleteDirectory(storeCheckpointDirPath.toFile());
+          List<File> checkpointDirs = storageManagerUtil.getTaskStoreCheckpointDirs(
+              loggedBaseDir, storeName, new TaskName(taskName), TaskMode.Active);
+          for (File checkpointDir: checkpointDirs) {
+            FileUtils.deleteDirectory(checkpointDir);
+          }
         } catch (Exception e) {
           throw new SamzaException(
               String.format("Error deleting local store checkpoint directory: %s before restore.",
