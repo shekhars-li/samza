@@ -64,6 +64,7 @@ import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskBackupMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreTestUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.storage.blobstore.util.DirDiffUtil;
@@ -104,7 +105,7 @@ public class TestBlobStoreTaskStorageBackupManager {
   private final Gauge<Long> gauge = mock(Gauge.class);
 
   private BlobStoreTaskStorageBackupManager blobStoreTaskStorageBackupManager;
-  private BlobStoreMetrics blobStoreMetrics;
+  private BlobStoreTaskBackupMetrics blobStoreTaskBackupMetrics;
 
   // Remote and local snapshot definitions
   private Map<String, SnapshotIndex> testBlobStore = new HashMap<>();
@@ -138,10 +139,11 @@ public class TestBlobStoreTaskStorageBackupManager {
     when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
     when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(gauge);
     when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
-    blobStoreMetrics = new BlobStoreMetrics("test", metricsRegistry);
+    blobStoreTaskBackupMetrics = new BlobStoreTaskBackupMetrics("test", metricsRegistry);
 
     blobStoreTaskStorageBackupManager =
-        new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor, blobStoreMetrics, config, clock,
+        new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor,
+            blobStoreTaskBackupMetrics, config, clock,
             Files.createTempDirectory("logged-store-").toFile(), storageManagerUtil, blobStoreUtil);
   }
 

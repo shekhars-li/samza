@@ -20,9 +20,12 @@
 package org.apache.samza.storage.blobstore;
 
 import com.google.common.collect.ImmutableSet;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskRestoreMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 
@@ -68,7 +71,7 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
   private final File nonLoggedBaseDir;
   private final String taskName;
 
-  private final BlobStoreMetrics metrics;
+  private final BlobStoreTaskRestoreMetrics metrics;
 
   /**
    * Map of store name and Pair of blob id of SnapshotIndex and the corresponding SnapshotIndex from last snapshot
@@ -77,8 +80,8 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
   private Map<String, Pair<String, SnapshotIndex>> prevStoreSnapshotIndexes;
 
   public BlobStoreTaskStorageRestoreManager(TaskModel taskModel, ExecutorService restoreExecutor,
-      BlobStoreMetrics blobStoreMetrics, Config config, StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil,
-      File loggedBaseDir, File nonLoggedBaseDir) {
+      BlobStoreTaskRestoreMetrics metrics, Config config, StorageManagerUtil storageManagerUtil,
+      BlobStoreUtil blobStoreUtil, File loggedBaseDir, File nonLoggedBaseDir) {
     this.taskModel = taskModel;
     this.executor = restoreExecutor; // TODO BLOCKER pmaheshw dont block on restore executor
     this.config = config;
@@ -88,7 +91,7 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
     this.loggedBaseDir = loggedBaseDir;
     this.nonLoggedBaseDir = nonLoggedBaseDir;
     this.taskName = taskModel.getTaskName().getTaskName();
-    this.metrics = blobStoreMetrics;
+    this.metrics = metrics;
   }
 
   @Override
@@ -115,6 +118,11 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
   @Override
   public void restore() {
     LOG.debug("Starting restore for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
+
+    long restoreStartTime = System.nanoTime();
+    AtomicInteger numFilesDownloaded = new AtomicInteger(0);
+    AtomicLong totalBytesDownloaded = new AtomicLong(0L);
+
     List<CompletionStage<Void>> restoreFutures = new ArrayList<>();
     prevStoreSnapshotIndexes.forEach((storeName, scmAndSnapshotIndex) -> {
       metrics.registerSource(storeName);
@@ -206,7 +214,9 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
         CompletableFuture<Void> restoreFuture =
             FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex))
                 .thenRunAsync(() -> {
-                  metrics.storeRestoreDirNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
+                  metrics.storeDownloadNs.get(storeName).update(System.nanoTime() - storeRestoreStartTime);
+                  totalBytesDownloaded.addAndGet(dirIndex.getFilesPresent().size());
+                  totalBytesDownloaded.addAndGet(dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
                   LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
                   if (!blobStoreUtil.areSameDir(filesToIgnore, false).test(storeDir, dirIndex)) {
                     throw new SamzaException(String.format("Restored store directory: %s contents " +
@@ -222,6 +232,10 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
     // wait for all restores to finish
     FutureUtil.allOf(restoreFutures).join(); // TODO BLOCKER pmaheshw remove
     LOG.info("Restore completed for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
+    // update metrics
+    metrics.downloadNs.update(System.nanoTime() - restoreStartTime);
+    metrics.numFilesDownloaded.set(numFilesDownloaded.longValue());
+    metrics.totalBytesDownloaded.set(totalBytesDownloaded.longValue());
   }
 
   @Override

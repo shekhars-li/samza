@@ -58,6 +58,7 @@ import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskRestoreMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreTestUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.util.Clock;
@@ -112,7 +113,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
   private Map<String, String> testStoreNameAndSCMMap;
 
   private BlobStoreTaskStorageRestoreManager blobStoreTaskStorageRestoreManager;
-  private BlobStoreMetrics blobStoreMetrics;
+  private BlobStoreTaskRestoreMetrics metrics;
 
   /**
    * Test restore handles logged / non-logged / durable / persistent stores correctly.
@@ -162,10 +163,10 @@ public class TestBlobStoreTaskStorageRestoreManager {
     when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
     when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(gauge);
     when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
-    blobStoreMetrics = new BlobStoreMetrics("test", metricsRegistry);
+    metrics = new BlobStoreTaskRestoreMetrics("test", metricsRegistry);
 
     blobStoreTaskStorageRestoreManager =
-        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, blobStoreMetrics, config, storageManagerUtil, blobStoreUtil,
+        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
             Files.createTempDirectory("logged-store-").toFile(), null);
   }
 
@@ -360,7 +361,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
     mapConfig.remove(entry.getKey());
     Config config = new MapConfig(mapConfig);
     blobStoreTaskStorageRestoreManager =
-        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, blobStoreMetrics, config, storageManagerUtil, blobStoreUtil,
+        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
             Files.createTempDirectory("logged-store-").toFile(), null);
 
     String storeRemovedFromConfig =

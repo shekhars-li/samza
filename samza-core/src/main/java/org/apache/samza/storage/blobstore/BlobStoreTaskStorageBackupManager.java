@@ -21,10 +21,12 @@ package org.apache.samza.storage.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskBackupMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.storage.blobstore.util.DirDiffUtil;
@@ -75,7 +77,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
   private final File loggedStoreBaseDir;
   private final BlobStoreUtil blobStoreUtil;
 
-  private final BlobStoreMetrics metrics;
+  private final BlobStoreTaskBackupMetrics metrics;
 
   /**
    * Map of store name to a Pair of blob id of {@link SnapshotIndex} and the corresponding {@link SnapshotIndex} from
@@ -102,7 +104,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
       prevStoreSnapshotIndexesFuture;
 
   public BlobStoreTaskStorageBackupManager(JobModel jobModel, ContainerModel containerModel, TaskModel taskModel,
-      ExecutorService backupExecutor, BlobStoreMetrics blobStoreMetrics, Config config, Clock clock, File loggedStoreBaseDir,
+      ExecutorService backupExecutor, BlobStoreTaskBackupMetrics blobStoreTaskBackupMetrics, Config config, Clock clock, File loggedStoreBaseDir,
       StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil) {
     this.jobModel = jobModel;
     this.jobName = new JobConfig(config).getName().get();
@@ -120,7 +122,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
     this.loggedStoreBaseDir = loggedStoreBaseDir;
     this.blobStoreUtil = blobStoreUtil;
     this.prevStoreSnapshotIndexesFuture = CompletableFuture.completedFuture(ImmutableMap.of());
-    this.metrics = blobStoreMetrics;
+    this.metrics = blobStoreTaskBackupMetrics;
   }
 
   @Override
@@ -133,7 +135,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
         BlobStoreStateBackendUtil.getStoreSnapshotIndexes(taskName, checkpoint, blobStoreUtil);
     this.prevStoreSnapshotIndexesFuture =
         CompletableFuture.completedFuture(ImmutableMap.copyOf(prevStoreSnapshotIndexes));
-    metrics.restoreManagerInitTimeNs.update(System.nanoTime() - startTime);
+    metrics.backupManagerInitTimeNs.update(System.nanoTime() - startTime);
   }
 
   @Override
@@ -146,6 +148,8 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
   public CompletableFuture<Map<String, String>> upload(CheckpointId checkpointId, Map<String, String> storeSCMs) {
     long uploadStartTime = System.nanoTime();
     AtomicInteger totalFilesUploaded = new AtomicInteger(0);
+    AtomicLong totalBytesUploaded = new AtomicLong(0L);
+
     Map<String, CompletableFuture<Pair<String, SnapshotIndex>>>
         storeToSCMAndSnapshotIndexPairFutures = new HashMap<>();
     Map<String, CompletableFuture<String>> storeToSerializedSCMFuture = new HashMap<>();
@@ -186,13 +190,13 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
         DirDiff dirDiff = DirDiffUtil.getDirDiff(checkpointDir, prevDirIndex, BlobStoreUtil.areSameFile(true));
         updateDirDiffMetricsForStore(storeName, dirDiff, dirDiffStartTime);
         totalFilesUploaded.addAndGet(dirDiff.getFilesAdded().size());
+        totalBytesUploaded.addAndGet(dirDiff.getFilesAdded().stream().mapToLong(File::length).sum());
         // upload the diff to the blob store and get the new directory index
         long putDirStartTime = System.nanoTime();
         CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
 
         CompletionStage<SnapshotIndex> snapshotIndexFuture =
             dirIndexFuture.thenApplyAsync(dirIndex -> {
-              metrics.putDirNs.update(System.nanoTime() - putDirStartTime);
               LOG.trace("Dir Upload complete. Returning new SnapshotIndex for task: {} store: {}.", taskName, storeName);
               Optional<String> prevSnapshotIndexBlobId =
                   Optional.ofNullable(prevStoreSnapshotIndexes.get(storeName))
@@ -213,7 +217,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
             FutureUtil.toFutureOfPair(
                 Pair.of(snapshotIndexBlobIdFuture.toCompletableFuture(), snapshotIndexFuture.toCompletableFuture()))
                 .whenComplete((res, ex) ->
-                    metrics.storeUploadTimeNs.get(storeName).update(System.nanoTime() - startTimeTaskStoreUpload));
+                    metrics.storeUploadNs.get(storeName).update(System.nanoTime() - startTimeTaskStoreUpload));
 
         storeToSCMAndSnapshotIndexPairFutures.put(storeName, scmAndSnapshotIndexPairFuture);
         storeToSerializedSCMFuture.put(storeName, snapshotIndexBlobIdFuture.toCompletableFuture());
@@ -230,6 +234,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
     this.prevStoreSnapshotIndexesFuture =
         FutureUtil.toFutureOfMap(storeToSCMAndSnapshotIndexPairFutures);
     metrics.numFilesUploaded.set(totalFilesUploaded.longValue());
+    metrics.totalBytesUploaded.set(totalBytesUploaded.longValue());
     return FutureUtil.toFutureOfMap(storeToSerializedSCMFuture)
         .whenComplete((res, ex) -> metrics.uploadNs.update(System.nanoTime() - uploadStartTime));
   }
