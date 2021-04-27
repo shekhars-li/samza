@@ -20,6 +20,7 @@
 package org.apache.samza.storage.blobstore;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
@@ -144,7 +145,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
   @Override
   public CompletableFuture<Map<String, String>> upload(CheckpointId checkpointId, Map<String, String> storeSCMs) {
     long uploadStartTime = System.nanoTime();
-    final int[] totalFilesUploaded = {0};
+    AtomicInteger totalFilesUploaded = new AtomicInteger(0);
     Map<String, CompletableFuture<Pair<String, SnapshotIndex>>>
         storeToSCMAndSnapshotIndexPairFutures = new HashMap<>();
     Map<String, CompletableFuture<String>> storeToSerializedSCMFuture = new HashMap<>();
@@ -184,7 +185,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
         // get the diff between previous and current store directories
         DirDiff dirDiff = DirDiffUtil.getDirDiff(checkpointDir, prevDirIndex, BlobStoreUtil.areSameFile(true));
         updateDirDiffMetricsForStore(storeName, dirDiff, dirDiffStartTime);
-        totalFilesUploaded[0] += dirDiff.getFilesAdded().size();
+        totalFilesUploaded.addAndGet(dirDiff.getFilesAdded().size());
         // upload the diff to the blob store and get the new directory index
         long putDirStartTime = System.nanoTime();
         CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
@@ -212,13 +213,13 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
             FutureUtil.toFutureOfPair(
                 Pair.of(snapshotIndexBlobIdFuture.toCompletableFuture(), snapshotIndexFuture.toCompletableFuture()))
                 .whenComplete((res, ex) ->
-                    metrics.taskStoreUploadTimeNs.get(storeName).update(System.nanoTime() - startTimeTaskStoreUpload));
+                    metrics.storeUploadTimeNs.get(storeName).update(System.nanoTime() - startTimeTaskStoreUpload));
 
         storeToSCMAndSnapshotIndexPairFutures.put(storeName, scmAndSnapshotIndexPairFuture);
         storeToSerializedSCMFuture.put(storeName, snapshotIndexBlobIdFuture.toCompletableFuture());
       } catch (Exception e) {
         // update intermediate count metrics of files uploaded before failing
-        metrics.numFilesUploaded.set((long) totalFilesUploaded[0]);
+        metrics.numFilesUploaded.set(totalFilesUploaded.longValue());
         throw new SamzaException(
             String.format("Error uploading store snapshot to blob store for task: %s, store: %s, checkpointId: %s",
                 taskName, storeName, checkpointId), e);
@@ -228,7 +229,7 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
     // replace the previous storeName to snapshot index mapping with the new mapping.
     this.prevStoreSnapshotIndexesFuture =
         FutureUtil.toFutureOfMap(storeToSCMAndSnapshotIndexPairFutures);
-    metrics.numFilesUploaded.set((long) totalFilesUploaded[0]);
+    metrics.numFilesUploaded.set(totalFilesUploaded.longValue());
     return FutureUtil.toFutureOfMap(storeToSerializedSCMFuture)
         .whenComplete((res, ex) -> metrics.uploadNs.update(System.nanoTime() - uploadStartTime));
   }
@@ -295,23 +296,23 @@ public class BlobStoreTaskStorageBackupManager implements TaskBackupManager {
   }
 
   private void updateDirDiffMetricsForStore(String storeName, DirDiff dirDiff, long startTime) {
-    metrics.taskStoreDirDiffTimeNs.get(storeName).update(System.nanoTime() - startTime);
+    metrics.storeDirDiffTimeNs.get(storeName).update(System.nanoTime() - startTime);
 
-    metrics.taskStoreFilesToUpload.get(storeName).set((long) dirDiff.getFilesAdded().size());
-    metrics.taskStoreFilesToRetain.get(storeName).set((long) dirDiff.getFilesRetained().size());
-    metrics.taskStoreFilesToRemove.get(storeName).set((long) dirDiff.getFilesRemoved().size());
+    metrics.storeFilesToUpload.get(storeName).set((long) dirDiff.getFilesAdded().size());
+    metrics.storeFilesToRetain.get(storeName).set((long) dirDiff.getFilesRetained().size());
+    metrics.storeFilesToRemove.get(storeName).set((long) dirDiff.getFilesRemoved().size());
 
-    metrics.taskStoreSubDirsToAdd.get(storeName).set((long) dirDiff.getSubDirsAdded().size());
-    metrics.taskStoreSubDirsToRetain.get(storeName).set((long) dirDiff.getSubDirsRetained().size());
-    metrics.taskStoreSubDirsToRemove.get(storeName).set((long) dirDiff.getSubDirsRemoved().size());
+    metrics.storeSubDirsToUpload.get(storeName).set((long) dirDiff.getSubDirsAdded().size());
+    metrics.storeSubDirsToRetain.get(storeName).set((long) dirDiff.getSubDirsRetained().size());
+    metrics.storeSubDirsToRemove.get(storeName).set((long) dirDiff.getSubDirsRemoved().size());
 
     long bytesUploaded = dirDiff.getFilesAdded().stream().mapToLong(File::length).sum();
-    metrics.taskStoreBytesToUpload.get(storeName).set(bytesUploaded);
+    metrics.storeBytesToUpload.get(storeName).set(bytesUploaded);
 
     long bytesRemoved = dirDiff.getFilesRemoved().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum();
-    metrics.taskStoreBytesToRemove.get(storeName).set(bytesRemoved);
+    metrics.storeBytesToRemove.get(storeName).set(bytesRemoved);
 
     long bytesRetained = dirDiff.getFilesRetained().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum();
-    metrics.taskStoreBytesToRetain.get(storeName).set(bytesRetained);
+    metrics.storeBytesToRetain.get(storeName).set(bytesRetained);
   }
 }

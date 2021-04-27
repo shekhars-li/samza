@@ -268,6 +268,7 @@ public class BlobStoreUtil {
       String message = file != null ? "Dir or Symbolic link" : "null";
       throw new SamzaException(String.format("Required a non-null parameter of type file, provided: %s", message));
     }
+    long putFileStartTime = System.nanoTime();
 
     String opName = "putFile: " + file.getAbsolutePath();
     Supplier<CompletionStage<FileIndex>> fileUploadAction = () -> {
@@ -316,7 +317,8 @@ public class BlobStoreUtil {
       return fileBlobFuture;
     };
 
-    return FutureUtil.executeAsyncWithRetries(opName, fileUploadAction, isCauseNonRetriable(), executor);
+    return FutureUtil.executeAsyncWithRetries(opName, fileUploadAction, isCauseNonRetriable(), executor)
+        .whenComplete((res, ex) -> metrics.putDirNs.update(System.nanoTime() - putFileStartTime));
   }
 
   // TODO BLOCKER pmaheshw why/where do we care about the Offset/Checkpoint files in the store dir?
@@ -374,8 +376,10 @@ public class BlobStoreUtil {
                 .thenComposeAsync(v -> {
                   LOG.debug("Starting restore for file: {} with blob id: {} at offset: {}",
                       fileToRestore, fileBlob.getBlobId(), fileBlob.getOffset());
+                  long getFileStartTime = System.nanoTime();
                   // TODO BLOCKER pmaheshw: add retries. delete file between retries.
-                  return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream);
+                  return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream)
+                      .whenComplete((res, ex) -> metrics.getFileNs.update(System.nanoTime() - getFileStartTime));
                 }, executor);
           }
 
