@@ -21,7 +21,9 @@ package org.apache.samza.storage.blobstore.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import org.apache.samza.metrics.Gauge;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
+import org.apache.samza.storage.blobstore.BlobStoreMetrics;
 import org.apache.samza.storage.blobstore.PutMetadata;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.exceptions.RetriableException;
@@ -40,7 +42,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -81,10 +82,12 @@ public class BlobStoreUtil {
   private final SnapshotIndexSerde snapshotIndexSerde = new SnapshotIndexSerde();
   private final BlobStoreManager blobStoreManager;
   private final ExecutorService executor;
+  private final BlobStoreMetrics metrics;
 
-  public BlobStoreUtil(BlobStoreManager blobStoreManager, ExecutorService executor) {
+  public BlobStoreUtil(BlobStoreManager blobStoreManager, ExecutorService executor, BlobStoreMetrics metrics) {
     this.blobStoreManager = blobStoreManager;
     this.executor = executor;
+    this.metrics = metrics;
   }
 
   /**
@@ -276,6 +279,8 @@ public class BlobStoreUtil {
         inputStream = new CheckedInputStream(new FileInputStream(file), new CRC32());
         CheckedInputStream finalInputStream = inputStream;
         FileMetadata fileMetadata = FileMetadata.fromFile(file);
+        metrics.avgPutFileSizeBytes.update(fileMetadata.getSize());
+
         PutMetadata putMetadata =
             new PutMetadata(file.getAbsolutePath(), String.valueOf(fileMetadata.getSize()), snapshotMetadata.getJobName(),
                 snapshotMetadata.getJobId(), snapshotMetadata.getTaskName(), snapshotMetadata.getStoreName());

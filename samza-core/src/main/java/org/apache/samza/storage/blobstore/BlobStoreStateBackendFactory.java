@@ -60,9 +60,11 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     Preconditions.checkState(StringUtils.isNotBlank(blobStoreManagerFactory));
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager backupBlobStoreManager = factory.getBackupBlobStoreManager(config, backupExecutor);
-    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(backupBlobStoreManager, backupExecutor);
-    return new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, backupExecutor, config, clock,
-        loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
+    BlobStoreMetrics blobStoreMetrics =
+        new BlobStoreMetrics(taskModel.getTaskName().toString() + "-", metricsRegistry);
+    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(backupBlobStoreManager, backupExecutor, blobStoreMetrics);
+    return new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, backupExecutor, blobStoreMetrics,
+        config, clock, loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
   }
 
   @Override
@@ -82,8 +84,10 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     Preconditions.checkState(StringUtils.isNotBlank(blobStoreManagerFactory));
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager blobStoreManager = factory.getRestoreBlobStoreManager(config, restoreExecutor);
-    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, restoreExecutor);
-    return new BlobStoreTaskStorageRestoreManager(taskModel, restoreExecutor, config, new StorageManagerUtil(),
+    BlobStoreMetrics blobStoreMetrics =
+        new BlobStoreMetrics(taskModel.getTaskName().toString() + "-", metricsRegistry);
+    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, restoreExecutor, blobStoreMetrics);
+    return new BlobStoreTaskStorageRestoreManager(taskModel, restoreExecutor, blobStoreMetrics, config, new StorageManagerUtil(),
         blobStoreUtil, loggedStoreBaseDir, nonLoggedStoreBaseDir);
   }
 

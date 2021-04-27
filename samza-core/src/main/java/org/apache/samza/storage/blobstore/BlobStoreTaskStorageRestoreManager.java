@@ -20,7 +20,6 @@
 package org.apache.samza.storage.blobstore;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.samza.container.TaskName;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
@@ -40,7 +39,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.samza.SamzaException;
@@ -70,6 +68,8 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
   private final File nonLoggedBaseDir;
   private final String taskName;
 
+  private final BlobStoreMetrics metrics;
+
   /**
    * Map of store name and Pair of blob id of SnapshotIndex and the corresponding SnapshotIndex from last snapshot
    * creation
@@ -77,8 +77,8 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
   private Map<String, Pair<String, SnapshotIndex>> prevStoreSnapshotIndexes;
 
   public BlobStoreTaskStorageRestoreManager(TaskModel taskModel, ExecutorService restoreExecutor,
-      Config config, StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil, File loggedBaseDir,
-      File nonLoggedBaseDir) {
+      BlobStoreMetrics blobStoreMetrics, Config config, StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil,
+      File loggedBaseDir, File nonLoggedBaseDir) {
     this.taskModel = taskModel;
     this.executor = restoreExecutor; // TODO BLOCKER pmaheshw dont block on restore executor
     this.config = config;
@@ -88,13 +88,16 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
     this.loggedBaseDir = loggedBaseDir;
     this.nonLoggedBaseDir = nonLoggedBaseDir;
     this.taskName = taskModel.getTaskName().getTaskName();
+    this.metrics = blobStoreMetrics;
   }
 
   @Override
   public void init(Checkpoint checkpoint) {
+    long startTime = System.nanoTime();
     // get previous SCMs from checkpoint
     LOG.debug("Initializing blob store restore manager for task: {}", taskName);
     prevStoreSnapshotIndexes = BlobStoreStateBackendUtil.getStoreSnapshotIndexes(taskName, checkpoint, blobStoreUtil);
+    metrics.getSnapshotIndexTimeNs.update(System.nanoTime() - startTime);
     LOG.trace("Found previous snapshot index during blob store restore manager init for task: {} to be: {}",
         taskName, prevStoreSnapshotIndexes);
 
@@ -103,6 +106,7 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
     List<String> currentTaskStores = new StorageConfig(config).getStoreNames();
     // Note: blocks the caller (main) thread.
     deleteUnusedStoresFromBlobStore(taskName, currentTaskStores, prevStoreSnapshotIndexes, blobStoreUtil, executor);
+    metrics.restoreManagerInitTimeNs.update(System.nanoTime() - startTime);
   }
 
   /**
@@ -113,6 +117,8 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
     LOG.debug("Starting restore for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
     List<CompletionStage<Void>> restoreFutures = new ArrayList<>();
     prevStoreSnapshotIndexes.forEach((storeName, scmAndSnapshotIndex) -> {
+      metrics.registerSource(storeName);
+      long storeRestoreStartTime = System.nanoTime();
       SnapshotIndex snapshotIndex = scmAndSnapshotIndex.getRight();
       DirIndex dirIndex = snapshotIndex.getDirIndex();
       CheckpointId checkpointId = snapshotIndex.getSnapshotMetadata().getCheckpointId();
@@ -200,6 +206,7 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
         CompletableFuture<Void> restoreFuture =
             FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex))
                 .thenRunAsync(() -> {
+                  metrics.storeRestoreDirNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
                   LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
                   if (!blobStoreUtil.areSameDir(filesToIgnore, false).test(storeDir, dirIndex)) {
                     throw new SamzaException(String.format("Restored store directory: %s contents " +
@@ -229,9 +236,10 @@ public class BlobStoreTaskStorageRestoreManager implements TaskRestoreManager {
    */
   // TODO BLOCKER shesharm this method was only removing the index blob. It needs to remove the entire store, including
   // all of its contents. I fixed it, but please verify and add unit tests.
-  private static void deleteUnusedStoresFromBlobStore(String taskName, List<String> currentTaskStores,
+  private void deleteUnusedStoresFromBlobStore(String taskName, List<String> currentTaskStores,
       Map<String, Pair<String, SnapshotIndex>> initialStoreSnapshotIndexes,
       BlobStoreUtil blobStoreUtil, ExecutorService executor) {
+    long startTime = System.nanoTime();
     List<CompletionStage<Void>> storeDeletionFutures = new ArrayList<>();
     initialStoreSnapshotIndexes.forEach((storeName, scmAndSnapshotIndex) -> {
       if (!currentTaskStores.contains(storeName)) {

@@ -54,6 +54,10 @@ import org.apache.samza.job.model.ContainerModel;
 import org.apache.samza.job.model.JobModel;
 import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.job.model.TaskModel;
+import org.apache.samza.metrics.Counter;
+import org.apache.samza.metrics.Gauge;
+import org.apache.samza.metrics.MetricsRegistry;
+import org.apache.samza.metrics.Timer;
 import org.apache.samza.storage.StorageEngine;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
@@ -72,11 +76,7 @@ import org.mockito.stubbing.Answer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
 public class TestBlobStoreTaskStorageBackupManager {
@@ -98,7 +98,13 @@ public class TestBlobStoreTaskStorageBackupManager {
   private Map<String, StorageEngine> storeStorageEngineMap = new HashMap<>();
   private Map<String, String> mapConfig = new HashMap<>();
 
+  private final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+  private final Counter counter = mock(Counter.class);
+  private final Timer timer = mock(Timer.class);
+  private final Gauge<Long> gauge = mock(Gauge.class);
+
   private BlobStoreTaskStorageBackupManager blobStoreTaskStorageBackupManager;
+  private BlobStoreMetrics blobStoreMetrics;
 
   // Remote and local snapshot definitions
   private Map<String, SnapshotIndex> testBlobStore = new HashMap<>();
@@ -129,8 +135,13 @@ public class TestBlobStoreTaskStorageBackupManager {
     when(taskModel.getTaskName().getTaskName()).thenReturn(taskName);
     when(taskModel.getTaskMode()).thenReturn(TaskMode.Active);
 
+    when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
+    when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(gauge);
+    when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
+    blobStoreMetrics = new BlobStoreMetrics("test", metricsRegistry);
+
     blobStoreTaskStorageBackupManager =
-        new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor, config, clock,
+        new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor, blobStoreMetrics, config, clock,
             Files.createTempDirectory("logged-store-").toFile(), storageManagerUtil, blobStoreUtil);
   }
 

@@ -49,6 +49,10 @@ import org.apache.samza.config.StorageConfig;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.job.model.TaskModel;
+import org.apache.samza.metrics.Counter;
+import org.apache.samza.metrics.Gauge;
+import org.apache.samza.metrics.MetricsRegistry;
+import org.apache.samza.metrics.Timer;
 import org.apache.samza.storage.StorageEngine;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.blobstore.index.DirIndex;
@@ -65,7 +69,7 @@ import org.mockito.stubbing.Answer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anySet;
@@ -87,6 +91,11 @@ public class TestBlobStoreTaskStorageRestoreManager {
   private final StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
   private final BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
 
+  private final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+  private final Counter counter = mock(Counter.class);
+  private final Timer timer = mock(Timer.class);
+  private final Gauge<Long> gauge = mock(Gauge.class);
+
   //job and store definition
   private final CheckpointId checkpointId = CheckpointId.fromString("1234-567");
   private final String jobName = "testJobName";
@@ -103,6 +112,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
   private Map<String, String> testStoreNameAndSCMMap;
 
   private BlobStoreTaskStorageRestoreManager blobStoreTaskStorageRestoreManager;
+  private BlobStoreMetrics blobStoreMetrics;
 
   /**
    * Test restore handles logged / non-logged / durable / persistent stores correctly.
@@ -149,8 +159,13 @@ public class TestBlobStoreTaskStorageRestoreManager {
           return CompletableFuture.completedFuture(testBlobStore.get(blobId));
         });
 
+    when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
+    when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(gauge);
+    when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
+    blobStoreMetrics = new BlobStoreMetrics("test", metricsRegistry);
+
     blobStoreTaskStorageRestoreManager =
-        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, config, storageManagerUtil, blobStoreUtil,
+        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, blobStoreMetrics, config, storageManagerUtil, blobStoreUtil,
             Files.createTempDirectory("logged-store-").toFile(), null);
   }
 
@@ -345,7 +360,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
     mapConfig.remove(entry.getKey());
     Config config = new MapConfig(mapConfig);
     blobStoreTaskStorageRestoreManager =
-        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, config, storageManagerUtil, blobStoreUtil,
+        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, blobStoreMetrics, config, storageManagerUtil, blobStoreUtil,
             Files.createTempDirectory("logged-store-").toFile(), null);
 
     String storeRemovedFromConfig =
