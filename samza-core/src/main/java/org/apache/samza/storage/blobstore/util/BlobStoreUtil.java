@@ -21,7 +21,6 @@ package org.apache.samza.storage.blobstore.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
 import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
 import org.apache.samza.storage.blobstore.PutMetadata;
@@ -231,8 +230,6 @@ public class BlobStoreUtil {
     Preconditions.checkState(StringUtils.isNotBlank(snapshotIndexBlobId));
     LOG.debug("Deleting SnapshotIndex blob {} from blob store", snapshotIndexBlobId);
     String opName = "deleteSnapshotIndexBlob: " + snapshotIndexBlobId;
-    // TODO BLOCKER shesharm what happens if the blob was already deleted (410)?
-    //  Should we ignore that error instead of failing all futures? I.e. treat 410 as success for deletions.
     return FutureUtil.executeAsyncWithRetries(opName, () ->
         blobStoreManager.delete(snapshotIndexBlobId).toCompletableFuture(), isCauseNonRetriable(), executor);
   }
@@ -456,8 +453,6 @@ public class BlobStoreUtil {
       deleteFutures.add(deleteDir(subDir));
     }
 
-    // TODO BLOCKER shesharm what happens if one the blobs was already deleted (404 / 409 / 410)?
-    //  Should we ignore that error instead of failing all futures? I.e. treat 410 as success for deletions?
     return CompletableFuture.allOf(deleteFutures.toArray(new CompletableFuture[0]));
   }
 
@@ -478,8 +473,7 @@ public class BlobStoreUtil {
           FutureUtil.executeAsyncWithRetries(opName, fileDeletionAction, isCauseNonRetriable(), executor);
       deleteFutures.add(fileDeletionFuture);
     }
-    // TODO BLOCKER shesharm what happens if one the blobs was already deleted (410)?
-    //  Should we ignore that error instead of failing all futures? I.e. treat 410 as success for deletions.
+
     return CompletableFuture.allOf(deleteFutures.toArray(new CompletableFuture[0]));
   }
 
@@ -514,8 +508,6 @@ public class BlobStoreUtil {
       }
     }
 
-    // TODO BLOCKER shesharm is ttl removal idempotent?
-    //  If not, should we ignore the exception if it was already removed?
     return CompletableFuture.allOf(updateTTLsFuture.toArray(new CompletableFuture[0]));
   }
 

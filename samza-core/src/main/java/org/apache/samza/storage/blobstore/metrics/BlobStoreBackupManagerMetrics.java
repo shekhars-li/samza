@@ -1,9 +1,9 @@
 package org.apache.samza.storage.blobstore.metrics;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.samza.metrics.Counter;
 import org.apache.samza.metrics.Gauge;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.metrics.Timer;
@@ -34,11 +34,16 @@ public class BlobStoreBackupManagerMetrics {
   public final Map<String, Gauge<Long>> storeBytesToRetain;
   public final Map<String, Gauge<Long>> storeBytesToRemove;
 
+  public final Gauge<Long> filesYetToUpload;
+  public final Gauge<Long> bytesYetToUpload;
+
+  public final Counter uploadMbps;
+
   public final Timer cleanupNs;
 
   // ToDO move to SamzaHistogram
   public final Timer avgFileUploadNs; // avg time for each file uploaded
-  public final Timer avgFileSizeBytes; // afinal vg size of each file uploaded
+  public final Timer avgFileSizeBytes; // avg size of each file uploaded
 
   public BlobStoreBackupManagerMetrics(String group, MetricsRegistry metricsRegistry) {
     this.group = group;
@@ -62,6 +67,11 @@ public class BlobStoreBackupManagerMetrics {
     this.storeBytesToUpload = new ConcurrentHashMap<>();
     this.storeBytesToRetain = new ConcurrentHashMap<>();
     this.storeBytesToRemove = new ConcurrentHashMap<>();
+
+    this.filesYetToUpload = metricsRegistry.newGauge(group, "files-yet-to-upload", 0L);
+    this.bytesYetToUpload = metricsRegistry.newGauge(group, "bytes-yet-to-upload", 0L);
+
+    this.uploadMbps = metricsRegistry.newCounter(group, "upload-mbps");
 
     this.cleanupNs = metricsRegistry.newTimer(group, "cleanup-ns");
 

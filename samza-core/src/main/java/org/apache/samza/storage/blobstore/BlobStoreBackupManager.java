@@ -148,6 +148,8 @@ public class BlobStoreBackupManager implements TaskBackupManager {
   @Override
   public CompletableFuture<Map<String, String>> upload(CheckpointId checkpointId, Map<String, String> storeSCMs) {
     long uploadStartTime = System.nanoTime();
+    AtomicInteger filesToUpload = new AtomicInteger(0);
+    AtomicLong bytesToUpload = new AtomicLong(0);
     AtomicInteger filesUploaded = new AtomicInteger(0);
     AtomicLong bytesUploaded = new AtomicLong(0L);
 
@@ -188,8 +190,12 @@ public class BlobStoreBackupManager implements TaskBackupManager {
 
         long dirDiffStartTime = System.nanoTime();
         // get the diff between previous and current store directories
-        DirDiff dirDiff = DirDiffUtil.getDirDiff(checkpointDir, prevDirIndex, BlobStoreUtil.areSameFile(true));
+        DirDiff dirDiff = DirDiffUtil.getDirDiff(checkpointDir, prevDirIndex, BlobStoreUtil.areSameFile(false));
         metrics.storeDirDiffNs.get(storeName).update(System.nanoTime() - dirDiffStartTime);
+        DirDiff.Stats stats = DirDiff.getStats(dirDiff);
+        updateStoreDiffMetrics(storeName, stats);
+        filesToUpload.addAndGet(stats.filesAdded);
+        bytesToUpload.addAndGet(stats.bytesAdded);
 
         // upload the diff to the blob store and get the new directory index
         CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
@@ -217,11 +223,18 @@ public class BlobStoreBackupManager implements TaskBackupManager {
                 Pair.of(snapshotIndexBlobIdFuture.toCompletableFuture(), snapshotIndexFuture.toCompletableFuture()));
 
         scmAndSnapshotIndexPairFuture.whenComplete((res, ex) -> {
-          metrics.storeUploadNs.get(storeName).update(System.nanoTime() - storeUploadStartTime);
-          DirDiff.Stats stats = DirDiff.getStats(dirDiff);
-          updateStoreDiffMetrics(storeName, stats);
+          long uploadTimeNs = System.nanoTime() - storeUploadStartTime;
+          metrics.storeUploadNs.get(storeName).update(uploadTimeNs);
+
+          metrics.filesYetToUpload.set(filesToUpload.longValue() - dirDiff.getFilesAdded().size());
+          long dirDiffBytesUploaded = dirDiff.getFilesAdded().stream().mapToLong(File::length).sum();
+          metrics.bytesYetToUpload.set(bytesToUpload.longValue() - dirDiffBytesUploaded);
+
+          long uploadMbps = (dirDiffBytesUploaded/uploadTimeNs) * 8000;
+          metrics.uploadMbps.set(uploadMbps);
+
           filesUploaded.addAndGet(dirDiff.getFilesAdded().size());
-          bytesUploaded.addAndGet(dirDiff.getFilesAdded().stream().mapToLong(File::length).sum());
+          bytesUploaded.addAndGet(dirDiffBytesUploaded);
         });
 
         storeToSCMAndSnapshotIndexPairFutures.put(storeName, scmAndSnapshotIndexPairFuture);

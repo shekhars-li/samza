@@ -122,6 +122,8 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
     LOG.debug("Starting restore for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
 
     long restoreStartTime = System.nanoTime();
+    AtomicInteger filesToRestore = new AtomicInteger(0);
+    AtomicLong bytesToRestore = new AtomicLong(0);
     AtomicInteger filesRestored = new AtomicInteger(0);
     AtomicLong bytesRestored = new AtomicLong(0L);
 
@@ -130,6 +132,9 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
       long storeRestoreStartTime = System.nanoTime();
       SnapshotIndex snapshotIndex = scmAndSnapshotIndex.getRight();
       DirIndex dirIndex = snapshotIndex.getDirIndex();
+      filesToRestore.addAndGet(dirIndex.getFilesPresent().size());
+      bytesToRestore.addAndGet(dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
+
       CheckpointId checkpointId = snapshotIndex.getSnapshotMetadata().getCheckpointId();
 
       File storeDir = storageManagerUtil.getTaskStoreDir(loggedBaseDir, storeName,
@@ -215,10 +220,19 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
         CompletableFuture<Void> restoreFuture =
             FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex))
                 .thenRunAsync(() -> {
-                  metrics.storeRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
+                  long restoreTimeNs = System.nanoTime() - storeRestoreStartTime;
+                  metrics.storeRestoreNs.get(storeName).set(restoreTimeNs);
+
+                  long dirIndexBytesRestored =
+                      dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum();
+                  metrics.filesYetToRestore.set(filesToRestore.longValue() - dirIndex.getFilesPresent().size());
+                  metrics.bytesYetToRestore.set(bytesToRestore.longValue() - dirIndexBytesRestored);
+
                   filesRestored.addAndGet(dirIndex.getFilesPresent().size());
-                  bytesRestored.addAndGet(
-                      dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
+                  bytesRestored.addAndGet(dirIndexBytesRestored);
+
+                  long downloadMbps = (dirIndexBytesRestored / restoreTimeNs) * 8000;
+                  metrics.downloadMbps.set(downloadMbps);
 
                   LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
                   if (!blobStoreUtil.areSameDir(filesToIgnore, false).test(storeDir, dirIndex)) {
