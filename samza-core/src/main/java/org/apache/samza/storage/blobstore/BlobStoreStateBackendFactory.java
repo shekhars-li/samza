@@ -38,17 +38,14 @@ import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.TaskBackupManager;
 import org.apache.samza.storage.TaskRestoreManager;
 import org.apache.samza.storage.TaskStorageAdmin;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskBackupMetrics;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskRestoreMetrics;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreRestoreManagerMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.util.Clock;
 import org.apache.samza.util.ReflectionUtil;
 
 
 public class BlobStoreStateBackendFactory implements StateBackendFactory {
-  private static String METRICS_GROUP_SEPERATOR = "-";
-  private static String BACKUP_MANAGER = "backup-manager";
-  private static String RESTORE_MANAGER = "restore-manager";
   @Override
   public TaskBackupManager getBackupManager(
       JobModel jobModel,
@@ -65,11 +62,11 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     Preconditions.checkState(StringUtils.isNotBlank(blobStoreManagerFactory));
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager blobStoreManager = factory.getBackupBlobStoreManager(config, backupExecutor);
-    String metricsGroup = taskModel.getTaskName().toString() + METRICS_GROUP_SEPERATOR + RESTORE_MANAGER + METRICS_GROUP_SEPERATOR;
-    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, backupExecutor, metricsRegistry, metricsGroup);
-    BlobStoreTaskBackupMetrics blobStoreTaskBackupMetrics = new BlobStoreTaskBackupMetrics(metricsGroup, metricsRegistry);
-    return new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, backupExecutor,
-        blobStoreTaskBackupMetrics, config, clock, loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
+    String metricsGroup = taskModel.getTaskName().toString() + "-" + BlobStoreBackupManager.class.getName();
+    BlobStoreBackupManagerMetrics metrics = new BlobStoreBackupManagerMetrics(metricsGroup, metricsRegistry);
+    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, backupExecutor, metrics, null);
+    return new BlobStoreBackupManager(jobModel, containerModel, taskModel, backupExecutor,
+        metrics, config, clock, loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
   }
 
   @Override
@@ -89,11 +86,10 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     Preconditions.checkState(StringUtils.isNotBlank(blobStoreManagerFactory));
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager blobStoreManager = factory.getRestoreBlobStoreManager(config, restoreExecutor);
-    String metricsGroup = taskModel.getTaskName().toString() + METRICS_GROUP_SEPERATOR + BACKUP_MANAGER + METRICS_GROUP_SEPERATOR;
-    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, restoreExecutor, metricsRegistry, metricsGroup);
-    BlobStoreTaskRestoreMetrics
-        blobStoreTaskRestoreMetrics = new BlobStoreTaskRestoreMetrics(metricsGroup, metricsRegistry);
-    return new BlobStoreTaskStorageRestoreManager(taskModel, restoreExecutor, blobStoreTaskRestoreMetrics, config, new StorageManagerUtil(),
+    String metricsGroup = taskModel.getTaskName().toString() + "-" + BlobStoreRestoreManager.class.getName();
+    BlobStoreRestoreManagerMetrics metrics = new BlobStoreRestoreManagerMetrics(metricsGroup, metricsRegistry);
+    BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, restoreExecutor, null, metrics);
+    return new BlobStoreRestoreManager(taskModel, restoreExecutor, metrics, config, new StorageManagerUtil(),
         blobStoreUtil, loggedStoreBaseDir, nonLoggedStoreBaseDir);
   }
 

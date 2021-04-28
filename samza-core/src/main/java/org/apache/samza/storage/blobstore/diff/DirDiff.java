@@ -195,17 +195,17 @@ public class DirDiff {
   }
 
   public static class Stats {
-    int filesAdded;
-    int filesRetained;
-    int filesRemoved;
+    public int filesAdded;
+    public int filesRetained;
+    public int filesRemoved;
 
-    int subDirsAdded;
-    int subDirsRetained;
-    int subDirsRemoved;
+    public int subDirsAdded;
+    public int subDirsRetained;
+    public int subDirsRemoved;
 
-    long bytesAdded;
-    long bytesRetained;
-    long bytesRemoved;
+    public long bytesAdded;
+    public long bytesRetained;
+    public long bytesRemoved;
 
     @Override
     public String toString() {

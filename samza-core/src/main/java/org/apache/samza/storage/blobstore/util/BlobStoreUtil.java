@@ -23,7 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskBackupMetrics;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
 import org.apache.samza.storage.blobstore.PutMetadata;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.exceptions.RetriableException;
@@ -65,7 +65,7 @@ import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.samza.SamzaException;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskRestoreMetrics;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreRestoreManagerMetrics;
 import org.apache.samza.util.FutureUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,15 +83,15 @@ public class BlobStoreUtil {
   private final SnapshotIndexSerde snapshotIndexSerde = new SnapshotIndexSerde();
   private final BlobStoreManager blobStoreManager;
   private final ExecutorService executor;
-  private final BlobStoreTaskBackupMetrics backupMetrics;
-  private final BlobStoreTaskRestoreMetrics restoreMetrics;
+  private final BlobStoreBackupManagerMetrics backupMetrics;
+  private final BlobStoreRestoreManagerMetrics restoreMetrics;
 
   public BlobStoreUtil(BlobStoreManager blobStoreManager, ExecutorService executor,
-      MetricsRegistry metricsRegistry, String group) {
+      BlobStoreBackupManagerMetrics backupMetrics, BlobStoreRestoreManagerMetrics restoreMetrics) {
     this.blobStoreManager = blobStoreManager;
     this.executor = executor;
-    this.backupMetrics = new BlobStoreTaskBackupMetrics(group, metricsRegistry);
-    this.restoreMetrics = new BlobStoreTaskRestoreMetrics(group, metricsRegistry);
+    this.backupMetrics = backupMetrics;
+    this.restoreMetrics = restoreMetrics;
   }
 
   /**
@@ -284,7 +284,9 @@ public class BlobStoreUtil {
         inputStream = new CheckedInputStream(new FileInputStream(file), new CRC32());
         CheckedInputStream finalInputStream = inputStream;
         FileMetadata fileMetadata = FileMetadata.fromFile(file);
-        backupMetrics.uploadFileSizeBytes.update(fileMetadata.getSize());
+        if (backupMetrics != null) {
+          backupMetrics.avgFileSizeBytes.update(fileMetadata.getSize());
+        }
 
         PutMetadata putMetadata =
             new PutMetadata(file.getAbsolutePath(), String.valueOf(fileMetadata.getSize()), snapshotMetadata.getJobName(),
@@ -322,7 +324,11 @@ public class BlobStoreUtil {
     };
 
     return FutureUtil.executeAsyncWithRetries(opName, fileUploadAction, isCauseNonRetriable(), executor)
-        .whenComplete((res, ex) -> backupMetrics.uploadFileNs.update(System.nanoTime() - putFileStartTime));
+        .whenComplete((res, ex) -> {
+          if (backupMetrics != null) {
+            backupMetrics.avgFileUploadNs.update(System.nanoTime() - putFileStartTime);
+          }
+        });
   }
 
   // TODO BLOCKER pmaheshw why/where do we care about the Offset/Checkpoint files in the store dir?
@@ -354,6 +360,7 @@ public class BlobStoreUtil {
 
       String opName = "restoreFile: " + fileToRestore.getAbsolutePath();
       CompletableFuture<Void> fileRestoreFuture = FutureUtil.executeAsyncWithRetries(opName, () -> {
+        long restoreFileStartTime = System.nanoTime();
         FileOutputStream outputStream = null;
         try {
           // TODO HIGH shesharm ensure that ambry + standby is handled correctly (i.e. no continuous restore for ambry
@@ -380,11 +387,7 @@ public class BlobStoreUtil {
                 .thenComposeAsync(v -> {
                   LOG.debug("Starting restore for file: {} with blob id: {} at offset: {}",
                       fileToRestore, fileBlob.getBlobId(), fileBlob.getOffset());
-                  long getFileStartTime = System.nanoTime();
-                  // TODO BLOCKER pmaheshw: add retries. delete file between retries.
-                  return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream)
-                      .whenComplete((res, ex) ->
-                          restoreMetrics.downloadFileNs.update(System.nanoTime() - getFileStartTime));
+                  return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream);
                 }, executor);
           }
 
@@ -399,6 +402,12 @@ public class BlobStoreUtil {
                   fileToRestore.getAbsolutePath()), e);
             }
           }, executor);
+
+          resultFuture.whenComplete((res, ex) -> {
+              if (restoreMetrics != null) {
+                restoreMetrics.avgFileRestoreNs.update(System.nanoTime() - restoreFileStartTime);
+              }
+            });
 
           return resultFuture;
         } catch (Exception e) {

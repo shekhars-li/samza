@@ -58,7 +58,7 @@ import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskRestoreMetrics;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreRestoreManagerMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreTestUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.util.Clock;
@@ -82,8 +82,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
-public class TestBlobStoreTaskStorageRestoreManager {
-  private static final Logger LOG = LoggerFactory.getLogger(TestBlobStoreTaskStorageRestoreManager.class);
+public class TestBlobStoreRestoreManager {
+  private static final Logger LOG = LoggerFactory.getLogger(TestBlobStoreRestoreManager.class);
   private static final ExecutorService EXECUTOR = MoreExecutors.newDirectExecutorService();
 
   // mock container - task - job models
@@ -112,8 +112,8 @@ public class TestBlobStoreTaskStorageRestoreManager {
   private Map<String, Pair<String, SnapshotIndex>> indexBlobIdAndLocalRemoteSnapshotsPair;
   private Map<String, String> testStoreNameAndSCMMap;
 
-  private BlobStoreTaskStorageRestoreManager blobStoreTaskStorageRestoreManager;
-  private BlobStoreTaskRestoreMetrics metrics;
+  private BlobStoreRestoreManager blobStoreRestoreManager;
+  private BlobStoreRestoreManagerMetrics metrics;
 
   /**
    * Test restore handles logged / non-logged / durable / persistent stores correctly.
@@ -163,10 +163,10 @@ public class TestBlobStoreTaskStorageRestoreManager {
     when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
     when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(gauge);
     when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
-    metrics = new BlobStoreTaskRestoreMetrics("test", metricsRegistry);
+    metrics = new BlobStoreRestoreManagerMetrics("test", metricsRegistry);
 
-    blobStoreTaskStorageRestoreManager =
-        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
+    blobStoreRestoreManager =
+        new BlobStoreRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
             Files.createTempDirectory("logged-store-").toFile(), null);
   }
 
@@ -203,8 +203,8 @@ public class TestBlobStoreTaskStorageRestoreManager {
         .thenReturn(Collections.singletonList(CompletableFuture.completedFuture(null)));
     when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((u,v)->true);
 
-    blobStoreTaskStorageRestoreManager.init(checkpoint);
-    blobStoreTaskStorageRestoreManager.restore();
+    blobStoreRestoreManager.init(checkpoint);
+    blobStoreRestoreManager.restore();
 
     // Verify the store dir is not present anymore and is deleted by restore.
     Assert.assertFalse(Files.exists(Paths.get(testStoreDir)));
@@ -241,8 +241,8 @@ public class TestBlobStoreTaskStorageRestoreManager {
     BiPredicate<File, DirIndex> mockPredicate = ((u, v) -> true);
     when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicate);
 
-    blobStoreTaskStorageRestoreManager.init(checkpoint);
-    blobStoreTaskStorageRestoreManager.restore();
+    blobStoreRestoreManager.init(checkpoint);
+    blobStoreRestoreManager.restore();
 
     Assert.assertEquals(actualStoreDirsRestored, expectedStoreDirsRestored);
   }
@@ -292,8 +292,8 @@ public class TestBlobStoreTaskStorageRestoreManager {
     // call (to check if the restore was done correctly).
     when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn(mockPredicateFalse, mockPredicateTrue);
 
-    blobStoreTaskStorageRestoreManager.init(checkpoint);
-    blobStoreTaskStorageRestoreManager.restore();
+    blobStoreRestoreManager.init(checkpoint);
+    blobStoreRestoreManager.restore();
 
     Assert.assertEquals(actualStoreDirsRestored[0], expectedStoreDirsRestored);
 
@@ -338,8 +338,8 @@ public class TestBlobStoreTaskStorageRestoreManager {
     BiPredicate<File, DirIndex> mockPredicateTrue = ((u, v) -> true);
     when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicateTrue);
 
-    blobStoreTaskStorageRestoreManager.init(checkpoint);
-    blobStoreTaskStorageRestoreManager.restore();
+    blobStoreRestoreManager.init(checkpoint);
+    blobStoreRestoreManager.restore();
 
     verify(blobStoreUtil, never()).restoreDir(any(), any());
 
@@ -360,8 +360,8 @@ public class TestBlobStoreTaskStorageRestoreManager {
         new MapConfig(mapConfig).regexSubset("stores.*.factory").entrySet().iterator().next();
     mapConfig.remove(entry.getKey());
     Config config = new MapConfig(mapConfig);
-    blobStoreTaskStorageRestoreManager =
-        new BlobStoreTaskStorageRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
+    blobStoreRestoreManager =
+        new BlobStoreRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
             Files.createTempDirectory("logged-store-").toFile(), null);
 
     String storeRemovedFromConfig =
@@ -403,7 +403,7 @@ public class TestBlobStoreTaskStorageRestoreManager {
     Checkpoint checkpoint =
         new CheckpointV2(CheckpointId.create(), new HashMap<>(),
             ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY, testStoreNameAndSCMMap));
-    blobStoreTaskStorageRestoreManager.init(checkpoint);
+    blobStoreRestoreManager.init(checkpoint);
 
     // Verify
     Assert.assertEquals(actualSnapshotIndexBlobIdDeleted[0], expectedSnapshotIndexBlobIdDeleted);

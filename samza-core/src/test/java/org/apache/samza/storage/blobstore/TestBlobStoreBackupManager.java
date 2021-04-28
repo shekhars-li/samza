@@ -64,7 +64,7 @@ import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreTaskBackupMetrics;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreTestUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.storage.blobstore.util.DirDiffUtil;
@@ -80,7 +80,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
 
-public class TestBlobStoreTaskStorageBackupManager {
+public class TestBlobStoreBackupManager {
   private final ExecutorService mockExecutor = MoreExecutors.newDirectExecutorService();
   // mock container - task - job models
   private final JobModel jobModel = mock(JobModel.class);
@@ -104,8 +104,8 @@ public class TestBlobStoreTaskStorageBackupManager {
   private final Timer timer = mock(Timer.class);
   private final Gauge<Long> gauge = mock(Gauge.class);
 
-  private BlobStoreTaskStorageBackupManager blobStoreTaskStorageBackupManager;
-  private BlobStoreTaskBackupMetrics blobStoreTaskBackupMetrics;
+  private BlobStoreBackupManager blobStoreBackupManager;
+  private BlobStoreBackupManagerMetrics blobStoreTaskBackupMetrics;
 
   // Remote and local snapshot definitions
   private Map<String, SnapshotIndex> testBlobStore = new HashMap<>();
@@ -139,10 +139,10 @@ public class TestBlobStoreTaskStorageBackupManager {
     when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
     when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(gauge);
     when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
-    blobStoreTaskBackupMetrics = new BlobStoreTaskBackupMetrics("test", metricsRegistry);
+    blobStoreTaskBackupMetrics = new BlobStoreBackupManagerMetrics("test", metricsRegistry);
 
-    blobStoreTaskStorageBackupManager =
-        new BlobStoreTaskStorageBackupManager(jobModel, containerModel, taskModel, mockExecutor,
+    blobStoreBackupManager =
+        new BlobStoreBackupManager(jobModel, containerModel, taskModel, mockExecutor,
             blobStoreTaskBackupMetrics, config, clock,
             Files.createTempDirectory("logged-store-").toFile(), storageManagerUtil, blobStoreUtil);
   }
@@ -150,7 +150,7 @@ public class TestBlobStoreTaskStorageBackupManager {
   @Test
   public void testInitWithInvalidCheckpointFails() {
     // init called with null checkpoint storeStorageEngineMap
-    blobStoreTaskStorageBackupManager.init(null);
+    blobStoreBackupManager.init(null);
     // verify delete snapshot index blob called from init 0 times because prevSnapshotMap returned from init is empty
     // in case of null checkpoint.
     verify(blobStoreUtil, times(0)).deleteSnapshotIndexBlob(anyString());
@@ -159,7 +159,7 @@ public class TestBlobStoreTaskStorageBackupManager {
     Checkpoint checkpoint = new CheckpointV1(new HashMap<>());
     String expectedException = "Checkpoint version 1 is not supported for blob store backup and restore.";
     try {
-      blobStoreTaskStorageBackupManager.init(checkpoint);
+      blobStoreBackupManager.init(checkpoint);
       Assert.fail("Checkpoint V1 is exepcted to fail.");
     } catch (SamzaException exception) {
       Assert.assertEquals(exception.getMessage(), expectedException);
@@ -176,7 +176,7 @@ public class TestBlobStoreTaskStorageBackupManager {
     Checkpoint checkpoint =
         new CheckpointV2(checkpointId, new HashMap<>(),
             ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY, new HashMap<>()));
-    blobStoreTaskStorageBackupManager.init(checkpoint);
+    blobStoreBackupManager.init(checkpoint);
 
     // mock: set task store dir to return corresponding test local store and create checkpoint dir
     ArgumentCaptor<String> stringCaptor = ArgumentCaptor.forClass(String.class);
@@ -227,7 +227,7 @@ public class TestBlobStoreTaskStorageBackupManager {
         });
 
     // execute
-    blobStoreTaskStorageBackupManager.upload(checkpointId, testStoreNameAndSCMMap);
+    blobStoreBackupManager.upload(checkpointId, testStoreNameAndSCMMap);
 
     // setup expected dir diffs after execute: needs checkpoint dirs created in upload()
     TreeSet<DirDiff> expectedDirDiffs = indexBlobIdAndLocalRemoteSnapshotsPair.values().stream()
@@ -271,7 +271,7 @@ public class TestBlobStoreTaskStorageBackupManager {
     Checkpoint checkpoint =
         new CheckpointV2(checkpointId, new HashMap<>(),
             ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY, previousCheckpoints));
-    blobStoreTaskStorageBackupManager.init(checkpoint);
+    blobStoreBackupManager.init(checkpoint);
 
     // mock: set task store dir to return corresponding test local store and create checkpoint dir
     ArgumentCaptor<String> stringCaptor = ArgumentCaptor.forClass(String.class);
@@ -321,7 +321,7 @@ public class TestBlobStoreTaskStorageBackupManager {
         });
 
     // execute
-    blobStoreTaskStorageBackupManager.upload(checkpointId, ImmutableMap.of());
+    blobStoreBackupManager.upload(checkpointId, ImmutableMap.of());
 
     TreeSet<DirDiff> expectedDirDiffs = indexBlobIdAndLocalRemoteSnapshotsPair.values()
         .stream()
@@ -369,7 +369,7 @@ public class TestBlobStoreTaskStorageBackupManager {
     when(blobStoreUtil.deleteSnapshotIndexBlob(any(String.class))).thenReturn(CompletableFuture.completedFuture(null));
 
     // execute
-    blobStoreTaskStorageBackupManager.cleanUp(checkpointId, testStoreNameAndSCMMap);
+    blobStoreBackupManager.cleanUp(checkpointId, testStoreNameAndSCMMap);
 
     // Assert
     Assert.assertEquals(actualRemoveTTLsResult, expectedRemoveTTLsResult);
@@ -399,7 +399,7 @@ public class TestBlobStoreTaskStorageBackupManager {
         .thenReturn(CompletableFuture.completedFuture(null));
 
     // execute
-    blobStoreTaskStorageBackupManager.cleanUp(checkpointId, testStoreNameAndSCMMap);
+    blobStoreBackupManager.cleanUp(checkpointId, testStoreNameAndSCMMap);
 
     // Assert
     Assert.assertEquals(actualCleanedupDirs, expectedCleanupDirs);
@@ -432,7 +432,7 @@ public class TestBlobStoreTaskStorageBackupManager {
         .thenReturn(CompletableFuture.completedFuture(null));
 
     // execute
-    blobStoreTaskStorageBackupManager.cleanUp(checkpointId, testStoreNameAndSCMMap);
+    blobStoreBackupManager.cleanUp(checkpointId, testStoreNameAndSCMMap);
 
     // Assert
     Assert.assertEquals(actualOldSnapshotsRemoved, expectedOldSnapshotsRemoved);
