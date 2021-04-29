@@ -152,8 +152,8 @@ public class KafkaChangelogStateBackendFactory implements StateBackendFactory {
   }
 
   @Override
-  public TaskStorageAdmin getAdmin() {
-    throw new SamzaException("getAdmin() method not supported for KafkaStateBackendFactory");
+  public StateBackendResourceAdmin getStateBackendResourceAdmin(JobModel jobModel, Config config) {
+    return new NoOpKafkaChangelogStateBackendResourceAdmin();
   }
 
   @VisibleForTesting
@@ -211,5 +211,18 @@ public class KafkaChangelogStateBackendFactory implements StateBackendFactory {
     // changelogSystemStreams correspond only to active tasks (since those of standby-tasks moved to sideInputs above)
     return MapUtils.invertMap(changelogSSPToStore).entrySet().stream()
         .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getSystemStream()));
+  }
+
+  public class NoOpKafkaChangelogStateBackendResourceAdmin implements StateBackendResourceAdmin {
+
+    @Override
+    public void createResources() {
+      // all the changelog creations are handled by {@link ChangelogStreamManager}
+    }
+
+    @Override
+    public void validateResources() {
+      // all the changelog validations are handled by {@link ChangelogStreamManager}
+    }
   }
 }

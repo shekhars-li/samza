@@ -34,10 +34,10 @@ import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.storage.KafkaChangelogRestoreParams;
 import org.apache.samza.storage.StateBackendFactory;
+import org.apache.samza.storage.StateBackendResourceAdmin;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.TaskBackupManager;
 import org.apache.samza.storage.TaskRestoreManager;
-import org.apache.samza.storage.TaskStorageAdmin;
 import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
 import org.apache.samza.storage.blobstore.metrics.BlobStoreRestoreManagerMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
@@ -92,8 +92,8 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
   }
 
   @Override
-  public TaskStorageAdmin getAdmin() {
-    // TODO BLOCKER shesharm fix this
+  public StateBackendResourceAdmin getStateBackendResourceAdmin(JobModel jobModel, Config config) {
+    // TODO: sheshrma BlobStoreStateBackendResourceAdmin for creating & validating ambry containers
     return null;
   }
 }
