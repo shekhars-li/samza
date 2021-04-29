@@ -57,8 +57,6 @@ import org.slf4j.LoggerFactory;
 public class TaskStorageCommitManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(TaskStorageCommitManager.class);
-  private static final String DISABLE_ROCKSDB_CHECKPOINTS_KEY = "disable.rocksdb.checkpoints";
-  private final boolean disableRocksDBCheckpoints;
 
   private final TaskName taskName;
   private final CheckpointManager checkpointManager;
@@ -88,11 +86,6 @@ public class TaskStorageCommitManager {
     this.storeChangelogs = storeChangelogs;
     this.storageManagerUtil = storageManagerUtil;
     this.metrics = metrics;
-    if (config != null) {
-      this.disableRocksDBCheckpoints = config.getBoolean(DISABLE_ROCKSDB_CHECKPOINTS_KEY, false);
-    } else {
-      this.disableRocksDBCheckpoints = false;
-    }
   }
 
   public void init() {
@@ -126,18 +119,16 @@ public class TaskStorageCommitManager {
 
     // Checkpoint all persisted and durable stores
     long checkpointStartNs = System.nanoTime();
-    if (!disableRocksDBCheckpoints) {
-      storageEngines.forEach((storeName, storageEngine) -> {
-        if (storageEngine.getStoreProperties().isPersistedToDisk() &&
-            storageEngine.getStoreProperties().isDurableStore()) {
-          storageEngine.checkpoint(checkpointId);
-        }
-      });
-      long checkpointNs = System.nanoTime() - checkpointStartNs;
-      metrics.storeCheckpointNs().update(checkpointNs);
-      LOG.debug("Checkpointed all storage engines for taskName: {}, checkpoint id: {} in {} ns",
-          taskName, checkpointId, checkpointNs);
-    }
+    storageEngines.forEach((storeName, storageEngine) -> {
+      if (storageEngine.getStoreProperties().isPersistedToDisk() &&
+          storageEngine.getStoreProperties().isDurableStore()) {
+        storageEngine.checkpoint(checkpointId);
+      }
+    });
+    long checkpointNs = System.nanoTime() - checkpointStartNs;
+    metrics.storeCheckpointNs().update(checkpointNs);
+    LOG.debug("Checkpointed all storage engines for taskName: {}, checkpoint id: {} in {} ns",
+        taskName, checkpointId, checkpointNs);
 
     // state backend factory -> store Name -> state checkpoint marker
     Map<String, Map<String, String>> stateBackendToStoreSCMs = new HashMap<>();
@@ -221,11 +212,9 @@ public class TaskStorageCommitManager {
             File storeDir = storageManagerUtil.getTaskStoreDir(durableStoreBaseDir, storeName, taskName, TaskMode.Active);
             storageManagerUtil.writeCheckpointV2File(storeDir, checkpointV2);
 
-            if (!disableRocksDBCheckpoints) {
-              CheckpointId checkpointId = checkpointV2.getCheckpointId();
-              File checkpointDir = Paths.get(StorageManagerUtil.getCheckpointDirPath(storeDir, checkpointId)).toFile();
-              storageManagerUtil.writeCheckpointV2File(checkpointDir, checkpointV2);
-            }
+            CheckpointId checkpointId = checkpointV2.getCheckpointId();
+            File checkpointDir = Paths.get(StorageManagerUtil.getCheckpointDirPath(storeDir, checkpointId)).toFile();
+            storageManagerUtil.writeCheckpointV2File(checkpointDir, checkpointV2);
           } catch (Exception e) {
             throw new SamzaException(
                 String.format("Write checkpoint file failed for task: %s, storeName: %s, checkpointId: %s",
@@ -345,12 +334,10 @@ public class TaskStorageCommitManager {
             // Write changelog SSP offset to the OFFSET files in the task store directory
             writeChangelogOffsetFile(storeName, changelogSSP, newestOffset, currentStoreDir);
 
-            if (!disableRocksDBCheckpoints) {
-              // Write changelog SSP offset to the OFFSET files in the store checkpoint directory
-              File checkpointDir = Paths.get(StorageManagerUtil.getCheckpointDirPath(
-                  currentStoreDir, kafkaChangelogSSPOffset.getCheckpointId())).toFile();
-              writeChangelogOffsetFile(storeName, changelogSSP, newestOffset, checkpointDir);
-            }
+            // Write changelog SSP offset to the OFFSET files in the store checkpoint directory
+            File checkpointDir = Paths.get(StorageManagerUtil.getCheckpointDirPath(
+                currentStoreDir, kafkaChangelogSSPOffset.getCheckpointId())).toFile();
+            writeChangelogOffsetFile(storeName, changelogSSP, newestOffset, checkpointDir);
           } else {
             // If newestOffset is null, then it means the changelog ssp is (or has become) empty. This could be
             // either because the changelog topic was newly added, repartitioned, or manually deleted and recreated.
