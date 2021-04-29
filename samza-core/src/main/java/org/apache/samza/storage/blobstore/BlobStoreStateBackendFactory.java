@@ -62,8 +62,7 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     Preconditions.checkState(StringUtils.isNotBlank(blobStoreManagerFactory));
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager blobStoreManager = factory.getBackupBlobStoreManager(config, backupExecutor);
-    String metricsGroup = BlobStoreBackupManager.class.getName();
-    BlobStoreBackupManagerMetrics metrics = new BlobStoreBackupManagerMetrics(metricsGroup, metricsRegistry);
+    BlobStoreBackupManagerMetrics metrics = new BlobStoreBackupManagerMetrics(metricsRegistry);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, backupExecutor, metrics, null);
     return new BlobStoreBackupManager(jobModel, containerModel, taskModel, backupExecutor,
         metrics, config, clock, loggedStoreBaseDir, new StorageManagerUtil(), blobStoreUtil);
@@ -86,8 +85,7 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
     Preconditions.checkState(StringUtils.isNotBlank(blobStoreManagerFactory));
     BlobStoreManagerFactory factory = ReflectionUtil.getObj(blobStoreManagerFactory, BlobStoreManagerFactory.class);
     BlobStoreManager blobStoreManager = factory.getRestoreBlobStoreManager(config, restoreExecutor);
-    String metricsGroup = BlobStoreRestoreManager.class.getName();
-    BlobStoreRestoreManagerMetrics metrics = new BlobStoreRestoreManagerMetrics(metricsGroup, metricsRegistry);
+    BlobStoreRestoreManagerMetrics metrics = new BlobStoreRestoreManagerMetrics(metricsRegistry);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, restoreExecutor, null, metrics);
     return new BlobStoreRestoreManager(taskModel, restoreExecutor, metrics, config, new StorageManagerUtil(),
         blobStoreUtil, loggedStoreBaseDir, nonLoggedStoreBaseDir);

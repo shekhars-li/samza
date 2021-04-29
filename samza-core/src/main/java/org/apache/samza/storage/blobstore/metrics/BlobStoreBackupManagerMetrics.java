@@ -3,6 +3,7 @@ package org.apache.samza.storage.blobstore.metrics;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.samza.metrics.Counter;
 import org.apache.samza.metrics.Gauge;
 import org.apache.samza.metrics.MetricsRegistry;
@@ -10,15 +11,22 @@ import org.apache.samza.metrics.Timer;
 
 
 public class BlobStoreBackupManagerMetrics {
-  private final String group;
+  private static final String GROUP = BlobStoreBackupManagerMetrics.class.getName();
   private final MetricsRegistry metricsRegistry;
 
   // ToDo per-task throughput
   public final Gauge<Long> initNs;
 
   public final Timer uploadNs;
-  public final Gauge<Long> filesUploaded;
-  public final Gauge<Long> bytesUploaded;
+  // gauges of AtomicLong so that the value can be incremented/decremented atomically in a thread-safe way.
+  // don't set the gauge value directly. use gauge.getValue().incrementAndGet() etc instead.
+  public final Gauge<AtomicLong> filesToUpload;
+  public final Gauge<AtomicLong> bytesToUpload;
+  public final Gauge<AtomicLong> filesUploaded;
+  public final Gauge<AtomicLong> bytesUploaded;
+  public final Gauge<AtomicLong> filesRemaining;
+  public final Gauge<AtomicLong> bytesRemaining;
+  public final Counter uploadRate;
 
   // per store breakdowns
   public final Map<String, Timer> storeDirDiffNs;
@@ -34,26 +42,25 @@ public class BlobStoreBackupManagerMetrics {
   public final Map<String, Gauge<Long>> storeBytesToRetain;
   public final Map<String, Gauge<Long>> storeBytesToRemove;
 
-  public final Gauge<Long> filesYetToUpload;
-  public final Gauge<Long> bytesYetToUpload;
-
-  public final Counter uploadMbps;
-
   public final Timer cleanupNs;
 
   // ToDO move to SamzaHistogram
   public final Timer avgFileUploadNs; // avg time for each file uploaded
   public final Timer avgFileSizeBytes; // avg size of each file uploaded
 
-  public BlobStoreBackupManagerMetrics(String group, MetricsRegistry metricsRegistry) {
-    this.group = group;
+  public BlobStoreBackupManagerMetrics(MetricsRegistry metricsRegistry) {
     this.metricsRegistry = metricsRegistry;
 
-    this.initNs = metricsRegistry.newGauge(group, "init-ns", 0L);
+    this.initNs = metricsRegistry.newGauge(GROUP, "init-ns", 0L);
 
-    this.uploadNs = metricsRegistry.newTimer(group, "upload-ns");
-    this.filesUploaded = metricsRegistry.newGauge(group, "files-uploaded", 0L);
-    this.bytesUploaded = metricsRegistry.newGauge(group, "bytes-uploaded", 0L);
+    this.uploadNs = metricsRegistry.newTimer(GROUP, "upload-ns");
+
+    this.filesToUpload = metricsRegistry.newGauge(GROUP, "files-to-upload", new AtomicLong(0L));
+    this.bytesToUpload = metricsRegistry.newGauge(GROUP, "bytes-to-upload", new AtomicLong(0L));
+    this.filesUploaded = metricsRegistry.newGauge(GROUP, "files-uploaded", new AtomicLong(0L));
+    this.bytesUploaded = metricsRegistry.newGauge(GROUP, "bytes-uploaded", new AtomicLong(0L));
+    this.filesRemaining = metricsRegistry.newGauge(GROUP, "files-remaining", new AtomicLong(0L));
+    this.bytesRemaining = metricsRegistry.newGauge(GROUP, "bytes-remaining", new AtomicLong(0L));
 
     this.storeDirDiffNs = new ConcurrentHashMap<>();
     this.storeUploadNs = new ConcurrentHashMap<>();
@@ -68,42 +75,39 @@ public class BlobStoreBackupManagerMetrics {
     this.storeBytesToRetain = new ConcurrentHashMap<>();
     this.storeBytesToRemove = new ConcurrentHashMap<>();
 
-    this.filesYetToUpload = metricsRegistry.newGauge(group, "files-yet-to-upload", 0L);
-    this.bytesYetToUpload = metricsRegistry.newGauge(group, "bytes-yet-to-upload", 0L);
+    this.uploadRate = metricsRegistry.newCounter(GROUP, "upload-rate");
 
-    this.uploadMbps = metricsRegistry.newCounter(group, "upload-mbps");
+    this.cleanupNs = metricsRegistry.newTimer(GROUP, "cleanup-ns");
 
-    this.cleanupNs = metricsRegistry.newTimer(group, "cleanup-ns");
-
-    this.avgFileUploadNs = metricsRegistry.newTimer(group,"avg-file-upload-ns");
-    this.avgFileSizeBytes = metricsRegistry.newTimer(group,"avg-file-size-bytes");
+    this.avgFileUploadNs = metricsRegistry.newTimer(GROUP,"avg-file-upload-ns");
+    this.avgFileSizeBytes = metricsRegistry.newTimer(GROUP,"avg-file-size-bytes");
   }
 
   public void initStoreMetrics(Collection<String> storeNames) {
     for (String storeName: storeNames) {
       storeDirDiffNs.putIfAbsent(storeName,
-          metricsRegistry.newTimer(group, String.format("%s-dir-diff-ns", storeName)));
+          metricsRegistry.newTimer(GROUP, String.format("%s-dir-diff-ns", storeName)));
       storeUploadNs.putIfAbsent(storeName,
-          metricsRegistry.newTimer(group, String.format("%s-upload-ns", storeName)));
+          metricsRegistry.newTimer(GROUP, String.format("%s-upload-ns", storeName)));
 
       storeFilesToUpload.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-files-to-upload", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-files-to-upload", storeName), 0L));
       storeFilesToRetain.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-files-to-retain", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-files-to-retain", storeName), 0L));
       storeFilesToRemove.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-files-to-remove", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-files-to-remove", storeName), 0L));
       storeSubDirsToUpload.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-sub-dirs-to-upload", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-sub-dirs-to-upload", storeName), 0L));
       storeSubDirsToRetain.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-sub-dirs-to-retain", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-sub-dirs-to-retain", storeName), 0L));
       storeSubDirsToRemove.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-sub-dirs-to-remove", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-sub-dirs-to-remove", storeName), 0L));
       storeBytesToUpload.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-bytes-to-upload", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-bytes-to-upload", storeName), 0L));
       storeBytesToRetain.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-bytes-to-retain", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-bytes-to-retain", storeName), 0L));
       storeBytesToRemove.putIfAbsent(storeName,
-          metricsRegistry.newGauge(group, String.format("%s-bytes-to-remove", storeName), 0L));
+          metricsRegistry.newGauge(GROUP, String.format("%s-bytes-to-remove", storeName), 0L));
     }
   }
 }

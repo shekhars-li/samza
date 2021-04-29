@@ -38,6 +38,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiPredicate;
 import org.apache.commons.io.FileUtils;
 import org.apache.samza.checkpoint.Checkpoint;
@@ -95,7 +96,8 @@ public class TestBlobStoreRestoreManager {
   private final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
   private final Counter counter = mock(Counter.class);
   private final Timer timer = mock(Timer.class);
-  private final Gauge<Long> gauge = mock(Gauge.class);
+  private final Gauge<Long> longGauge = mock(Gauge.class);
+  private final Gauge<AtomicLong> atomicLongGauge = mock(Gauge.class);
 
   //job and store definition
   private final CheckpointId checkpointId = CheckpointId.fromString("1234-567");
@@ -161,9 +163,11 @@ public class TestBlobStoreRestoreManager {
         });
 
     when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
-    when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(gauge);
+    when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(longGauge);
+    when(metricsRegistry.newGauge(anyString(), anyString(), any(AtomicLong.class))).thenReturn(atomicLongGauge);
+    when(atomicLongGauge.getValue()).thenReturn(new AtomicLong());
     when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
-    metrics = new BlobStoreRestoreManagerMetrics("test", metricsRegistry);
+    metrics = new BlobStoreRestoreManagerMetrics(metricsRegistry);
 
     blobStoreRestoreManager =
         new BlobStoreRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,

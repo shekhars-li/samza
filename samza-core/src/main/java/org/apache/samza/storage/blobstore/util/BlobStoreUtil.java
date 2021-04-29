@@ -103,7 +103,8 @@ public class BlobStoreUtil {
     // Upload all new files in the dir
     List<File> filesToUpload = dirDiff.getFilesAdded();
     List<CompletionStage<FileIndex>> fileFutures = filesToUpload.stream()
-        .map(file -> putFile(file, snapshotMetadata)).collect(Collectors.toList());
+        .map(file -> putFile(file, snapshotMetadata))
+        .collect(Collectors.toList());
 
     CompletableFuture<Void> allFilesFuture =
         CompletableFuture.allOf(fileFutures.toArray(new CompletableFuture[0]));
@@ -324,6 +325,13 @@ public class BlobStoreUtil {
         .whenComplete((res, ex) -> {
           if (backupMetrics != null) {
             backupMetrics.avgFileUploadNs.update(System.nanoTime() - putFileStartTime);
+
+            long fileSize = file.length();
+            backupMetrics.uploadRate.inc(fileSize);
+            backupMetrics.filesUploaded.getValue().addAndGet(1);
+            backupMetrics.bytesUploaded.getValue().addAndGet(fileSize);
+            backupMetrics.filesRemaining.getValue().addAndGet(-1);
+            backupMetrics.bytesRemaining.getValue().addAndGet(-1 * fileSize);
           }
         });
   }
@@ -403,6 +411,13 @@ public class BlobStoreUtil {
           resultFuture.whenComplete((res, ex) -> {
               if (restoreMetrics != null) {
                 restoreMetrics.avgFileRestoreNs.update(System.nanoTime() - restoreFileStartTime);
+
+                long fileSize = fileIndex.getFileMetadata().getSize();
+                restoreMetrics.restoreRate.inc(fileSize);
+                restoreMetrics.filesRestored.getValue().addAndGet(1);
+                restoreMetrics.bytesRestored.getValue().addAndGet(fileSize);
+                restoreMetrics.filesRemaining.getValue().addAndGet(-1);
+                restoreMetrics.bytesRemaining.getValue().addAndGet(-1 * fileSize);
               }
             });
 

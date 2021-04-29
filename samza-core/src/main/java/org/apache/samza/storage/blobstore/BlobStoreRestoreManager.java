@@ -120,20 +120,20 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
   @Override
   public void restore() {
     LOG.debug("Starting restore for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
-
     long restoreStartTime = System.nanoTime();
-    AtomicInteger filesToRestore = new AtomicInteger(0);
-    AtomicLong bytesToRestore = new AtomicLong(0);
-    AtomicInteger filesRestored = new AtomicInteger(0);
-    AtomicLong bytesRestored = new AtomicLong(0L);
 
     List<CompletionStage<Void>> restoreFutures = new ArrayList<>();
     prevStoreSnapshotIndexes.forEach((storeName, scmAndSnapshotIndex) -> {
       long storeRestoreStartTime = System.nanoTime();
       SnapshotIndex snapshotIndex = scmAndSnapshotIndex.getRight();
       DirIndex dirIndex = snapshotIndex.getDirIndex();
-      filesToRestore.addAndGet(dirIndex.getFilesPresent().size());
-      bytesToRestore.addAndGet(dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
+
+      // TODO MINOR shesharm: calculate recursively similar to DirDiff.Stats
+      long bytesToRestore = dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum();
+      metrics.filesToRestore.getValue().addAndGet(dirIndex.getFilesPresent().size());
+      metrics.bytesToRestore.getValue().addAndGet(bytesToRestore);
+      metrics.filesRemaining.getValue().addAndGet(dirIndex.getFilesPresent().size());
+      metrics.bytesRemaining.getValue().addAndGet(bytesToRestore);
 
       CheckpointId checkpointId = snapshotIndex.getSnapshotMetadata().getCheckpointId();
 
@@ -223,17 +223,6 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
                   long restoreTimeNs = System.nanoTime() - storeRestoreStartTime;
                   metrics.storeRestoreNs.get(storeName).set(restoreTimeNs);
 
-                  long dirIndexBytesRestored =
-                      dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum();
-                  metrics.filesYetToRestore.set(filesToRestore.longValue() - dirIndex.getFilesPresent().size());
-                  metrics.bytesYetToRestore.set(bytesToRestore.longValue() - dirIndexBytesRestored);
-
-                  filesRestored.addAndGet(dirIndex.getFilesPresent().size());
-                  bytesRestored.addAndGet(dirIndexBytesRestored);
-
-                  long downloadMbps = (dirIndexBytesRestored / restoreTimeNs) * 8000;
-                  metrics.downloadMbps.set(downloadMbps);
-
                   LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
                   if (!blobStoreUtil.areSameDir(filesToIgnore, false).test(storeDir, dirIndex)) {
                     throw new SamzaException(String.format("Restored store directory: %s contents " +
@@ -249,10 +238,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
     // wait for all restores to finish
     FutureUtil.allOf(restoreFutures).join(); // TODO BLOCKER pmaheshw remove
     LOG.info("Restore completed for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
-    // update metrics
     metrics.restoreNs.set(System.nanoTime() - restoreStartTime);
-    metrics.filesRestored.set(filesRestored.longValue());
-    metrics.bytesRestored.set(bytesRestored.longValue());
   }
 
   @Override

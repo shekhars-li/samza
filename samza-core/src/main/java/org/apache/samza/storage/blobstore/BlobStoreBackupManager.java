@@ -148,10 +148,14 @@ public class BlobStoreBackupManager implements TaskBackupManager {
   @Override
   public CompletableFuture<Map<String, String>> upload(CheckpointId checkpointId, Map<String, String> storeSCMs) {
     long uploadStartTime = System.nanoTime();
-    AtomicInteger filesToUpload = new AtomicInteger(0);
-    AtomicLong bytesToUpload = new AtomicLong(0);
-    AtomicInteger filesUploaded = new AtomicInteger(0);
-    AtomicLong bytesUploaded = new AtomicLong(0L);
+
+    // reset gauges for each upload
+    metrics.filesToUpload.getValue().set(0L);
+    metrics.bytesToUpload.getValue().set(0L);
+    metrics.filesUploaded.getValue().set(0L);
+    metrics.bytesUploaded.getValue().set(0L);
+    metrics.filesRemaining.getValue().set(0L);
+    metrics.bytesRemaining.getValue().set(0L);
 
     Map<String, CompletableFuture<Pair<String, SnapshotIndex>>>
         storeToSCMAndSnapshotIndexPairFutures = new HashMap<>();
@@ -192,10 +196,13 @@ public class BlobStoreBackupManager implements TaskBackupManager {
         // get the diff between previous and current store directories
         DirDiff dirDiff = DirDiffUtil.getDirDiff(checkpointDir, prevDirIndex, BlobStoreUtil.areSameFile(false));
         metrics.storeDirDiffNs.get(storeName).update(System.nanoTime() - dirDiffStartTime);
+
         DirDiff.Stats stats = DirDiff.getStats(dirDiff);
         updateStoreDiffMetrics(storeName, stats);
-        filesToUpload.addAndGet(stats.filesAdded);
-        bytesToUpload.addAndGet(stats.bytesAdded);
+        metrics.filesToUpload.getValue().addAndGet(stats.filesAdded);
+        metrics.bytesToUpload.getValue().addAndGet(stats.bytesAdded);
+        metrics.filesRemaining.getValue().addAndGet(stats.filesAdded);
+        metrics.bytesRemaining.getValue().addAndGet(stats.bytesAdded);
 
         // upload the diff to the blob store and get the new directory index
         CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
@@ -225,16 +232,6 @@ public class BlobStoreBackupManager implements TaskBackupManager {
         scmAndSnapshotIndexPairFuture.whenComplete((res, ex) -> {
           long uploadTimeNs = System.nanoTime() - storeUploadStartTime;
           metrics.storeUploadNs.get(storeName).update(uploadTimeNs);
-
-          metrics.filesYetToUpload.set(filesToUpload.longValue() - dirDiff.getFilesAdded().size());
-          long dirDiffBytesUploaded = dirDiff.getFilesAdded().stream().mapToLong(File::length).sum();
-          metrics.bytesYetToUpload.set(bytesToUpload.longValue() - dirDiffBytesUploaded);
-
-          long uploadMbps = (dirDiffBytesUploaded/uploadTimeNs) * 8000;
-          metrics.uploadMbps.set(uploadMbps);
-
-          filesUploaded.addAndGet(dirDiff.getFilesAdded().size());
-          bytesUploaded.addAndGet(dirDiffBytesUploaded);
         });
 
         storeToSCMAndSnapshotIndexPairFutures.put(storeName, scmAndSnapshotIndexPairFuture);
@@ -251,11 +248,7 @@ public class BlobStoreBackupManager implements TaskBackupManager {
         FutureUtil.toFutureOfMap(storeToSCMAndSnapshotIndexPairFutures);
 
     return FutureUtil.toFutureOfMap(storeToSerializedSCMFuture)
-        .whenComplete((res, ex) -> {
-          metrics.uploadNs.update(System.nanoTime() - uploadStartTime);
-          metrics.filesUploaded.set(filesUploaded.longValue());
-          metrics.bytesUploaded.set(bytesUploaded.longValue());
-        });
+        .whenComplete((res, ex) -> metrics.uploadNs.update(System.nanoTime() - uploadStartTime));
   }
 
   /**
