@@ -73,7 +73,6 @@ import org.slf4j.LoggerFactory;
 
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
-import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anySet;
 import static org.mockito.Mockito.anySetOf;
 import static org.mockito.Mockito.anyString;
@@ -205,7 +204,7 @@ public class TestBlobStoreRestoreManager {
     // mock: do not complete any restore. Return immediately
     when(blobStoreUtil.restoreDir(any(), any()))
         .thenReturn(Collections.singletonList(CompletableFuture.completedFuture(null)));
-    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((u,v)->true);
+    when(blobStoreUtil.areSameDir(anySet())).thenReturn((u,v)->true);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();
@@ -243,7 +242,7 @@ public class TestBlobStoreRestoreManager {
 
     // Mock areSameDir to always return true
     BiPredicate<File, DirIndex> mockPredicate = ((u, v) -> true);
-    when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicate);
+    when(blobStoreUtil.areSameDir(anySetOf(String.class))).thenReturn(mockPredicate);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();
@@ -294,7 +293,7 @@ public class TestBlobStoreRestoreManager {
     BiPredicate<File, DirIndex> mockPredicateFalse = ((u, v) -> false);
     // areSameDir returns false on first call (to check if checkpoint dir is same as remote) and then true for second
     // call (to check if the restore was done correctly).
-    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn(mockPredicateFalse, mockPredicateTrue);
+    when(blobStoreUtil.areSameDir(anySet())).thenReturn(mockPredicateFalse, mockPredicateTrue);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();
@@ -340,7 +339,7 @@ public class TestBlobStoreRestoreManager {
 
     // Mock areSameDir to always return false and then true
     BiPredicate<File, DirIndex> mockPredicateTrue = ((u, v) -> true);
-    when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicateTrue);
+    when(blobStoreUtil.areSameDir(anySetOf(String.class))).thenReturn(mockPredicateTrue);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();

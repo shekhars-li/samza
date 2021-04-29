@@ -20,14 +20,6 @@
 package org.apache.samza.storage.blobstore;
 
 import com.google.common.collect.ImmutableSet;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.samza.container.TaskName;
-import org.apache.samza.storage.blobstore.index.DirIndex;
-import org.apache.samza.storage.blobstore.index.SnapshotIndex;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreRestoreManagerMetrics;
-import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
-import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,12 +41,18 @@ import org.apache.samza.checkpoint.Checkpoint;
 import org.apache.samza.checkpoint.CheckpointId;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.StorageConfig;
+import org.apache.samza.container.TaskName;
 import org.apache.samza.job.model.TaskMode;
 import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.TaskRestoreManager;
-import org.apache.samza.util.FutureUtil;
+import org.apache.samza.storage.blobstore.index.DirIndex;
+import org.apache.samza.storage.blobstore.index.SnapshotIndex;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreRestoreManagerMetrics;
+import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
+import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.util.FileUtil;
+import org.apache.samza.util.FutureUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,7 +165,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
           LOG.debug("Restoring task: {} store: {} from remote snapshot since the store is configured to be " +
               "restored on each restart.", taskName, storeName);
           restoreStore = true;
-        } else if (blobStoreUtil.areSameDir(filesToIgnore, true).test(storeCheckpointDirPath.toFile(), dirIndex)) {
+        } else if (blobStoreUtil.areSameDir(filesToIgnore).test(storeCheckpointDirPath.toFile(), dirIndex)) {
         // TODO BLOCKER shesharm check if the checkpoint directory contents are valid (i.e. identical to remote snapshot)
         // exclude the "OFFSET" family of files files etc that are written to the checkpoint dir
         // after the remote upload is complete as part of TaskStorageCommitManager#writeCheckpointToStoreDirectories.
@@ -224,7 +222,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
                   metrics.storeRestoreNs.get(storeName).set(restoreTimeNs);
 
                   LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
-                  if (!blobStoreUtil.areSameDir(filesToIgnore, false).test(storeDir, dirIndex)) {
+                  if (!blobStoreUtil.areSameDir(filesToIgnore).test(storeDir, dirIndex)) {
                     throw new SamzaException(String.format("Restored store directory: %s contents " +
                         "are not the same as the remote snapshot.", storeDir.getAbsolutePath()));
                   } else {

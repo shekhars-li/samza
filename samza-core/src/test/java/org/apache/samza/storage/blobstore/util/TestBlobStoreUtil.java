@@ -53,10 +53,6 @@ import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.samza.SamzaException;
 import org.apache.samza.checkpoint.CheckpointId;
-import org.apache.samza.metrics.Counter;
-import org.apache.samza.metrics.Gauge;
-import org.apache.samza.metrics.MetricsRegistry;
-import org.apache.samza.metrics.Timer;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
 import org.apache.samza.storage.blobstore.PutMetadata;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
@@ -69,7 +65,6 @@ import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
 import org.apache.samza.util.FileUtil;
 import org.apache.samza.util.FutureUtil;
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -79,7 +74,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -532,17 +528,12 @@ public class TestBlobStoreUtil {
     // checksum should be ignored for sst file. Set any dummy value
     FileIndex sstFileIndex = new FileIndex(sstFile.getFileName().toString(), Collections.emptyList(), sstFileMetadata, 0L);
 
-    assertTrue(BlobStoreUtil.areSameFile(true).test(sstFile.toFile(), sstFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile().test(sstFile.toFile(), sstFileIndex));
 
-    // 2. test with sst file with different attributes
+    // 2. test with sst file with different timestamps
     // Update last modified time
     Files.setLastModifiedTime(sstFile, FileTime.fromMillis(System.currentTimeMillis()+1000L));
-    assertFalse(BlobStoreUtil.areSameFile(true).test(sstFile.toFile(), sstFileIndex));
-
-    // 2. test with sst file with compareTimestamps false
-    // Update last modified time
-    Files.setLastModifiedTime(sstFile, FileTime.fromMillis(System.currentTimeMillis()+1000L));
-    assertTrue(BlobStoreUtil.areSameFile(false).test(sstFile.toFile(), sstFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile().test(sstFile.toFile(), sstFileIndex));
 
     // 3. test with non-sst files with same metadata and content
     Path tmpFile = Files.createTempFile("samza-testAreSameFiles-", ".tmp");
@@ -555,18 +546,18 @@ public class TestBlobStoreUtil {
     FileIndex tmpFileIndex = new FileIndex(tmpFile.getFileName().toString(), Collections.emptyList(), tmpFileMetadata,
         FileUtils.checksumCRC32(tmpFile.toFile()));
 
-    assertTrue(BlobStoreUtil.areSameFile(true).test(tmpFile.toFile(), tmpFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile().test(tmpFile.toFile(), tmpFileIndex));
 
     // 4. test with non-sst files with different attributes
     // change lastModifiedTime of local file
     FileTime prevLastModified = tmpFileAttribs.lastModifiedTime();
     Files.setLastModifiedTime(tmpFile, FileTime.fromMillis(System.currentTimeMillis()+1000L));
-    assertFalse(BlobStoreUtil.areSameFile(true).test(tmpFile.toFile(), tmpFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile().test(tmpFile.toFile(), tmpFileIndex));
 
     // change content/checksum of local file
     Files.setLastModifiedTime(tmpFile, prevLastModified); // reset attributes to match with remote file
     fileUtil.writeToTextFile(tmpFile.toFile(), RandomStringUtils.random(1000), false); //new content
-    assertFalse(BlobStoreUtil.areSameFile(true).test(tmpFile.toFile(), tmpFileIndex));
+    assertFalse(BlobStoreUtil.areSameFile().test(tmpFile.toFile(), tmpFileIndex));
   }
 
   @Test
@@ -621,7 +612,7 @@ public class TestBlobStoreUtil {
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
     FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
 
-    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
+    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet()).test(restoreDirBasePath.toFile(), mockDirIndex));
   }
 
   @Test
@@ -678,7 +669,7 @@ public class TestBlobStoreUtil {
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
     FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
 
-    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
+    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet()).test(restoreDirBasePath.toFile(), mockDirIndex));
   }
 
   @Test
@@ -753,7 +744,7 @@ public class TestBlobStoreUtil {
           return CompletableFuture.completedFuture(null);
         });
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
-    boolean result = blobStoreUtil.areSameDir(new TreeSet<>(), true).test(localSnapshot.toFile(), dirIndex);
+    boolean result = blobStoreUtil.areSameDir(new TreeSet<>()).test(localSnapshot.toFile(), dirIndex);
     assertFalse(result);
     //ToDo complete
   }
@@ -783,7 +774,7 @@ public class TestBlobStoreUtil {
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
     FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), dirIndex)).join();
 
-    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false)
+    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet())
         .test(restoreDirBasePath.toFile(), dirIndex));
   }
 

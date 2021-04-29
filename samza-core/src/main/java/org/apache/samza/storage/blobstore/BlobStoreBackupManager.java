@@ -20,16 +20,6 @@
 package org.apache.samza.storage.blobstore;
 
 import com.google.common.collect.ImmutableMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.samza.storage.blobstore.diff.DirDiff;
-import org.apache.samza.storage.blobstore.index.DirIndex;
-import org.apache.samza.storage.blobstore.index.SnapshotIndex;
-import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
-import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
-import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
-import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
-import org.apache.samza.storage.blobstore.util.DirDiffUtil;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -54,6 +44,14 @@ import org.apache.samza.job.model.JobModel;
 import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.TaskBackupManager;
+import org.apache.samza.storage.blobstore.diff.DirDiff;
+import org.apache.samza.storage.blobstore.index.DirIndex;
+import org.apache.samza.storage.blobstore.index.SnapshotIndex;
+import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
+import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
+import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
+import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
+import org.apache.samza.storage.blobstore.util.DirDiffUtil;
 import org.apache.samza.util.Clock;
 import org.apache.samza.util.FutureUtil;
 import org.slf4j.Logger;
@@ -194,7 +192,7 @@ public class BlobStoreBackupManager implements TaskBackupManager {
 
         long dirDiffStartTime = System.nanoTime();
         // get the diff between previous and current store directories
-        DirDiff dirDiff = DirDiffUtil.getDirDiff(checkpointDir, prevDirIndex, BlobStoreUtil.areSameFile(false));
+        DirDiff dirDiff = DirDiffUtil.getDirDiff(checkpointDir, prevDirIndex, BlobStoreUtil.areSameFile());
         metrics.storeDirDiffNs.get(storeName).update(System.nanoTime() - dirDiffStartTime);
 
         DirDiff.Stats stats = DirDiff.getStats(dirDiff);

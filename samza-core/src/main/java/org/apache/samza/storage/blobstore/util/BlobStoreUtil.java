@@ -530,15 +530,10 @@ public class BlobStoreUtil {
    * Bipredicate to test a local file in the filesystem and a remote file {@link FileIndex} and find out if they represent
    * the same file. Files with same attributes as well as content are same file. A SST file in a special case. They are
    * immutable, so we only compare their attributes but not the content.
-   * @param compareTimestamps whether to compare the created and modified timestamps. during uploads its useful
-   *                        to compare the timestamps to ensure that the local file contents have not been modified
-   *                        since the last upload, so this should be set to {@code true}. after restore, it's not
-   *                        useful to compare timestamps since the restored file timestamps will be newer than
-   *                        the remote file, so this should be set to {@code false}
    * @return BiPredicate to test similarity of local and remote files
    * @throws SamzaException describing the failure
    */
-  public static BiPredicate<File, FileIndex> areSameFile(boolean compareTimestamps) {
+  public static BiPredicate<File, FileIndex> areSameFile() {
     return (localFile, remoteFile) -> {
       if (localFile.getName().equals(remoteFile.getFileName())) {
         FileMetadata remoteFileMetadata = remoteFile.getFileMetadata();
@@ -551,15 +546,10 @@ public class BlobStoreUtil {
           throw new RuntimeException(String.format("Error reading attributes for file: %s", localFile.getAbsolutePath()));
         }
 
-        boolean areSameFiles = true;
+        // Don't compare file timestamps. The ctime of a local file just restored will be different than the
+        // remote file, and will cause the file to be uploaded again during the first commit after restore.
 
-        if (compareTimestamps) {
-          areSameFiles =
-              localFileAttrs.creationTime().toMillis() == remoteFileMetadata.getCreationTimeMillis() &&
-              localFileAttrs.lastModifiedTime().toMillis() == remoteFileMetadata.getLastModifiedTimeMillis();
-        }
-
-        areSameFiles = areSameFiles &&
+        boolean areSameFiles =
             localFileAttrs.size() == remoteFileMetadata.getSize() &&
             localFileAttrs.group().getName().equals(remoteFileMetadata.getGroup()) &&
             localFileAttrs.owner().getName().equals(remoteFileMetadata.getOwner()) &&
@@ -567,17 +557,15 @@ public class BlobStoreUtil {
 
         if (!areSameFiles) {
           LOG.debug("Local file {} and remote file {} are not same. " +
-                  "Local file attributes: {}. Remote file attributes: {}. " +
-                  "Comparing timestamps: {}",
+                  "Local file attributes: {}. Remote file attributes: {}.",
               localFile.getAbsolutePath(), remoteFile.getFileName(),
-              fileAttributesToString(localFileAttrs), remoteFile.getFileMetadata().toString(), compareTimestamps);
+              fileAttributesToString(localFileAttrs), remoteFile.getFileMetadata().toString());
           return false;
         } else {
           LOG.trace("Local file {}. Remote file {}. " +
-                  "Local file attributes: {}. Remote file attributes: {}. " +
-                  "Comparing timestamps: {}",
+                  "Local file attributes: {}. Remote file attributes: {}.",
               localFile.getAbsolutePath(), remoteFile.getFileName(),
-              fileAttributesToString(localFileAttrs), remoteFile.getFileMetadata().toString(), compareTimestamps);
+              fileAttributesToString(localFileAttrs), remoteFile.getFileMetadata().toString());
         }
 
         if (localFile.getName().endsWith(SST_FILE_EXTENSION)) {
@@ -619,23 +607,21 @@ public class BlobStoreUtil {
   /**
    * Checks if a local directory and a remote directory are identical. Local and remote directories are identical iff:
    * 1. The local directory has exactly the same set of files as the remote directory, and the files are themselves
-   * identical, as determined by {@link #areSameFile(boolean)}, except for those allowed to differ according to
+   * identical, as determined by {@link #areSameFile()}, except for those allowed to differ according to
    * {@param filesToIgnore}.
    * 2. The local directory has exactly the same set of sub-directories as the remote directory.
    *
    * @param filesToIgnore a set of file names to ignore during the directory comparisons
    *                      (does not exclude directory names)
-   * @param compareTimestamps whether to compare timestamps when comparing files in directory.
-   *                          See {@link #areSameFile(boolean)}.
    * @return boolean indicating whether the local and remote directory are identical.
    */
   // TODO HIGH shesharm add unit tests
-  public BiPredicate<File, DirIndex> areSameDir(Set<String> filesToIgnore, boolean compareTimestamps) {
+  public BiPredicate<File, DirIndex> areSameDir(Set<String> filesToIgnore) {
     return (localDir, remoteDir) -> {
       String remoteDirName = remoteDir.getDirName().equals(DirIndex.ROOT_DIR_NAME) ? "root" : remoteDir.getDirName();
-      LOG.debug("Creating diff between local dir: {} and remote dir: {} for comparison. Compare timestamps: {}",
-          localDir.getAbsolutePath(), remoteDirName, compareTimestamps);
-      DirDiff dirDiff = DirDiffUtil.getDirDiff(localDir, remoteDir, BlobStoreUtil.areSameFile(compareTimestamps));
+      LOG.debug("Creating diff between local dir: {} and remote dir: {} for comparison.",
+          localDir.getAbsolutePath(), remoteDirName);
+      DirDiff dirDiff = DirDiffUtil.getDirDiff(localDir, remoteDir, BlobStoreUtil.areSameFile());
 
       boolean areSameDir = true;
       List<String> filesRemoved = dirDiff.getFilesRemoved().stream()
@@ -685,7 +671,7 @@ public class BlobStoreUtil {
         String localSubDirName = subDirRetained.getDirName();
         File localSubDirFile = Paths.get(localDir.getAbsolutePath(), localSubDirName).toFile();
         DirIndex remoteSubDir = remoteSubDirs.get(localSubDirName);
-        boolean areSameSubDir = areSameDir(filesToIgnore, compareTimestamps).test(localSubDirFile, remoteSubDir);
+        boolean areSameSubDir = areSameDir(filesToIgnore).test(localSubDirFile, remoteSubDir);
         if (!areSameSubDir) {
           LOG.debug("Local sub-dir: {} and remote sub-dir: {} are not same.",
               localSubDirFile.getAbsolutePath(), remoteSubDir.getDirName());
@@ -693,8 +679,8 @@ public class BlobStoreUtil {
         }
       }
 
-      LOG.debug("Local dir: {} and remote dir: {} are {}the same. Comparing timestamps: {}",
-          localDir.getAbsolutePath(), remoteDirName, areSameDir ? "" : "not ", compareTimestamps);
+      LOG.debug("Local dir: {} and remote dir: {} are {}the same.",
+          localDir.getAbsolutePath(), remoteDirName, areSameDir ? "" : "not ");
       return areSameDir;
     };
   }
