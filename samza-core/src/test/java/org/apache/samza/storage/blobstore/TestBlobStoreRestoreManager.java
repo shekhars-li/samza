@@ -99,7 +99,7 @@ public class TestBlobStoreRestoreManager {
   private final Gauge<AtomicLong> atomicLongGauge = mock(Gauge.class);
 
   //job and store definition
-  private final CheckpointId checkpointId = CheckpointId.fromString("1234-567");
+  private final CheckpointId checkpointId = CheckpointId.deserialize("1234-567");
   private final String jobName = "testJobName";
   private final String jobId = "testJobID";
   private final String taskName = "testTaskName";
@@ -269,8 +269,8 @@ public class TestBlobStoreRestoreManager {
           String snapshotIndexBlobId = testStoreNameAndSCMMap.get(storeName);
           String storeDir = indexBlobIdAndLocalRemoteSnapshotsPair.get(snapshotIndexBlobId).getFirst();
           try {
-            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.toString()); // create test checkpoint dir
-            checkpointDirsToClean.add(storeDir + "-" + checkpointId.toString()); // track checkpoint dir to cleanup later
+            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.serialize()); // create test checkpoint dir
+            checkpointDirsToClean.add(storeDir + "-" + checkpointId.serialize()); // track checkpoint dir to cleanup later
           } catch (IOException e) {
             Assert.fail("Couldn't create checkpoint directory. Test failed.");
           }
@@ -329,8 +329,8 @@ public class TestBlobStoreRestoreManager {
           String snapshotIndexBlobId = testStoreNameAndSCMMap.get(storeName);
           String storeDir = indexBlobIdAndLocalRemoteSnapshotsPair.get(snapshotIndexBlobId).getFirst();
           try {
-            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.toString()); // create test checkpoint dir
-            checkpointDirsToClean.add(storeDir + "-" + checkpointId.toString()); // track checkpoint dir to cleanup later
+            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.serialize()); // create test checkpoint dir
+            checkpointDirsToClean.add(storeDir + "-" + checkpointId.serialize()); // track checkpoint dir to cleanup later
           } catch (IOException e) {
             Assert.fail("Couldn't create checkpoint directory. Test failed.");
           }

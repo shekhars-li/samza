@@ -92,7 +92,7 @@ public class TestBlobStoreBackupManager {
   private final StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
 
   //job and store definition
-  private final CheckpointId checkpointId = CheckpointId.fromString("1234-567");
+  private final CheckpointId checkpointId = CheckpointId.deserialize("1234-567");
   private final String jobName = "testJobName";
   private final String jobId = "testJobID";
   private final String taskName = "testTaskName";
@@ -190,8 +190,8 @@ public class TestBlobStoreBackupManager {
           String snapshotIndexBlobId = testStoreNameAndSCMMap.get(storeName);
           String storeDir = indexBlobIdAndLocalRemoteSnapshotsPair.get(snapshotIndexBlobId).getFirst();
           try {
-            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.toString()); // create test checkpoint dir
-            checkpointDirsToClean.add(storeDir + "-" + checkpointId.toString()); // track checkpoint dir to cleanup later
+            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.serialize()); // create test checkpoint dir
+            checkpointDirsToClean.add(storeDir + "-" + checkpointId.serialize()); // track checkpoint dir to cleanup later
           } catch (IOException e) {
             Assert.fail("Couldn't create checkpoint directory. Test failed.");
           }
@@ -236,7 +236,7 @@ public class TestBlobStoreBackupManager {
     // setup expected dir diffs after execute: needs checkpoint dirs created in upload()
     TreeSet<DirDiff> expectedDirDiffs = indexBlobIdAndLocalRemoteSnapshotsPair.values().stream()
         .map(localRemoteSnapshotPair -> {
-          File localCheckpointDir = new File(localRemoteSnapshotPair.getFirst() + "-" + checkpointId.toString());
+          File localCheckpointDir = new File(localRemoteSnapshotPair.getFirst() + "-" + checkpointId.serialize());
           DirIndex dirIndex = new DirIndex(localCheckpointDir.getName(), Collections.emptyList(), Collections.emptyList(),
               Collections.emptyList(), Collections.emptyList());
           return DirDiffUtil.getDirDiff(localCheckpointDir, dirIndex, BlobStoreUtil.areSameFile());
@@ -285,8 +285,8 @@ public class TestBlobStoreBackupManager {
           String snapshotIndexBlobId = testStoreNameAndSCMMap.get(storeName);
           String storeDir = indexBlobIdAndLocalRemoteSnapshotsPair.get(snapshotIndexBlobId).getFirst();
           try { // create test checkpoint dir
-            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.toString());
-            checkpointDirsToClean.add(storeDir + "-" + checkpointId.toString());
+            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.serialize());
+            checkpointDirsToClean.add(storeDir + "-" + checkpointId.serialize());
           } catch (IOException e) {
             Assert.fail("Couldn't create checkpoint directory. Test failed.");
           }
@@ -330,7 +330,7 @@ public class TestBlobStoreBackupManager {
     TreeSet<DirDiff> expectedDirDiffs = indexBlobIdAndLocalRemoteSnapshotsPair.values()
         .stream()
         .map(localRemoteSnapshotPair ->
-            DirDiffUtil.getDirDiff(new File(localRemoteSnapshotPair.getFirst() + "-" + checkpointId.toString()),
+            DirDiffUtil.getDirDiff(new File(localRemoteSnapshotPair.getFirst() + "-" + checkpointId.serialize()),
             localRemoteSnapshotPair.getSecond().getDirIndex(), BlobStoreUtil.areSameFile()))
         .collect(Collectors.toCollection(() -> new TreeSet<>(Comparator.comparing(DirDiff::getDirName))));
 

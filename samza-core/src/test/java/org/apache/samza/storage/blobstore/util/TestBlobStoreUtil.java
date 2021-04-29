@@ -81,7 +81,7 @@ import static org.mockito.Mockito.when;
 
 public class TestBlobStoreUtil {
   private static final ExecutorService EXECUTOR = MoreExecutors.newDirectExecutorService();
-  private final CheckpointId checkpointId = CheckpointId.fromString("1234-567");
+  private final CheckpointId checkpointId = CheckpointId.deserialize("1234-567");
   private final String jobName = "jobName";
   private final String jobId = "jobId";
   private final String taskName = "taskName";
