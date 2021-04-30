@@ -81,7 +81,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
       BlobStoreRestoreManagerMetrics metrics, Config config, StorageManagerUtil storageManagerUtil,
       BlobStoreUtil blobStoreUtil, File loggedBaseDir, File nonLoggedBaseDir) {
     this.taskModel = taskModel;
-    this.executor = restoreExecutor; // TODO BLOCKER pmaheshw dont block on restore executor
+    this.executor = restoreExecutor; // TODO BLOCKER dchen1 dont block on restore executor
     this.config = config;
     this.storageManagerUtil = storageManagerUtil;
     this.blobStoreUtil = blobStoreUtil;
@@ -151,13 +151,15 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
         throw new SamzaException(String.format("Error deleting store directory: %s", storeDir), e);
       }
 
+      // when checking if checkpoint dir is the same as remote snapshot, exclude the "OFFSET" family of files files
+      // that are written to the checkpoint dir after the remote upload is complete as part of
+      // TaskStorageCommitManager#writeCheckpointToStoreDirectories.
       Set<String> filesToIgnore = ImmutableSet.of(
           StorageManagerUtil.OFFSET_FILE_NAME_LEGACY,
           StorageManagerUtil.OFFSET_FILE_NAME_NEW,
           StorageManagerUtil.SIDE_INPUT_OFFSET_FILE_NAME_LEGACY,
           StorageManagerUtil.CHECKPOINT_FILE_NAME);
 
-      // TODO BLOCKER pmaheshw: add error handling e.g. on sameDir comparision failures.
       // if a store checkpoint directory exists for the last successful task checkpoint, try to use it.
       boolean restoreStore;
       if (Files.exists(storeCheckpointDirPath)) {
@@ -165,12 +167,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
           LOG.debug("Restoring task: {} store: {} from remote snapshot since the store is configured to be " +
               "restored on each restart.", taskName, storeName);
           restoreStore = true;
-        } else if (blobStoreUtil.areSameDir(filesToIgnore).test(storeCheckpointDirPath.toFile(), dirIndex)) {
-        // TODO BLOCKER shesharm check if the checkpoint directory contents are valid (i.e. identical to remote snapshot)
-        // exclude the "OFFSET" family of files files etc that are written to the checkpoint dir
-        // after the remote upload is complete as part of TaskStorageCommitManager#writeCheckpointToStoreDirectories.
-        // TODO HIGH shesharm add tests that the exclude works correctly and that it doesn't always restore fully
-
+        } else if (blobStoreUtil.areSameDir(filesToIgnore, true).test(storeCheckpointDirPath.toFile(), dirIndex)) {
           LOG.debug("Renaming store checkpoint directory: {} to store directory: {} since its contents are identical " +
               "to the remote snapshot.", storeCheckpointDirPath, storeDir);
           // atomically rename the checkpoint dir to the store dir
@@ -214,18 +211,21 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
               String.format("Error deleting local store checkpoint directory: %s before restore.",
                   storeCheckpointDirPath));
         }
+        metrics.storePreRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
 
         CompletableFuture<Void> restoreFuture =
             FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex))
                 .thenRunAsync(() -> {
-                  long restoreTimeNs = System.nanoTime() - storeRestoreStartTime;
-                  metrics.storeRestoreNs.get(storeName).set(restoreTimeNs);
+                  metrics.storeRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
 
+                  long postRestoreStartTime = System.nanoTime();
                   LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
-                  if (!blobStoreUtil.areSameDir(filesToIgnore).test(storeDir, dirIndex)) {
+                  if (!blobStoreUtil.areSameDir(filesToIgnore, true).test(storeDir, dirIndex)) {
+                    metrics.storePostRestoreNs.get(storeName).set(System.nanoTime() - postRestoreStartTime);
                     throw new SamzaException(String.format("Restored store directory: %s contents " +
                         "are not the same as the remote snapshot.", storeDir.getAbsolutePath()));
                   } else {
+                    metrics.storePostRestoreNs.get(storeName).set(System.nanoTime() - postRestoreStartTime);
                     LOG.info("Restore from remote snapshot completed for store: {}", storeDir);
                   }
                 }, executor);
@@ -234,9 +234,10 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
     });
 
     // wait for all restores to finish
-    FutureUtil.allOf(restoreFutures).join(); // TODO BLOCKER pmaheshw remove
-    LOG.info("Restore completed for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
-    metrics.restoreNs.set(System.nanoTime() - restoreStartTime);
+    FutureUtil.allOf(restoreFutures).whenComplete((res, ex) -> {
+      LOG.info("Restore completed for task: {} stores: {}", taskName, prevStoreSnapshotIndexes.keySet());
+      metrics.restoreNs.set(System.nanoTime() - restoreStartTime);
+    }).join(); // TODO BLOCKER dchen1 make non-blocking.
   }
 
   @Override

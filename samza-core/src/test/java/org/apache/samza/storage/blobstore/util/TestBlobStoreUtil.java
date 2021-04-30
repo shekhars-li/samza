@@ -528,12 +528,12 @@ public class TestBlobStoreUtil {
     // checksum should be ignored for sst file. Set any dummy value
     FileIndex sstFileIndex = new FileIndex(sstFile.getFileName().toString(), Collections.emptyList(), sstFileMetadata, 0L);
 
-    assertTrue(BlobStoreUtil.areSameFile().test(sstFile.toFile(), sstFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile(false).test(sstFile.toFile(), sstFileIndex));
 
     // 2. test with sst file with different timestamps
     // Update last modified time
     Files.setLastModifiedTime(sstFile, FileTime.fromMillis(System.currentTimeMillis()+1000L));
-    assertTrue(BlobStoreUtil.areSameFile().test(sstFile.toFile(), sstFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile(false).test(sstFile.toFile(), sstFileIndex));
 
     // 3. test with non-sst files with same metadata and content
     Path tmpFile = Files.createTempFile("samza-testAreSameFiles-", ".tmp");
@@ -546,18 +546,18 @@ public class TestBlobStoreUtil {
     FileIndex tmpFileIndex = new FileIndex(tmpFile.getFileName().toString(), Collections.emptyList(), tmpFileMetadata,
         FileUtils.checksumCRC32(tmpFile.toFile()));
 
-    assertTrue(BlobStoreUtil.areSameFile().test(tmpFile.toFile(), tmpFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile(false).test(tmpFile.toFile(), tmpFileIndex));
 
     // 4. test with non-sst files with different attributes
     // change lastModifiedTime of local file
     FileTime prevLastModified = tmpFileAttribs.lastModifiedTime();
     Files.setLastModifiedTime(tmpFile, FileTime.fromMillis(System.currentTimeMillis()+1000L));
-    assertTrue(BlobStoreUtil.areSameFile().test(tmpFile.toFile(), tmpFileIndex));
+    assertTrue(BlobStoreUtil.areSameFile(false).test(tmpFile.toFile(), tmpFileIndex));
 
     // change content/checksum of local file
     Files.setLastModifiedTime(tmpFile, prevLastModified); // reset attributes to match with remote file
     fileUtil.writeToTextFile(tmpFile.toFile(), RandomStringUtils.random(1000), false); //new content
-    assertFalse(BlobStoreUtil.areSameFile().test(tmpFile.toFile(), tmpFileIndex));
+    assertFalse(BlobStoreUtil.areSameFile(false).test(tmpFile.toFile(), tmpFileIndex));
   }
 
   @Test
@@ -612,7 +612,7 @@ public class TestBlobStoreUtil {
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
     FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
 
-    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet()).test(restoreDirBasePath.toFile(), mockDirIndex));
+    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
   }
 
   @Test
@@ -669,7 +669,7 @@ public class TestBlobStoreUtil {
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
     FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
 
-    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet()).test(restoreDirBasePath.toFile(), mockDirIndex));
+    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
   }
 
   @Test
@@ -744,7 +744,7 @@ public class TestBlobStoreUtil {
           return CompletableFuture.completedFuture(null);
         });
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
-    boolean result = blobStoreUtil.areSameDir(new TreeSet<>()).test(localSnapshot.toFile(), dirIndex);
+    boolean result = blobStoreUtil.areSameDir(new TreeSet<>(), false).test(localSnapshot.toFile(), dirIndex);
     assertFalse(result);
     //ToDo complete
   }
@@ -774,7 +774,7 @@ public class TestBlobStoreUtil {
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
     FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), dirIndex)).join();
 
-    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet())
+    assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false)
         .test(restoreDirBasePath.toFile(), dirIndex));
   }
 

@@ -31,7 +31,9 @@ public class BlobStoreRestoreManagerMetrics {
   public final Counter restoreRate;
 
   // per store breakdowns
+  public final Map<String, Gauge<Long>> storePreRestoreNs;
   public final Map<String, Gauge<Long>> storeRestoreNs;
+  public final Map<String, Gauge<Long>> storePostRestoreNs;
 
   // ToDO move to SamzaHistogram
   public final Timer avgFileRestoreNs; // avg time for each file restored
@@ -53,15 +55,21 @@ public class BlobStoreRestoreManagerMetrics {
 
     this.restoreRate = metricsRegistry.newCounter(GROUP, "restore-rate");
 
+    this.storePreRestoreNs = new ConcurrentHashMap<>();
     this.storeRestoreNs = new ConcurrentHashMap<>();
+    this.storePostRestoreNs = new ConcurrentHashMap<>();
 
     this.avgFileRestoreNs = metricsRegistry.newTimer(GROUP, "avg-file-restore-ns");
   }
 
   public void initStoreMetrics(Collection<String> storeNames) {
     for (String storeName: storeNames) {
+      storePreRestoreNs.putIfAbsent(storeName,
+          metricsRegistry.newGauge(GROUP, String.format("%s-pre-restore-ns", storeName), 0L));
       storeRestoreNs.putIfAbsent(storeName,
           metricsRegistry.newGauge(GROUP, String.format("%s-restore-ns", storeName), 0L));
+      storePostRestoreNs.putIfAbsent(storeName,
+          metricsRegistry.newGauge(GROUP, String.format("%s-post-restore-ns", storeName), 0L));
     }
   }
 }

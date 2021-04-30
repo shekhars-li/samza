@@ -336,8 +336,6 @@ public class BlobStoreUtil {
         });
   }
 
-  // TODO BLOCKER pmaheshw why/where do we care about the Offset/Checkpoint files in the store dir?
-  // A: use when finding valid checkpoint directory for checkpoint id, checkpoint in dir should equal init checkpoint.
   /**
    * Non-blocking restore of a {@link SnapshotIndex} to local store by downloading all the files and sub-dirs associated
    * with this remote snapshot.
@@ -530,10 +528,10 @@ public class BlobStoreUtil {
    * Bipredicate to test a local file in the filesystem and a remote file {@link FileIndex} and find out if they represent
    * the same file. Files with same attributes as well as content are same file. A SST file in a special case. They are
    * immutable, so we only compare their attributes but not the content.
+   * @param compareLargeFileChecksums whether to compare checksums for large files (> 1 MB).
    * @return BiPredicate to test similarity of local and remote files
-   * @throws SamzaException describing the failure
    */
-  public static BiPredicate<File, FileIndex> areSameFile() {
+  public static BiPredicate<File, FileIndex> areSameFile(boolean compareLargeFileChecksums) {
     return (localFile, remoteFile) -> {
       if (localFile.getName().equals(remoteFile.getFileName())) {
         FileMetadata remoteFileMetadata = remoteFile.getFileMetadata();
@@ -568,12 +566,13 @@ public class BlobStoreUtil {
               fileAttributesToString(localFileAttrs), remoteFile.getFileMetadata().toString());
         }
 
-        if (localFile.getName().endsWith(SST_FILE_EXTENSION)) {
-          // Since RocksDB SST files are immutable after creation, we can skip the expensive checksum computation
+        boolean isLargeFile = localFileAttrs.size() > 1024 * 1024;
+        if (!compareLargeFileChecksums && isLargeFile) {
+          // Since RocksDB SST files are immutable after creation, we can skip the expensive checksum computations
           // which requires reading the entire file.
           LOG.debug("Local file {} and remote file {} are same. " +
-                  "Skipping checksum calculation for SST file.",
-              localFile.getAbsolutePath(), remoteFile.getFileName());
+                  "Skipping checksum calculation for large file of size: {}.",
+              localFile.getAbsolutePath(), remoteFile.getFileName(), localFileAttrs.size());
           return true;
         } else {
           try {
@@ -607,21 +606,22 @@ public class BlobStoreUtil {
   /**
    * Checks if a local directory and a remote directory are identical. Local and remote directories are identical iff:
    * 1. The local directory has exactly the same set of files as the remote directory, and the files are themselves
-   * identical, as determined by {@link #areSameFile()}, except for those allowed to differ according to
+   * identical, as determined by {@link #areSameFile(boolean)}, except for those allowed to differ according to
    * {@param filesToIgnore}.
    * 2. The local directory has exactly the same set of sub-directories as the remote directory.
    *
    * @param filesToIgnore a set of file names to ignore during the directory comparisons
    *                      (does not exclude directory names)
+   * @param compareLargeFileChecksums whether to compare checksums for large files (> 1 MB).
    * @return boolean indicating whether the local and remote directory are identical.
    */
   // TODO HIGH shesharm add unit tests
-  public BiPredicate<File, DirIndex> areSameDir(Set<String> filesToIgnore) {
+  public BiPredicate<File, DirIndex> areSameDir(Set<String> filesToIgnore, boolean compareLargeFileChecksums) {
     return (localDir, remoteDir) -> {
       String remoteDirName = remoteDir.getDirName().equals(DirIndex.ROOT_DIR_NAME) ? "root" : remoteDir.getDirName();
       LOG.debug("Creating diff between local dir: {} and remote dir: {} for comparison.",
           localDir.getAbsolutePath(), remoteDirName);
-      DirDiff dirDiff = DirDiffUtil.getDirDiff(localDir, remoteDir, BlobStoreUtil.areSameFile());
+      DirDiff dirDiff = DirDiffUtil.getDirDiff(localDir, remoteDir, BlobStoreUtil.areSameFile(compareLargeFileChecksums));
 
       boolean areSameDir = true;
       List<String> filesRemoved = dirDiff.getFilesRemoved().stream()
@@ -671,7 +671,7 @@ public class BlobStoreUtil {
         String localSubDirName = subDirRetained.getDirName();
         File localSubDirFile = Paths.get(localDir.getAbsolutePath(), localSubDirName).toFile();
         DirIndex remoteSubDir = remoteSubDirs.get(localSubDirName);
-        boolean areSameSubDir = areSameDir(filesToIgnore).test(localSubDirFile, remoteSubDir);
+        boolean areSameSubDir = areSameDir(filesToIgnore, false).test(localSubDirFile, remoteSubDir);
         if (!areSameSubDir) {
           LOG.debug("Local sub-dir: {} and remote sub-dir: {} are not same.",
               localSubDirFile.getAbsolutePath(), remoteSubDir.getDirName());
