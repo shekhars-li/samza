@@ -93,7 +93,17 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
 
   @Override
   public StateBackendResourceAdmin getStateBackendResourceAdmin(JobModel jobModel, Config config) {
-    // TODO: sheshrma BlobStoreStateBackendResourceAdmin for creating & validating ambry containers
-    return null;
+    // TODO BLOCKER shesharm BlobStoreStateBackendResourceAdmin for creating & validating ambry containers
+    return new StateBackendResourceAdmin() {
+      @Override
+      public void createResources() {
+
+      }
+
+      @Override
+      public void validateResources() {
+
+      }
+    };
   }
 }
