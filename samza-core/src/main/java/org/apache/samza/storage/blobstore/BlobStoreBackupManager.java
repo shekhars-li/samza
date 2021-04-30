@@ -102,8 +102,8 @@ public class BlobStoreBackupManager implements TaskBackupManager {
       prevStoreSnapshotIndexesFuture;
 
   public BlobStoreBackupManager(JobModel jobModel, ContainerModel containerModel, TaskModel taskModel,
-      ExecutorService backupExecutor, BlobStoreBackupManagerMetrics blobStoreTaskBackupMetrics, Config config, Clock clock, File loggedStoreBaseDir,
-      StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil) {
+      ExecutorService backupExecutor, BlobStoreBackupManagerMetrics blobStoreTaskBackupMetrics, Config config,
+      Clock clock, File loggedStoreBaseDir, StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil) {
     this.jobModel = jobModel;
     this.jobName = new JobConfig(config).getName().get();
     this.jobId = new JobConfig(config).getJobId();
