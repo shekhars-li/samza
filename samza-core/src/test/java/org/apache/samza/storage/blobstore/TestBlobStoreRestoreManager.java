@@ -204,7 +204,7 @@ public class TestBlobStoreRestoreManager {
     // mock: do not complete any restore. Return immediately
     when(blobStoreUtil.restoreDir(any(), any()))
         .thenReturn(Collections.singletonList(CompletableFuture.completedFuture(null)));
-    when(blobStoreUtil.areSameDir(anySet(), false)).thenReturn((u,v)->true);
+    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((u,v)->true);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();
@@ -242,7 +242,7 @@ public class TestBlobStoreRestoreManager {
 
     // Mock areSameDir to always return true
     BiPredicate<File, DirIndex> mockPredicate = ((u, v) -> true);
-    when(blobStoreUtil.areSameDir(anySetOf(String.class), false)).thenReturn(mockPredicate);
+    when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicate);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();
@@ -293,7 +293,7 @@ public class TestBlobStoreRestoreManager {
     BiPredicate<File, DirIndex> mockPredicateFalse = ((u, v) -> false);
     // areSameDir returns false on first call (to check if checkpoint dir is same as remote) and then true for second
     // call (to check if the restore was done correctly).
-    when(blobStoreUtil.areSameDir(anySet(), false)).thenReturn(mockPredicateFalse, mockPredicateTrue);
+    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn(mockPredicateFalse, mockPredicateTrue);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();
@@ -339,7 +339,7 @@ public class TestBlobStoreRestoreManager {
 
     // Mock areSameDir to always return false and then true
     BiPredicate<File, DirIndex> mockPredicateTrue = ((u, v) -> true);
-    when(blobStoreUtil.areSameDir(anySetOf(String.class), false)).thenReturn(mockPredicateTrue);
+    when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicateTrue);
 
     blobStoreRestoreManager.init(checkpoint);
     blobStoreRestoreManager.restore();
