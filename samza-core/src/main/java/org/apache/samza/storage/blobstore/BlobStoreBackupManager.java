@@ -71,7 +71,7 @@ public class BlobStoreBackupManager implements TaskBackupManager {
   private final Config config;
   private final Clock clock;
   private final StorageManagerUtil storageManagerUtil;
-  private final List<String> taskStoreNames;
+  private final List<String> storesToBackup;
   private final File loggedStoreBaseDir;
   private final BlobStoreUtil blobStoreUtil;
 
@@ -115,13 +115,13 @@ public class BlobStoreBackupManager implements TaskBackupManager {
     this.clock = clock;
     this.storageManagerUtil = storageManagerUtil;
     StorageConfig storageConfig = new StorageConfig(config);
-    this.taskStoreNames = storageConfig
-        .getBackupStoreNamesForStateBackupFactory(BlobStoreStateBackendFactory.class.getName());
+    this.storesToBackup =
+        storageConfig.getStoresWithStateBackendBackupFactory(BlobStoreStateBackendFactory.class.getName());
     this.loggedStoreBaseDir = loggedStoreBaseDir;
     this.blobStoreUtil = blobStoreUtil;
     this.prevStoreSnapshotIndexesFuture = CompletableFuture.completedFuture(ImmutableMap.of());
     this.metrics = blobStoreTaskBackupMetrics;
-    metrics.initStoreMetrics(taskStoreNames);
+    metrics.initStoreMetrics(storesToBackup);
   }
 
   @Override
@@ -159,7 +159,7 @@ public class BlobStoreBackupManager implements TaskBackupManager {
         storeToSCMAndSnapshotIndexPairFutures = new HashMap<>();
     Map<String, CompletableFuture<String>> storeToSerializedSCMFuture = new HashMap<>();
 
-    taskStoreNames.forEach((storeName) -> {
+    storesToBackup.forEach((storeName) -> {
       long storeUploadStartTime = System.nanoTime();
       try {
         // metadata for the current store snapshot to upload
@@ -169,7 +169,7 @@ public class BlobStoreBackupManager implements TaskBackupManager {
         // get the local store dir corresponding to the current checkpointId
         File storeDir = storageManagerUtil.getTaskStoreDir(loggedStoreBaseDir, storeName,
             taskModel.getTaskName(), taskModel.getTaskMode());
-        String checkpointDirPath = StorageManagerUtil.getCheckpointDirPath(storeDir, checkpointId);
+        String checkpointDirPath = storageManagerUtil.getStoreCheckpointDir(storeDir, checkpointId);
         File checkpointDir = new File(checkpointDirPath);
 
         LOG.debug("Got task: {} store: {} storeDir: {} and checkpointDir: {}",

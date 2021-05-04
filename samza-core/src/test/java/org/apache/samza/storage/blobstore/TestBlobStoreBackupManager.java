@@ -74,11 +74,18 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 
 public class TestBlobStoreBackupManager {
@@ -198,6 +205,17 @@ public class TestBlobStoreBackupManager {
           return new File(storeDir);
         });
 
+
+    ArgumentCaptor<File> storeDirCaptor = ArgumentCaptor.forClass(File.class);
+    when(storageManagerUtil.getStoreCheckpointDir(storeDirCaptor.capture(), eq(checkpointId)))
+        .thenAnswer(new Answer<String>() {
+          @Override
+          public String answer(InvocationOnMock invocation) throws Throwable {
+            File storeDir = invocation.getArgumentAt(0, File.class);
+            return storeDir.getAbsolutePath() + "-" + checkpointId.serialize();
+          }
+        });
+
     SortedSet<DirDiff> actualDirDiffs = new TreeSet<>(Comparator.comparing(DirDiff::getDirName));
     // mock: mock putDir and capture DirDiff
     ArgumentCaptor<DirDiff> dirDiffCaptor = ArgumentCaptor.forClass(DirDiff.class);
@@ -291,6 +309,16 @@ public class TestBlobStoreBackupManager {
             Assert.fail("Couldn't create checkpoint directory. Test failed.");
           }
           return new File(storeDir);
+        });
+
+    ArgumentCaptor<File> storeDirCaptor = ArgumentCaptor.forClass(File.class);
+    when(storageManagerUtil.getStoreCheckpointDir(storeDirCaptor.capture(), eq(checkpointId)))
+        .thenAnswer(new Answer<String>() {
+          @Override
+          public String answer(InvocationOnMock invocation) throws Throwable {
+            File storeDir = invocation.getArgumentAt(0, File.class);
+            return storeDir.getAbsolutePath() + "-" + checkpointId.serialize();
+          }
         });
 
     // mock: mock putDir and capture DirDiff

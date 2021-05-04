@@ -22,11 +22,13 @@ package org.apache.samza.storage.blobstore;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.concurrent.CompletionStage;
+import org.apache.samza.annotation.InterfaceStability;
 
 
 /**
  * Provides interface for common blob store operations: GET, PUT and DELETE
  */
+@InterfaceStability.Unstable
 public interface BlobStoreManager {
   /**
    * init method to initialize underlying blob store client, if necessary

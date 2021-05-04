@@ -273,7 +273,7 @@ public class StorageConfig extends MapConfig {
         .collect(Collectors.toSet());
   }
 
-  public List<String> getBackupStoreNamesForStateBackupFactory(String backendFactoryName) {
+  public List<String> getStoresWithStateBackendBackupFactory(String backendFactoryName) {
     return getStoreNames().stream()
         .filter((storeName) -> getStoreBackupManagerClassName(storeName)
             .contains(backendFactoryName))
@@ -282,6 +282,13 @@ public class StorageConfig extends MapConfig {
 
   public String getStateBackendRestoreFactory() {
     return get(STATE_BACKEND_RESTORE_FACTORY, DEFAULT_STATE_BACKEND_FACTORY);
+  }
+
+  // TODO BLOCKER dchen update when making restore managers per store
+  public List<String> getStoresWithStateBackendRestoreFactory(String backendFactoryName) {
+    return getStoreNames().stream()
+        .filter((storeName) -> getStateBackendRestoreFactory().equals(backendFactoryName))
+        .collect(Collectors.toList());
   }
 
   public String getBlobStoreManagerFactory() {

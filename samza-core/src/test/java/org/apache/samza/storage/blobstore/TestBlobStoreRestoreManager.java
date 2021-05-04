@@ -19,42 +19,25 @@
 
 package org.apache.samza.storage.blobstore;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.linkedin.util.Pair;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiPredicate;
-import org.apache.commons.io.FileUtils;
-import org.apache.samza.checkpoint.Checkpoint;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.samza.checkpoint.CheckpointId;
-import org.apache.samza.checkpoint.CheckpointV2;
-import org.apache.samza.config.Config;
-import org.apache.samza.config.MapConfig;
 import org.apache.samza.config.StorageConfig;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.job.model.TaskMode;
-import org.apache.samza.job.model.TaskModel;
-import org.apache.samza.metrics.Counter;
-import org.apache.samza.metrics.Gauge;
-import org.apache.samza.metrics.MetricsRegistry;
-import org.apache.samza.metrics.Timer;
-import org.apache.samza.storage.StorageEngine;
+import org.apache.samza.metrics.MetricsRegistryMap;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.blobstore.index.DirIndex;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
@@ -62,407 +45,298 @@ import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
 import org.apache.samza.storage.blobstore.metrics.BlobStoreRestoreManagerMetrics;
 import org.apache.samza.storage.blobstore.util.BlobStoreTestUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
-import org.apache.samza.util.Clock;
-import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.stubbing.Answer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import static org.mockito.Matchers.*;
-import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.anySet;
-import static org.mockito.Mockito.anySetOf;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 
 public class TestBlobStoreRestoreManager {
-  private static final Logger LOG = LoggerFactory.getLogger(TestBlobStoreRestoreManager.class);
   private static final ExecutorService EXECUTOR = MoreExecutors.newDirectExecutorService();
 
-  // mock container - task - job models
-  private final TaskModel taskModel = mock(TaskModel.class, RETURNS_DEEP_STUBS);
-  private final Clock clock = mock(Clock.class);
-  private final StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
-  private final BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
-
-  private final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
-  private final Counter counter = mock(Counter.class);
-  private final Timer timer = mock(Timer.class);
-  private final Gauge<Long> longGauge = mock(Gauge.class);
-  private final Gauge<AtomicLong> atomicLongGauge = mock(Gauge.class);
-
-  //job and store definition
-  private final CheckpointId checkpointId = CheckpointId.deserialize("1234-567");
-  private final String jobName = "testJobName";
-  private final String jobId = "testJobID";
-  private final String taskName = "testTaskName";
-  private final String prevSnapshotIndexBlobId = "testPrevBlobId";
-  private Map<String, StorageEngine> storeStorageEngineMap = new HashMap<>();
-  private Map<String, String> mapConfig = new HashMap<>();
-  private String restoreDirBasePath;
-
-  // Remote and local snapshot definitions
-  private Map<String, SnapshotIndex> testBlobStore = new HashMap<>();
-  private Map<String, Pair<String, SnapshotIndex>> indexBlobIdAndLocalRemoteSnapshotsPair;
-  private Map<String, String> testStoreNameAndSCMMap;
-
-  private BlobStoreRestoreManager blobStoreRestoreManager;
-  private BlobStoreRestoreManagerMetrics metrics;
-
-  /**
-   * Test restore handles logged / non-logged / durable / persistent stores correctly.
-   * Test restore restores to the correct store directory depending on store type.
-   * Test logic for checking if checkpoint directory is identical to remote snapshot.
-   * Test that it ignores any files that are not present when upload is called (e.g. offset files).
-   * Test restore handles stores with missing SCMs correctly.
-   * Test restore handles multiple stores correctly.
-   * Test restore always deletes main store dir.
-   * Test restore uses previous checkpoint directory if identical to remote snapshot.
-   * Test restore restores from remote snapshot if no previous checkpoint dir.
-   * Test restore restores from remote snapshot if checkpoint dir not identical to remote snapshot.
-   * Test restore recreates subdirs correctly.
-   * Test restore recreates recursive subdirs correctly
-   * Test restore creates empty files correctly.
-   * Test restore creates empty dirs correctly.
-   * Test restore creates for empty sub-dirs / recursive subdirs correctly.
-   * Test restore restores multi-part file contents completely and in correct order.
-   * Test restore verifies checksum for files restored if enabled.
-   */
-
-  @Before
-  public void setup() throws Exception {
-    when(clock.currentTimeMillis()).thenReturn(1234567L);
-    // setup test local and remote snapshots
-    indexBlobIdAndLocalRemoteSnapshotsPair = setupRemoteAndLocalSnapshots(true);
-    // setup test store name and SCMs map
-    testStoreNameAndSCMMap = setupTestStoreSCMMapAndStoreBackedFactoryConfig(indexBlobIdAndLocalRemoteSnapshotsPair);
-    // setup: setup task backup manager with expected storeName->storageEngine map
-    testStoreNameAndSCMMap.forEach((storeName, scm) -> storeStorageEngineMap.put(storeName, null));
-    // Setup mock config and task model
-    restoreDirBasePath = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX).toString();
-    mapConfig.putAll(new MapConfig(ImmutableMap.of("job.name", jobName, "job.id", jobId,
-        "job.logged.store.base.dir", restoreDirBasePath)));
-    Config config = new MapConfig(mapConfig);
-    when(taskModel.getTaskName().getTaskName()).thenReturn(taskName);
-    when(taskModel.getTaskMode()).thenReturn(TaskMode.Active);
-
-    // Mock - return snapshot index for blob id from test blob store map
-    ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-    when(blobStoreUtil.getSnapshotIndex(captor.capture()))
-        .then((Answer<CompletableFuture<SnapshotIndex>>) invocation -> {
-          String blobId = invocation.getArgumentAt(0, String.class);
-          return CompletableFuture.completedFuture(testBlobStore.get(blobId));
-        });
-
-    when(metricsRegistry.newCounter(anyString(), anyString())).thenReturn(counter);
-    when(metricsRegistry.newGauge(anyString(), anyString(), anyLong())).thenReturn(longGauge);
-    when(metricsRegistry.newGauge(anyString(), anyString(), any(AtomicLong.class))).thenReturn(atomicLongGauge);
-    when(atomicLongGauge.getValue()).thenReturn(new AtomicLong());
-    when(metricsRegistry.newTimer(anyString(), anyString())).thenReturn(timer);
-    metrics = new BlobStoreRestoreManagerMetrics(metricsRegistry);
-
-    blobStoreRestoreManager =
-        new BlobStoreRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
-            Files.createTempDirectory("logged-store-").toFile(), null);
-  }
-
   @Test
-  public void testRestoreHandlesStoresWithMissingCheckpointSCMCorrectly() {
+  public void testDeleteUnusedStoresRemovesStoresDeletedFromConfig() {
+    String taskName = "taskName";
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    SnapshotIndex mockSnapshotIndex = mock(SnapshotIndex.class);
+    String blobId = "blobId";
+    Map<String, Pair<String, SnapshotIndex>> initialStoreSnapshotIndexes =
+        ImmutableMap.of("oldStoreName", Pair.of(blobId, mockSnapshotIndex));
+
+    when(storageConfig.getStoresWithStateBackendBackupFactory(eq(BlobStoreStateBackendFactory.class.getName())))
+        .thenReturn(ImmutableList.of("newStoreName"));
+    when(storageConfig.getStoresWithStateBackendRestoreFactory(eq(BlobStoreStateBackendFactory.class.getName())))
+        .thenReturn(ImmutableList.of("newStoreName"));
+
+    DirIndex dirIndex = mock(DirIndex.class);
+    when(mockSnapshotIndex.getDirIndex()).thenReturn(dirIndex);
+
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
+    when(blobStoreUtil.cleanUpDir(any())).thenReturn(CompletableFuture.completedFuture(null));
+    when(blobStoreUtil.deleteDir(any())).thenReturn(CompletableFuture.completedFuture(null));
+    when(blobStoreUtil.deleteSnapshotIndexBlob(any())).thenReturn(CompletableFuture.completedFuture(null));
+
+    BlobStoreRestoreManager.deleteUnusedStoresFromBlobStore(
+        taskName, storageConfig, initialStoreSnapshotIndexes, blobStoreUtil, EXECUTOR);
+
+    verify(blobStoreUtil, times(1)).cleanUpDir(eq(dirIndex));
+    verify(blobStoreUtil, times(1)).deleteDir(eq(dirIndex));
+    verify(blobStoreUtil, times(1)).deleteSnapshotIndexBlob(eq(blobId));
 
   }
 
   @Test
-  public void testRestoreHandlesMultipleStoresCorrectly() {
+  public void testShouldRestoreIfNoCheckpointDir() throws IOException {
+    String taskName = "taskName";
+    String storeName = "storeName";
+    DirIndex dirIndex = mock(DirIndex.class);
+    Path storeCheckpointDir = Paths.get("/tmp/non-existent-checkpoint-dir");
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    when(storageConfig.getCleanLoggedStoreDirsOnStart(anyString())).thenReturn(false);
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
 
+    boolean shouldRestore = BlobStoreRestoreManager.shouldRestore(
+        taskName, storeName, dirIndex, storeCheckpointDir, storageConfig, blobStoreUtil);
+
+    verifyZeroInteractions(blobStoreUtil);
+    assertTrue(shouldRestore);
   }
 
   @Test
-  public void testRestoreHandlesStoreTypesCorrectly() {
-    // TODO clarify what correctly means in test name
-    // logged, non-logged, persistent, durable stores.
+  public void testShouldRestoreIfCleanStateOnRestartEnabled() throws  IOException {
+    String taskName = "taskName";
+    String storeName = "storeName";
+    DirIndex dirIndex = mock(DirIndex.class);
+    Path storeCheckpointDir = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX); // must exist
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    when(storageConfig.getCleanLoggedStoreDirsOnStart(anyString())).thenReturn(true); // clean on restart
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
+
+    boolean shouldRestore = BlobStoreRestoreManager.shouldRestore(
+        taskName, storeName, dirIndex, storeCheckpointDir, storageConfig, blobStoreUtil);
+
+    verifyZeroInteractions(blobStoreUtil);
+    assertTrue(shouldRestore); // should not restore, should retain checkpoint dir instead
+  }
+
+  @Test
+  public void testShouldRestoreIfCheckpointDirNotIdenticalToRemoteSnapshot() throws IOException {
+    String taskName = "taskName";
+    String storeName = "storeName";
+    DirIndex dirIndex = mock(DirIndex.class);
+    Path storeCheckpointDir = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX); // must exist
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    when(storageConfig.getCleanLoggedStoreDirsOnStart(anyString())).thenReturn(false);
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
+    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((arg1, arg2) -> false);
+
+    boolean shouldRestore = BlobStoreRestoreManager.shouldRestore(
+        taskName, storeName, dirIndex, storeCheckpointDir, storageConfig, blobStoreUtil);
+
+    assertTrue(shouldRestore);
+  }
+
+  @Test
+  public void testShouldNotRestoreIfPreviousCheckpointDirIdenticalToRemoteSnapshot() throws  IOException {
+    String taskName = "taskName";
+    String storeName = "storeName";
+    DirIndex dirIndex = mock(DirIndex.class);
+    Path storeCheckpointDir = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX); // must exist
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    when(storageConfig.getCleanLoggedStoreDirsOnStart(anyString())).thenReturn(false);
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
+    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((arg1, arg2) -> true); // are same dir
+
+    boolean shouldRestore = BlobStoreRestoreManager.shouldRestore(
+        taskName, storeName, dirIndex, storeCheckpointDir, storageConfig, blobStoreUtil);
+
+    verify(blobStoreUtil, times(1)).areSameDir(anySet(), anyBoolean());
+    assertFalse(shouldRestore); // should not restore, should retain checkpoint dir instead
   }
 
   @Test
   public void testRestoreDeletesStoreDir() throws IOException {
-    Checkpoint checkpoint =
-        new CheckpointV2(checkpointId, ImmutableMap.of(),
-            ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY, testStoreNameAndSCMMap));
+    TaskName taskName = mock(TaskName.class);
+    BlobStoreRestoreManagerMetrics metrics = new BlobStoreRestoreManagerMetrics(new MetricsRegistryMap());
+    metrics.initStoreMetrics(ImmutableList.of("storeName"));
+    List<String> storesToRestore = ImmutableList.of("storeName");
+    SnapshotIndex snapshotIndex = mock(SnapshotIndex.class);
+    Map<String, Pair<String, SnapshotIndex>> prevStoreSnapshotIndexes =
+        ImmutableMap.of("storeName", Pair.of("blobId", snapshotIndex));
+    DirIndex dirIndex = BlobStoreTestUtil.createDirIndex("[a]");
+    when(snapshotIndex.getDirIndex()).thenReturn(dirIndex);
+    when(snapshotIndex.getSnapshotMetadata())
+        .thenReturn(new SnapshotMetadata(CheckpointId.create(), "jobName", "jobId", "taskName", "storeName"));
 
-    String testStoreDir = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX).toString();
+    Path loggedBaseDir = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
 
-    // mock: set task store dir to return test local store
-    when(storageManagerUtil.getTaskStoreDir(any(File.class), anyString(), any(TaskName.class), any(TaskMode.class)))
-        .thenReturn(new File(testStoreDir));
+    // create store dir to be deleted during restore
+    Path storeDir = Files.createTempDirectory(loggedBaseDir, "storeDir");
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
+    when(storageManagerUtil.getStoreCheckpointDir(any(File.class), any(CheckpointId.class)))
+      .thenReturn(Paths.get(storeDir.toString(), "checkpointId").toString());
+    when(storageManagerUtil.getTaskStoreDir(
+        eq(loggedBaseDir.toFile()), eq("storeName"), eq(taskName), eq(TaskMode.Active)))
+          .thenReturn(storeDir.toFile());
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
 
-    // mock: do not complete any restore. Return immediately
-    when(blobStoreUtil.restoreDir(any(), any()))
-        .thenReturn(Collections.singletonList(CompletableFuture.completedFuture(null)));
-    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((u,v)->true);
+    // return immediately without restoring.
+    when(blobStoreUtil.restoreDir(eq(storeDir.toFile()), eq(dirIndex))).thenReturn(ImmutableList.of());
+    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((arg1, arg2) -> true);
 
-    blobStoreRestoreManager.init(checkpoint);
-    blobStoreRestoreManager.restore();
+    BlobStoreRestoreManager.restoreStores(taskName, storesToRestore, prevStoreSnapshotIndexes,
+        loggedBaseDir.toFile(), storageConfig, metrics,
+        storageManagerUtil, blobStoreUtil, EXECUTOR);
 
-    // Verify the store dir is not present anymore and is deleted by restore.
-    Assert.assertFalse(Files.exists(Paths.get(testStoreDir)));
+    // verify that the store directory restore was called and skipped (i.e. shouldRestore == true)
+    verify(blobStoreUtil, times(1)).restoreDir(eq(storeDir.toFile()), eq(dirIndex));
+    // verify that the store directory was deleted prior to restore
+    // (should still not exist at the end since restore is no-op)
+    assertFalse(storeDir.toFile().exists());
   }
 
   @Test
-  public void testRestoreRestoresRemoteSnapshotIfNoCheckpointDir() throws IOException {
-    Checkpoint checkpoint =
-        new CheckpointV2(checkpointId, ImmutableMap.of(),
-            ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY, testStoreNameAndSCMMap));
+  public void testRestoreDeletesCheckpointDirsIfRestoring() throws IOException {
+    TaskName taskName = mock(TaskName.class);
+    BlobStoreRestoreManagerMetrics metrics = new BlobStoreRestoreManagerMetrics(new MetricsRegistryMap());
+    metrics.initStoreMetrics(ImmutableList.of("storeName"));
+    List<String> storesToRestore = ImmutableList.of("storeName");
+    SnapshotIndex snapshotIndex = mock(SnapshotIndex.class);
+    Map<String, Pair<String, SnapshotIndex>> prevStoreSnapshotIndexes =
+        ImmutableMap.of("storeName", Pair.of("blobId", snapshotIndex));
+    DirIndex dirIndex = BlobStoreTestUtil.createDirIndex("[a]");
+    when(snapshotIndex.getDirIndex()).thenReturn(dirIndex);
+    CheckpointId checkpointId = CheckpointId.create();
+    when(snapshotIndex.getSnapshotMetadata())
+        .thenReturn(new SnapshotMetadata(checkpointId, "jobName", "jobId", "taskName", "storeName"));
 
-    // mock: set task store dir to return corresponding test local store and create checkpoint dir
-    ArgumentCaptor<String> stringCaptor = ArgumentCaptor.forClass(String.class);
-    when(storageManagerUtil.getTaskStoreDir(any(File.class), stringCaptor.capture(), any(TaskName.class), any(TaskMode.class)))
-        .then((Answer<File>) invocation -> {
-          String storeName = invocation.getArgumentAt(1, String.class);
-          String snapshotIndexBlobId = testStoreNameAndSCMMap.get(storeName);
-          String storeDir = indexBlobIdAndLocalRemoteSnapshotsPair.get(snapshotIndexBlobId).getFirst();
-          return new File(storeDir);
-        });
+    Path loggedBaseDir = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
 
-    SortedSet<String> expectedStoreDirsRestored = new TreeSet<>(testStoreNameAndSCMMap.keySet());
-    SortedSet<String> actualStoreDirsRestored = new TreeSet<>();
-    // Mock: mock restoreDir call
-    ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
-    when(blobStoreUtil.restoreDir(fileCaptor.capture(), any(DirIndex.class)))
-        .then((Answer<List<CompletableFuture<Void>>>) invocation -> {
-          File storeBaseDir = invocation.getArgumentAt(0, File.class);
-          actualStoreDirsRestored.add(storeBaseDir.getPath());
-          return Collections.singletonList(CompletableFuture.completedFuture(null));
-        });
+    // create store dir to be deleted during restore
+    Path storeDir = Files.createTempDirectory(loggedBaseDir, "storeDir");
+    Path storeCheckpointDir1 = Files.createTempDirectory(loggedBaseDir, "storeDir-" + checkpointId);
+    CheckpointId olderCheckpoint = CheckpointId.create();
+    Path storeCheckpointDir2 = Files.createTempDirectory(loggedBaseDir, "storeDir-" + olderCheckpoint);
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
+    when(storageManagerUtil.getTaskStoreDir(
+        eq(loggedBaseDir.toFile()), eq("storeName"), eq(taskName), eq(TaskMode.Active)))
+        .thenReturn(storeDir.toFile());
+    when(storageManagerUtil.getStoreCheckpointDir(eq(storeDir.toFile()), eq(checkpointId)))
+        .thenReturn(Paths.get(storeDir.toString(), checkpointId.toString()).toString());
+    when(storageManagerUtil.getTaskStoreCheckpointDirs(any(File.class), anyString(), any(TaskName.class), any(TaskMode.class)))
+        .thenReturn(ImmutableList.of(storeCheckpointDir1.toFile(), storeCheckpointDir2.toFile()));
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
 
-    // Mock areSameDir to always return true
-    BiPredicate<File, DirIndex> mockPredicate = ((u, v) -> true);
-    when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicate);
+    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((arg1, arg2) -> true);
+    // return immediately without restoring.
+    when(blobStoreUtil.restoreDir(eq(storeDir.toFile()), eq(dirIndex))).thenReturn(ImmutableList.of());
 
-    blobStoreRestoreManager.init(checkpoint);
-    blobStoreRestoreManager.restore();
+    BlobStoreRestoreManager.restoreStores(taskName, storesToRestore, prevStoreSnapshotIndexes,
+        loggedBaseDir.toFile(), storageConfig, metrics,
+        storageManagerUtil, blobStoreUtil, EXECUTOR);
 
-    Assert.assertEquals(actualStoreDirsRestored, expectedStoreDirsRestored);
+    // verify that the store directory restore was called and skipped (i.e. shouldRestore == true)
+    verify(blobStoreUtil, times(1)).restoreDir(eq(storeDir.toFile()), eq(dirIndex));
+    // verify that the checkpoint directories were deleted prior to restore (should not exist at the end)
+    assertFalse(storeCheckpointDir1.toFile().exists());
+    assertFalse(storeCheckpointDir2.toFile().exists());
   }
 
   @Test
-  public void testRestoreRestoresRemoteSnapshotIfCheckpointDirNotIdenticalToRemoteSnapshot() {
-    // Track directory for post cleanup
-    List<String> checkpointDirsToClean = new ArrayList<>();
+  public void testRestoreRetainsCheckpointDirsIfValid() throws IOException {
+    TaskName taskName = mock(TaskName.class);
+    BlobStoreRestoreManagerMetrics metrics = new BlobStoreRestoreManagerMetrics(new MetricsRegistryMap());
+    metrics.initStoreMetrics(ImmutableList.of("storeName"));
+    List<String> storesToRestore = ImmutableList.of("storeName");
+    SnapshotIndex snapshotIndex = mock(SnapshotIndex.class);
+    Map<String, Pair<String, SnapshotIndex>> prevStoreSnapshotIndexes =
+        ImmutableMap.of("storeName", Pair.of("blobId", snapshotIndex));
+    DirIndex dirIndex = BlobStoreTestUtil.createDirIndex("[a]");
+    when(snapshotIndex.getDirIndex()).thenReturn(dirIndex);
+    CheckpointId checkpointId = CheckpointId.create();
+    when(snapshotIndex.getSnapshotMetadata())
+        .thenReturn(new SnapshotMetadata(checkpointId, "jobName", "jobId", "taskName", "storeName"));
 
-    Map.Entry<String, String> testStoreNameSCMPair = testStoreNameAndSCMMap.entrySet().iterator().next();
-    Checkpoint checkpoint =
-        new CheckpointV2(checkpointId, ImmutableMap.of(),
-            ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY,
-                ImmutableMap.of(testStoreNameSCMPair.getKey(), testStoreNameSCMPair.getValue())));
+    Path loggedBaseDir = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
 
-    // mock: set task store dir to return corresponding test local store and create checkpoint dir
-    ArgumentCaptor<String> stringCaptor = ArgumentCaptor.forClass(String.class);
-    when(storageManagerUtil.getTaskStoreDir(any(File.class), stringCaptor.capture(), any(TaskName.class), any(TaskMode.class)))
-        .then((Answer<File>) invocation -> {
-          String storeName = invocation.getArgumentAt(1, String.class);
-          String snapshotIndexBlobId = testStoreNameAndSCMMap.get(storeName);
-          String storeDir = indexBlobIdAndLocalRemoteSnapshotsPair.get(snapshotIndexBlobId).getFirst();
-          try {
-            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.serialize()); // create test checkpoint dir
-            checkpointDirsToClean.add(storeDir + "-" + checkpointId.serialize()); // track checkpoint dir to cleanup later
-          } catch (IOException e) {
-            Assert.fail("Couldn't create checkpoint directory. Test failed.");
-          }
-          return new File(storeDir);
-        });
+    // create store dir to be deleted during restore
+    Path storeDir = Files.createTempDirectory(loggedBaseDir, "storeDir-");
 
-    String expectedStoreDirsRestored = testStoreNameSCMPair.getKey();
-    final String[] actualStoreDirsRestored = new String[1];
-    // Mock: mock restoreDir call
-    ArgumentCaptor<File> fileCaptor = ArgumentCaptor.forClass(File.class);
-    when(blobStoreUtil.restoreDir(fileCaptor.capture(), any(DirIndex.class)))
-        .then((Answer<List<CompletableFuture<Void>>>) invocation -> {
-          File storeBaseDir = invocation.getArgumentAt(0, File.class);
-          actualStoreDirsRestored[0] = storeBaseDir.getPath();
-          return Collections.singletonList(CompletableFuture.completedFuture(null));
-        });
+    // create checkpoint dir so that shouldRestore = false (areSameDir == true later)
+    Path storeCheckpointDir = Files.createTempDirectory(loggedBaseDir, "storeDir-" + checkpointId + "-");
+    // create a dummy file to verify after dir rename.
+    Path tempFile = Files.createTempFile(storeCheckpointDir, "tempFile-", null);
 
-    // Mock areSameDir to always return false and then true
-    BiPredicate<File, DirIndex> mockPredicateTrue = ((u, v) -> true);
-    BiPredicate<File, DirIndex> mockPredicateFalse = ((u, v) -> false);
-    // areSameDir returns false on first call (to check if checkpoint dir is same as remote) and then true for second
-    // call (to check if the restore was done correctly).
-    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn(mockPredicateFalse, mockPredicateTrue);
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
+    when(storageManagerUtil.getTaskStoreDir(
+        eq(loggedBaseDir.toFile()), eq("storeName"), eq(taskName), eq(TaskMode.Active)))
+        .thenReturn(storeDir.toFile());
+    when(storageManagerUtil.getStoreCheckpointDir(any(File.class), eq(checkpointId)))
+        .thenReturn(storeCheckpointDir.toString());
+    when(storageManagerUtil.getTaskStoreCheckpointDirs(any(File.class), anyString(), any(TaskName.class), any(TaskMode.class)))
+        .thenReturn(ImmutableList.of(storeCheckpointDir.toFile()));
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
 
-    blobStoreRestoreManager.init(checkpoint);
-    blobStoreRestoreManager.restore();
+    // ensures shouldRestore is not called
+    when(blobStoreUtil.areSameDir(anySet(), anyBoolean())).thenReturn((arg1, arg2) -> true);
+    // return immediately without restoring.
+    when(blobStoreUtil.restoreDir(eq(storeDir.toFile()), eq(dirIndex))).thenReturn(ImmutableList.of());
 
-    Assert.assertEquals(actualStoreDirsRestored[0], expectedStoreDirsRestored);
+    BlobStoreRestoreManager.restoreStores(taskName, storesToRestore, prevStoreSnapshotIndexes,
+        loggedBaseDir.toFile(), storageConfig, metrics,
+        storageManagerUtil, blobStoreUtil, EXECUTOR);
 
-    // cleanup
-    checkpointDirsToClean.forEach(path -> {
-      try {
-        FileUtils.deleteDirectory(new File(path));
-      } catch (IOException exception) {
-        Assert.fail("Failed to cleanup temporary checkpoint dirs.");
-      }
-    });
+    // verify that the store directory restore was not called (should have restored from checkpoint dir)
+    verify(blobStoreUtil, times(0)).restoreDir(eq(storeDir.toFile()), eq(dirIndex));
+    // verify that the checkpoint dir was renamed to store dir
+    assertFalse(storeCheckpointDir.toFile().exists());
+    assertTrue(storeDir.toFile().exists());
+    assertTrue(Files.exists(Paths.get(storeDir.toString(), tempFile.getFileName().toString())));
   }
 
   @Test
-  public void testRestoreRetainsPreviousCheckpointDirIfIdenticalToRemoteSnapshot() {
-    // Track directory for post cleanup
-    List<String> checkpointDirsToClean = new ArrayList<>();
+  public void testRestoreSkipsStoresWithMissingCheckpointSCM()  {
+    // store renamed from oldStoreName to newStoreName. No SCM for newStoreName in previous checkpoint.
 
-    Map.Entry<String, String> testStoreNameSCMPair = testStoreNameAndSCMMap.entrySet().iterator().next();
-    Checkpoint checkpoint =
-        new CheckpointV2(checkpointId, ImmutableMap.of(),
-            ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY,
-                ImmutableMap.of(testStoreNameSCMPair.getKey(), testStoreNameSCMPair.getValue())));
+    TaskName taskName = mock(TaskName.class);
+    BlobStoreRestoreManagerMetrics metrics = new BlobStoreRestoreManagerMetrics(new MetricsRegistryMap());
+    metrics.initStoreMetrics(ImmutableList.of("newStoreName"));
+    List<String> storesToRestore = ImmutableList.of("newStoreName"); // new store in config
+    SnapshotIndex snapshotIndex = mock(SnapshotIndex.class);
+    Map<String, Pair<String, SnapshotIndex>> prevStoreSnapshotIndexes = mock(Map.class);
+    when(prevStoreSnapshotIndexes.containsKey("newStoreName")).thenReturn(false);
+    DirIndex dirIndex = mock(DirIndex.class);
+    when(snapshotIndex.getDirIndex()).thenReturn(dirIndex);
+    CheckpointId checkpointId = CheckpointId.create();
+    when(snapshotIndex.getSnapshotMetadata())
+        .thenReturn(new SnapshotMetadata(checkpointId, "jobName", "jobId", "taskName", "storeName"));
+    Path loggedBaseDir = mock(Path.class);
 
-    // mock: set task store dir to return corresponding test local store and create checkpoint dir
-    ArgumentCaptor<String> stringCaptor = ArgumentCaptor.forClass(String.class);
-    when(storageManagerUtil.getTaskStoreDir(any(File.class), stringCaptor.capture(), any(TaskName.class), any(TaskMode.class)))
-        .then((Answer<File>) invocation -> {
-          String storeName = invocation.getArgumentAt(1, String.class);
-          String snapshotIndexBlobId = testStoreNameAndSCMMap.get(storeName);
-          String storeDir = indexBlobIdAndLocalRemoteSnapshotsPair.get(snapshotIndexBlobId).getFirst();
-          try {
-            BlobStoreTestUtil.createTestCheckpointDirectory(storeDir, checkpointId.serialize()); // create test checkpoint dir
-            checkpointDirsToClean.add(storeDir + "-" + checkpointId.serialize()); // track checkpoint dir to cleanup later
-          } catch (IOException e) {
-            Assert.fail("Couldn't create checkpoint directory. Test failed.");
-          }
-          return new File(storeDir);
-        });
+    // create store dir to be deleted during restore
+    StorageConfig storageConfig = mock(StorageConfig.class);
+    StorageManagerUtil storageManagerUtil = mock(StorageManagerUtil.class);
+    BlobStoreUtil blobStoreUtil = mock(BlobStoreUtil.class);
 
-    // Mock areSameDir to always return false and then true
-    BiPredicate<File, DirIndex> mockPredicateTrue = ((u, v) -> true);
-    when(blobStoreUtil.areSameDir(anySetOf(String.class), anyBoolean())).thenReturn(mockPredicateTrue);
+    BlobStoreRestoreManager.restoreStores(taskName, storesToRestore, prevStoreSnapshotIndexes,
+        loggedBaseDir.toFile(), storageConfig, metrics,
+        storageManagerUtil, blobStoreUtil, EXECUTOR);
 
-    blobStoreRestoreManager.init(checkpoint);
-    blobStoreRestoreManager.restore();
-
-    verify(blobStoreUtil, never()).restoreDir(any(), any());
-
-    // cleanup
-    checkpointDirsToClean.forEach(path -> {
-      try {
-        FileUtils.deleteDirectory(new File(path));
-      } catch (IOException exception) {
-        Assert.fail("Failed to cleanup temporary checkpoint dirs.");
-      }
-    });
-  }
-
-  @Test
-  public void testInitRemovesStoresDeletedFromConfig() throws IOException {
-    // Setup: removing 1 store from config
-    Map.Entry<String, String> entry =
-        new MapConfig(mapConfig).regexSubset("stores.*.factory").entrySet().iterator().next();
-    mapConfig.remove(entry.getKey());
-    Config config = new MapConfig(mapConfig);
-    blobStoreRestoreManager =
-        new BlobStoreRestoreManager(taskModel, EXECUTOR, metrics, config, storageManagerUtil, blobStoreUtil,
-            Files.createTempDirectory("logged-store-").toFile(), null);
-
-    String storeRemovedFromConfig =
-        entry.getKey().substring(entry.getKey().indexOf('.') + 1, entry.getKey().lastIndexOf('.'));
-    // Setup expected result: The blob ID of scm from storeName->scm removed in previous step
-    String expectedSnapshotIndexBlobIdDeleted = testStoreNameAndSCMMap.get(storeRemovedFromConfig);
-
-    DirIndex expectedDirIndexCleanedAndDeleted =
-        indexBlobIdAndLocalRemoteSnapshotsPair.get(expectedSnapshotIndexBlobIdDeleted).getSecond().getDirIndex();
-
-    // Actual result
-    final String[] actualSnapshotIndexBlobIdDeleted = new String[1];
-    final List<DirIndex> actualDirIndexCleanedAndDeleted = new ArrayList<>();
-
-    // Mock - capture deleted snapshot index
-    ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-    when(blobStoreUtil.deleteSnapshotIndexBlob(captor.capture()))
-        .then((Answer<CompletableFuture<Void>>) invocation -> {
-          actualSnapshotIndexBlobIdDeleted[0] = invocation.getArgumentAt(0, String.class);
-          return CompletableFuture.completedFuture(null);
-        });
-    ArgumentCaptor<DirIndex> dirIndexCaptor = ArgumentCaptor.forClass(DirIndex.class);
-    // Mock - capture cleaned up DirIndex
-    when(blobStoreUtil.cleanUpDir(dirIndexCaptor.capture()))
-        .then((Answer<CompletableFuture<Void>>) invocation -> {
-          DirIndex dirIndex = invocation.getArgumentAt(0, DirIndex.class);
-          actualDirIndexCleanedAndDeleted.add(dirIndex);
-          return CompletableFuture.completedFuture(null);
-        });
-    // Mock - capture deleted DirIndex
-    when(blobStoreUtil.deleteDir(dirIndexCaptor.capture()))
-        .then((Answer<CompletableFuture<Void>>) invocation -> {
-          DirIndex dirIndex = invocation.getArgumentAt(0, DirIndex.class);
-          actualDirIndexCleanedAndDeleted.add(dirIndex);
-          return CompletableFuture.completedFuture(null);
-        });
-
-    // Execute
-    Checkpoint checkpoint =
-        new CheckpointV2(CheckpointId.create(), new HashMap<>(),
-            ImmutableMap.of(StorageConfig.BLOB_STORE_STATE_BACKEND_FACTORY, testStoreNameAndSCMMap));
-    blobStoreRestoreManager.init(checkpoint);
-
-    // Verify
-    Assert.assertEquals(actualSnapshotIndexBlobIdDeleted[0], expectedSnapshotIndexBlobIdDeleted);
-    // Verify: same dir Index is first cleaned and then deleted.
-    Assert.assertEquals(actualDirIndexCleanedAndDeleted.get(0), expectedDirIndexCleanedAndDeleted);
-    Assert.assertEquals(actualDirIndexCleanedAndDeleted.get(1), expectedDirIndexCleanedAndDeleted);
-
-    // cleanup: add back the store entry removed earlier from config
-    mapConfig.put(entry.getKey(), entry.getValue());
-  }
-
-  private Map<String, String> setupTestStoreSCMMapAndStoreBackedFactoryConfig(Map<String,
-      Pair<String, SnapshotIndex>> indexBlobIdAndRemoteAndLocalSnapshotMap) {
-    Map<String, String> storeNameSCMMap = new HashMap<>();
-    indexBlobIdAndRemoteAndLocalSnapshotMap
-        .forEach((blobId, localRemoteSnapshots) -> {
-          mapConfig.put("stores."+localRemoteSnapshots.getFirst()+".factory", BlobStoreStateBackendFactory.class.getName());
-          mapConfig.put("stores."+localRemoteSnapshots.getFirst()+".state.backend.backup.factories", BlobStoreStateBackendFactory.class.getName());
-          storeNameSCMMap.put(localRemoteSnapshots.getFirst(), blobId);
-        });
-    return storeNameSCMMap;
-  }
-
-  private Map<String, Pair<String, SnapshotIndex>> setupRemoteAndLocalSnapshots(boolean addPrevCheckpoints) throws IOException {
-    testBlobStore = new HashMap<>(); // reset blob store
-    Map<String, Pair<String, SnapshotIndex>> indexBlobIdAndRemoteAndLocalSnapshotMap = new HashMap<>();
-    List<String> localSnapshots = new ArrayList<>();
-    List<String> previousRemoteSnapshots = new ArrayList<>();
-
-    localSnapshots.add("[a, c, z/1, y/2, p/m/3, q/n/4]");
-    previousRemoteSnapshots.add("[a, b, z/1, x/5, p/m/3, r/o/6]");
-
-    localSnapshots.add("[a, c, z/1, y/1, p/m/1, q/n/1]");
-    previousRemoteSnapshots.add("[a, z/1, p/m/1]");
-
-    localSnapshots.add("[z/i/1, y/j/1]");
-    previousRemoteSnapshots.add("[z/i/1, x/k/1]");
-
-    // setup local and corresponding remote snapshots
-    for (int i=0; i<localSnapshots.size(); i++) {
-      Path localSnapshot = BlobStoreTestUtil.createLocalDir(localSnapshots.get(i));
-      String testLocalSnapshot = localSnapshot.toAbsolutePath().toString();
-      DirIndex dirIndex = BlobStoreTestUtil.createDirIndex(localSnapshots.get(i));
-      SnapshotMetadata snapshotMetadata = new SnapshotMetadata(checkpointId, jobName, jobId, taskName, testLocalSnapshot);
-      Optional<String> prevCheckpointId = Optional.empty();
-      if (addPrevCheckpoints) {
-        prevCheckpointId = Optional.of(prevSnapshotIndexBlobId + "-" + i);
-        DirIndex prevDirIndex = BlobStoreTestUtil.createDirIndex(previousRemoteSnapshots.get(i));
-        testBlobStore.put(prevCheckpointId.get(),
-            new SnapshotIndex(clock.currentTimeMillis(), snapshotMetadata, prevDirIndex, Optional.empty()));
-      }
-      SnapshotIndex testRemoteSnapshot =
-          new SnapshotIndex(clock.currentTimeMillis(), snapshotMetadata, dirIndex, prevCheckpointId);
-      indexBlobIdAndRemoteAndLocalSnapshotMap.put("blobId-" + i, Pair.of(testLocalSnapshot, testRemoteSnapshot));
-      testBlobStore.put("blobId-" + i, testRemoteSnapshot);
-    }
-    return indexBlobIdAndRemoteAndLocalSnapshotMap;
+    // verify that we checked the previously checkpointed SCMs.
+    verify(prevStoreSnapshotIndexes, times(1)).containsKey(eq("newStoreName"));
+    // verify that the store directory restore was never called
+    verify(blobStoreUtil, times(0)).restoreDir(any(File.class), any(DirIndex.class));
   }
 }
