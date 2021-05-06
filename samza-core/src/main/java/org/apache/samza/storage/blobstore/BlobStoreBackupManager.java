@@ -154,6 +154,8 @@ public class BlobStoreBackupManager implements TaskBackupManager {
     metrics.bytesUploaded.getValue().set(0L);
     metrics.filesRemaining.getValue().set(0L);
     metrics.bytesRemaining.getValue().set(0L);
+    metrics.filesToRetain.getValue().set(0L);
+    metrics.bytesToRetain.getValue().set(0L);
 
     Map<String, CompletableFuture<Pair<String, SnapshotIndex>>>
         storeToSCMAndSnapshotIndexPairFutures = new HashMap<>();
@@ -201,6 +203,8 @@ public class BlobStoreBackupManager implements TaskBackupManager {
         metrics.bytesToUpload.getValue().addAndGet(stats.bytesAdded);
         metrics.filesRemaining.getValue().addAndGet(stats.filesAdded);
         metrics.bytesRemaining.getValue().addAndGet(stats.bytesAdded);
+        metrics.filesToRetain.getValue().addAndGet(stats.filesRetained);
+        metrics.bytesToRetain.getValue().addAndGet(stats.bytesRetained);
 
         // upload the diff to the blob store and get the new directory index
         CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
@@ -272,7 +276,8 @@ public class BlobStoreBackupManager implements TaskBackupManager {
       // 1. remove TTL of index blob and all of its files and sub-dirs marked for retention
       CompletionStage<Void> removeTTLFuture =
           snapshotIndexFuture.thenComposeAsync(snapshotIndex -> {
-            LOG.debug("Removing TTL for index blob: {}", snapshotIndexBlobId);
+            LOG.debug("Removing TTL for index blob: {} for task: {} store :{}",
+                snapshotIndexBlobId, taskName, storeName);
             return blobStoreUtil.removeTTL(snapshotIndexBlobId, snapshotIndex);
           }, executor);
       removeTTLFutures.add(removeTTLFuture);
@@ -280,7 +285,8 @@ public class BlobStoreBackupManager implements TaskBackupManager {
       // 2. delete the files/subdirs marked for deletion in the snapshot index.
       CompletionStage<Void> cleanupRemoteSnapshotFuture =
           snapshotIndexFuture.thenComposeAsync(snapshotIndex -> {
-            LOG.debug("Deleting files and dirs to remove for current index blob: {}", snapshotIndexBlobId);
+            LOG.debug("Deleting files and dirs to remove for current index blob: {} for task: {} store: {}",
+                snapshotIndexBlobId, taskName, storeName);
             return blobStoreUtil.cleanUpDir(snapshotIndex.getDirIndex());
           }, executor);
 
@@ -291,7 +297,8 @@ public class BlobStoreBackupManager implements TaskBackupManager {
           snapshotIndexFuture.thenComposeAsync(snapshotIndex -> {
             if (snapshotIndex.getPrevSnapshotIndexBlobId().isPresent()) {
               String blobId = snapshotIndex.getPrevSnapshotIndexBlobId().get();
-              LOG.debug("Removing previous snapshot index blob: {} from blob store.", blobId);
+              LOG.debug("Removing previous snapshot index blob: {} from blob store for task: {} store: {}.",
+                  blobId, taskName, storeName);
               return blobStoreUtil.deleteSnapshotIndexBlob(blobId);
             } else {
               // complete future immediately. There are no previous snapshots index blobs to delete.

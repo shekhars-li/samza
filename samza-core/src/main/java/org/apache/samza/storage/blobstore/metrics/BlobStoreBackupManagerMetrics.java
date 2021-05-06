@@ -26,6 +26,8 @@ public class BlobStoreBackupManagerMetrics {
   public final Gauge<AtomicLong> bytesUploaded;
   public final Gauge<AtomicLong> filesRemaining;
   public final Gauge<AtomicLong> bytesRemaining;
+  public final Gauge<AtomicLong> filesToRetain;
+  public final Gauge<AtomicLong> bytesToRetain;
   public final Counter uploadRate;
 
   // per store breakdowns
@@ -61,6 +63,8 @@ public class BlobStoreBackupManagerMetrics {
     this.bytesUploaded = metricsRegistry.newGauge(GROUP, "bytes-uploaded", new AtomicLong(0L));
     this.filesRemaining = metricsRegistry.newGauge(GROUP, "files-remaining", new AtomicLong(0L));
     this.bytesRemaining = metricsRegistry.newGauge(GROUP, "bytes-remaining", new AtomicLong(0L));
+    this.filesToRetain = metricsRegistry.newGauge(GROUP, "files-to-retain", new AtomicLong(0L));
+    this.bytesToRetain = metricsRegistry.newGauge(GROUP, "bytes-to-retain", new AtomicLong(0L));
 
     this.storeDirDiffNs = new ConcurrentHashMap<>();
     this.storeUploadNs = new ConcurrentHashMap<>();
