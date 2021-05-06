@@ -24,6 +24,9 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.samza.Partition;
 import org.apache.samza.SamzaException;
+import org.apache.samza.checkpoint.CheckpointId;
+import org.apache.samza.checkpoint.CheckpointV2;
+import org.apache.samza.checkpoint.kafka.KafkaStateCheckpointMarker;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.container.TaskName;
@@ -92,6 +95,8 @@ public class SamzaObjectMapper {
     module.addKeyDeserializer(SystemStreamPartition.class, new SystemStreamPartitionKeyDeserializer());
     module.addDeserializer(Config.class, new ConfigDeserializer());
     module.addDeserializer(TaskMode.class, new TaskModeDeserializer());
+    module.addSerializer(CheckpointId.class, new CheckpointIdSerializer());
+    module.addDeserializer(CheckpointId.class, new CheckpointIdDeserializer());
 
     // Setup mixins for data models.
     mapper.getSerializationConfig().addMixInAnnotations(TaskModel.class, JsonTaskModelMixIn.class);
@@ -99,6 +104,11 @@ public class SamzaObjectMapper {
     mapper.getSerializationConfig().addMixInAnnotations(ContainerModel.class, JsonContainerModelMixIn.class);
     mapper.getSerializationConfig().addMixInAnnotations(JobModel.class, JsonJobModelMixIn.class);
     mapper.getDeserializationConfig().addMixInAnnotations(JobModel.class, JsonJobModelMixIn.class);
+
+    mapper.getSerializationConfig().addMixInAnnotations(CheckpointV2.class, JsonCheckpointV2Mixin.class);
+    mapper.getDeserializationConfig().addMixInAnnotations(CheckpointV2.class, JsonCheckpointV2Mixin.class);
+    mapper.getSerializationConfig().addMixInAnnotations(KafkaStateCheckpointMarker.class, KafkaStateCheckpointMarkerMixin.class);
+    mapper.getDeserializationConfig().addMixInAnnotations(KafkaStateCheckpointMarker.class, KafkaStateCheckpointMarkerMixin.class);
 
     module.addDeserializer(ContainerModel.class, new JsonDeserializer<ContainerModel>() {
       @Override
@@ -256,6 +266,22 @@ public class SamzaObjectMapper {
       String stream = node.get("stream").getTextValue();
       Partition partition = new Partition(node.get("partition").getIntValue());
       return new SystemStreamPartition(system, stream, partition);
+    }
+  }
+
+  public static class CheckpointIdSerializer extends JsonSerializer<CheckpointId> {
+    @Override
+    public void serialize(CheckpointId checkpointId, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+      gen.writeString(checkpointId.serialize());
+    }
+  }
+
+  public static class CheckpointIdDeserializer extends JsonDeserializer<CheckpointId> {
+    @Override
+    public CheckpointId deserialize(JsonParser jsonParser, DeserializationContext context) throws IOException {
+      ObjectCodec oc = jsonParser.getCodec();
+      JsonNode node = oc.readTree(jsonParser);
+      return CheckpointId.deserialize(node.getTextValue());
     }
   }
 
