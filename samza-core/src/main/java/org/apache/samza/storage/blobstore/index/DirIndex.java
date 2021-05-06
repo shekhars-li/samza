@@ -80,6 +80,39 @@ public class DirIndex {
     return subDirsRemoved;
   }
 
+  public static Stats getStats(DirIndex dirIndex) {
+    Stats stats = new Stats();
+    updateStats(dirIndex, stats);
+    return stats;
+  }
+
+  private static void updateStats(DirIndex dirIndex, Stats stats) {
+    stats.filesAdded += dirIndex.getFilesPresent().size();
+    stats.filesRemoved += dirIndex.getFilesRemoved().size();
+
+    stats.subDirsAdded += dirIndex.getFilesPresent().size();
+    stats.subDirsRemoved += dirIndex.getSubDirsRemoved().size();
+
+    stats.bytesAdded += (dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
+    stats.bytesRemoved += (dirIndex.getFilesRemoved().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
+
+    for (DirIndex subDirPresent : dirIndex.getSubDirsPresent()) {
+      updateStats(subDirPresent, stats);
+    }
+
+    for (DirIndex subDirsRemoved : dirIndex.getSubDirsRemoved()) {
+      updateStatsForSubDirsRemoved(subDirsRemoved, stats);
+    }
+  }
+
+  private static void updateStatsForSubDirsRemoved(DirIndex dirIndex, Stats stats) {
+    stats.filesRemoved += dirIndex.getFilesPresent().size();
+    stats.bytesRemoved += (dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
+    for (DirIndex subDirRemoved : dirIndex.getSubDirsRemoved()) {
+      updateStatsForSubDirsRemoved(subDirRemoved, stats);
+    }
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
@@ -111,5 +144,28 @@ public class DirIndex {
   public String toString() {
     return "DirIndex{" + "dirName='" + dirName + '\'' + ", filesPresent=" + filesPresent + ", filesRemoved="
         + filesRemoved + ", subDirsPresent=" + subDirsPresent + ", subDirsRemoved=" + subDirsRemoved + '}';
+  }
+
+  public static class Stats {
+    public int filesAdded;
+    public int filesRemoved;
+
+    public int subDirsAdded;
+    public int subDirsRemoved;
+
+    public long bytesAdded;
+    public long bytesRemoved;
+
+    @Override
+    public String toString() {
+      return "Stats{" +
+          "filesAdded=" + filesAdded +
+          ", filesRemoved=" + filesRemoved +
+          ", subDirsAdded=" + subDirsAdded
+          + ", subDirsRemoved=" + subDirsRemoved +
+          ", bytesAdded=" + bytesAdded +
+          ", bytesRemoved=" + bytesRemoved
+          + '}';
+    }
   }
 }

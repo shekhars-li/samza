@@ -23,7 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
 import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
-import org.apache.samza.storage.blobstore.PutMetadata;
+import org.apache.samza.storage.blobstore.Metadata;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.exceptions.RetriableException;
 import org.apache.samza.storage.blobstore.index.DirIndex;
@@ -161,10 +161,10 @@ public class BlobStoreUtil {
     return FutureUtil.executeAsyncWithRetries(opName, () -> {
       InputStream inputStream = new ByteArrayInputStream(bytes); // no need to close ByteArrayInputStream
       SnapshotMetadata snapshotMetadata = snapshotIndex.getSnapshotMetadata();
-      PutMetadata putMetadata = new PutMetadata(PAYLOAD_PATH_SNAPSHOT_INDEX, String.valueOf(bytes.length),
+      Metadata metadata = new Metadata(PAYLOAD_PATH_SNAPSHOT_INDEX, String.valueOf(bytes.length),
           snapshotMetadata.getJobName(), snapshotMetadata.getJobId(), snapshotMetadata.getTaskName(),
           snapshotMetadata.getStoreName());
-      return blobStoreManager.put(inputStream, putMetadata).toCompletableFuture();
+      return blobStoreManager.put(inputStream, metadata).toCompletableFuture();
     }, isCauseNonRetriable(), executor);
   }
 
@@ -286,11 +286,11 @@ public class BlobStoreUtil {
           backupMetrics.avgFileSizeBytes.update(fileMetadata.getSize());
         }
 
-        PutMetadata putMetadata =
-            new PutMetadata(file.getAbsolutePath(), String.valueOf(fileMetadata.getSize()), snapshotMetadata.getJobName(),
+        Metadata metadata =
+            new Metadata(file.getAbsolutePath(), String.valueOf(fileMetadata.getSize()), snapshotMetadata.getJobName(),
                 snapshotMetadata.getJobId(), snapshotMetadata.getTaskName(), snapshotMetadata.getStoreName());
 
-        fileBlobFuture = blobStoreManager.put(inputStream, putMetadata)
+        fileBlobFuture = blobStoreManager.put(inputStream, metadata)
             .thenApplyAsync(id -> {
               LOG.trace("Put complete. Closing input stream for file: {}.", file.getPath());
               try {

@@ -30,7 +30,7 @@ import org.apache.samza.util.Clock;
 
 
 /**
- * Factory to build the Samza {@link TaskBackupManager}, {@link TaskRestoreManager} and {@link StateBackendResourceAdmin}
+ * Factory to build the Samza {@link TaskBackupManager}, {@link TaskRestoreManager} and {@link StateBackendAdmin}
  * for a particular state storage backend, which are used to durably backup the Samza task state.
  */
 public interface StateBackendFactory {
@@ -55,5 +55,5 @@ public interface StateBackendFactory {
       File nonLoggedStoreBaseDir,
       KafkaChangelogRestoreParams kafkaChangelogRestoreParams);
 
-  StateBackendResourceAdmin getStateBackendResourceAdmin(JobModel jobModel, Config config);
+  StateBackendAdmin getStateBackendAdmin(JobModel jobModel, Config config);
 }

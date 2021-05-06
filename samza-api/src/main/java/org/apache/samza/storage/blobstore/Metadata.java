@@ -23,7 +23,7 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 
-public class PutMetadata {
+public class Metadata {
   private final String payloadPath;
   private final String payloadSize;
   private final String jobName;
@@ -31,7 +31,7 @@ public class PutMetadata {
   private final String taskName;
   private final String storeName;
 
-  public PutMetadata(String payloadPath, String payloadSize,
+  public Metadata(String payloadPath, String payloadSize,
       String jobName, String jobId, String taskName, String storeName) {
     this.payloadPath = payloadPath;
     this.payloadSize = payloadSize;
@@ -71,11 +71,11 @@ public class PutMetadata {
       return true;
     }
 
-    if (!(o instanceof PutMetadata)) {
+    if (!(o instanceof Metadata)) {
       return false;
     }
 
-    PutMetadata that = (PutMetadata) o;
+    Metadata that = (Metadata) o;
 
     return new EqualsBuilder().append(getPayloadPath(), that.getPayloadPath())
         .append(getPayloadSize(), that.getPayloadSize())
@@ -99,7 +99,7 @@ public class PutMetadata {
 
   @Override
   public String toString() {
-    return "PutMetadata{" + "payloadPath='" + payloadPath + '\'' + ", payloadSize='" + payloadSize + '\''
+    return "Metadata{" + "payloadPath='" + payloadPath + '\'' + ", payloadSize='" + payloadSize + '\''
         + ", jobName='" + jobName + '\'' + ", jobId='" + jobId + '\'' + ", taskName='" + taskName + '\''
         + ", storeName='" + storeName + '\'' + '}';
   }

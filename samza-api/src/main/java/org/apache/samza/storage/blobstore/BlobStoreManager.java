@@ -38,7 +38,7 @@ public interface BlobStoreManager {
    * Non-blocking PUT call to remote blob store with supplied metadata
    * @return a future containing the blob ID of the uploaded blob if the upload is successful.
    */
-  CompletionStage<String> put(InputStream inputStream, PutMetadata putMetadata);
+  CompletionStage<String> put(InputStream inputStream, Metadata metadata);
 
   /**
    * Non-blocking GET call to remote blob store

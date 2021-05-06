@@ -155,7 +155,8 @@ public class DirDiff {
     // every file and sub-dir present in a removed parent dir are to be removed as well
     // files and sub-dirs to be removed don't matter since they would have already been
     // cleaned up after the previous commit
-    stats.filesRemoved += dirIndex.getFilesPresent().stream().mapToLong(f -> f.getFileMetadata().getSize()).sum();
+    stats.filesRemoved += dirIndex.getFilesRemoved().size();
+    stats.bytesRemoved += dirIndex.getFilesPresent().stream().mapToLong(f -> f.getFileMetadata().getSize()).sum();
     for (DirIndex subDirRemoved: dirIndex.getSubDirsPresent()) {
       stats.subDirsRemoved += 1;
       updateStatsForDirRemoved(subDirRemoved, stats);

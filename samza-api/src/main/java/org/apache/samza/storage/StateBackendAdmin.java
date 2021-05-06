@@ -22,7 +22,7 @@ package org.apache.samza.storage;
 /**
  * Admin responsible for loading any resources related to state backend
  */
-public interface StateBackendResourceAdmin {
+public interface StateBackendAdmin {
   /**
    * Create all the resources required per job per store state backend
    */

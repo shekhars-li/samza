@@ -33,8 +33,9 @@ import org.apache.samza.job.model.JobModel;
 import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.storage.KafkaChangelogRestoreParams;
+import org.apache.samza.storage.StateBackendAdminFactory;
 import org.apache.samza.storage.StateBackendFactory;
-import org.apache.samza.storage.StateBackendResourceAdmin;
+import org.apache.samza.storage.StateBackendAdmin;
 import org.apache.samza.storage.StorageManagerUtil;
 import org.apache.samza.storage.TaskBackupManager;
 import org.apache.samza.storage.TaskRestoreManager;
@@ -92,18 +93,10 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
   }
 
   @Override
-  public StateBackendResourceAdmin getStateBackendResourceAdmin(JobModel jobModel, Config config) {
-    // TODO BLOCKER shesharm BlobStoreStateBackendResourceAdmin for creating & validating ambry containers
-    return new StateBackendResourceAdmin() {
-      @Override
-      public void createResources() {
-
-      }
-
-      @Override
-      public void validateResources() {
-
-      }
-    };
+  public StateBackendAdmin getStateBackendAdmin(JobModel jobModel, Config config) {
+    StorageConfig storageConfig = new StorageConfig(config);
+    String stateBackendAdminFactory = storageConfig.getBlobStoreBackendAdminFactory();
+    StateBackendAdminFactory factory = ReflectionUtil.getObj(stateBackendAdminFactory, StateBackendAdminFactory.class);
+    return factory.getStateBackendAdmin(config, jobModel);
   }
 }

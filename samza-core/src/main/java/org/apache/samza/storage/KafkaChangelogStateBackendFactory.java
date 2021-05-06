@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.samza.SamzaException;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.StorageConfig;
 import org.apache.samza.config.TaskConfig;
@@ -152,8 +151,8 @@ public class KafkaChangelogStateBackendFactory implements StateBackendFactory {
   }
 
   @Override
-  public StateBackendResourceAdmin getStateBackendResourceAdmin(JobModel jobModel, Config config) {
-    return new NoOpKafkaChangelogStateBackendResourceAdmin();
+  public StateBackendAdmin getStateBackendAdmin(JobModel jobModel, Config config) {
+    return new NoOpKafkaChangelogStateBackendAdmin();
   }
 
   @VisibleForTesting
@@ -213,7 +212,7 @@ public class KafkaChangelogStateBackendFactory implements StateBackendFactory {
         .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getSystemStream()));
   }
 
-  public class NoOpKafkaChangelogStateBackendResourceAdmin implements StateBackendResourceAdmin {
+  public class NoOpKafkaChangelogStateBackendAdmin implements StateBackendAdmin {
 
     @Override
     public void createResources() {

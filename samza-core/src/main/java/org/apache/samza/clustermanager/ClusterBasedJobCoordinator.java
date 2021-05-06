@@ -274,9 +274,9 @@ public class ClusterBasedJobCoordinator {
         StateBackendFactory stateBackendFactory =
             ReflectionUtil.getObj(stateStorageBackendBackupFactory, StateBackendFactory.class);
         // Create resources required for state backend admin
-        stateBackendFactory.getStateBackendResourceAdmin(jobModel, config).createResources();
+        stateBackendFactory.getStateBackendAdmin(jobModel, config).createResources();
         // Validate resources required for state backend admin
-        stateBackendFactory.getStateBackendResourceAdmin(jobModel, config).validateResources();
+        stateBackendFactory.getStateBackendAdmin(jobModel, config).validateResources();
       });
 
       /*

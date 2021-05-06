@@ -54,7 +54,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.samza.SamzaException;
 import org.apache.samza.checkpoint.CheckpointId;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
-import org.apache.samza.storage.blobstore.PutMetadata;
+import org.apache.samza.storage.blobstore.Metadata;
 import org.apache.samza.storage.blobstore.diff.DirDiff;
 import org.apache.samza.storage.blobstore.exceptions.RetriableException;
 import org.apache.samza.storage.blobstore.index.DirIndex;
@@ -114,9 +114,9 @@ public class TestBlobStoreUtil {
 
     SortedSet<String> allUploaded = new TreeSet<>();
     // Set up mocks
-    when(blobStoreManager.put(any(InputStream.class), any(PutMetadata.class)))
+    when(blobStoreManager.put(any(InputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<String>>) invocation -> {
-          PutMetadata metadata = invocation.getArgumentAt(1, PutMetadata.class);
+          Metadata metadata = invocation.getArgumentAt(1, Metadata.class);
           String path = metadata.getPayloadPath();
           allUploaded.add(path.substring(localSnapshotDir.toAbsolutePath().toString().length() + 1));
           return CompletableFuture.completedFuture(path);
@@ -164,9 +164,9 @@ public class TestBlobStoreUtil {
     SamzaException exception = new SamzaException("Error uploading file");
     CompletableFuture<String> failedFuture = new CompletableFuture<>();
     failedFuture.completeExceptionally(exception);
-    when(blobStoreManager.put(any(InputStream.class), any(PutMetadata.class)))
+    when(blobStoreManager.put(any(InputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<String>>) invocation -> {
-          PutMetadata metadata = invocation.getArgumentAt(1, PutMetadata.class);
+          Metadata metadata = invocation.getArgumentAt(1, Metadata.class);
           String path = metadata.getPayloadPath();
           if (path.endsWith("a")) {
             return CompletableFuture.completedFuture("aBlobId");
@@ -211,9 +211,9 @@ public class TestBlobStoreUtil {
     SamzaException exception = new SamzaException("Error uploading file");
     CompletableFuture<String> failedFuture = new CompletableFuture<>();
     failedFuture.completeExceptionally(exception);
-    when(blobStoreManager.put(any(InputStream.class), any(PutMetadata.class)))
+    when(blobStoreManager.put(any(InputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<String>>) invocation -> {
-          PutMetadata metadata = invocation.getArgumentAt(1, PutMetadata.class);
+          Metadata metadata = invocation.getArgumentAt(1, Metadata.class);
           String path = metadata.getPayloadPath();
           if (path.endsWith("1")) {
             return CompletableFuture.completedFuture("a1BlobId");
@@ -260,7 +260,7 @@ public class TestBlobStoreUtil {
         (localFile, remoteFile) -> localFile.getName().equals(remoteFile.getFileName()));
 
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, EXECUTOR, null, null);
-    when(blobStoreManager.put(any(InputStream.class), any(PutMetadata.class)))
+    when(blobStoreManager.put(any(InputStream.class), any(Metadata.class)))
         .thenReturn(CompletableFuture.completedFuture("blobId"));
     CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
     DirIndex dirIndex = null;
@@ -313,7 +313,7 @@ public class TestBlobStoreUtil {
         (localFile, remoteFile) -> localFile.getName().equals(remoteFile.getFileName()));
 
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, EXECUTOR, null, null);
-    when(blobStoreManager.put(any(InputStream.class), any(PutMetadata.class)))
+    when(blobStoreManager.put(any(InputStream.class), any(Metadata.class)))
         .thenReturn(CompletableFuture.completedFuture("blobId"));
     CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
     DirIndex dirIndex = null;
@@ -373,7 +373,7 @@ public class TestBlobStoreUtil {
         (localFile, remoteFile) -> localFile.getName().equals(remoteFile.getFileName()));
 
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(blobStoreManager, EXECUTOR, null, null);
-    when(blobStoreManager.put(any(InputStream.class), any(PutMetadata.class)))
+    when(blobStoreManager.put(any(InputStream.class), any(Metadata.class)))
         .thenReturn(CompletableFuture.completedFuture("blobId"));
     CompletionStage<DirIndex> dirIndexFuture = blobStoreUtil.putDir(dirDiff, snapshotMetadata);
     DirIndex dirIndex = null;
@@ -436,9 +436,9 @@ public class TestBlobStoreUtil {
     DirDiff dirDiff = DirDiffUtil.getDirDiff(localSnapshotDir.toFile(), remoteSnapshotDir,
         (localFile, remoteFile) -> localFile.getName().equals(remoteFile.getFileName()));
 
-    when(blobStoreManager.put(any(InputStream.class), any(PutMetadata.class)))
+    when(blobStoreManager.put(any(InputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<String>>) invocation -> {
-          PutMetadata metadata = invocation.getArgumentAt(1, PutMetadata.class);
+          Metadata metadata = invocation.getArgumentAt(1, Metadata.class);
           String path = metadata.getPayloadPath();
           String fileName = path.substring(path.length() - 1); // use only the last character as file name
           return CompletableFuture.completedFuture(fileName);
@@ -488,7 +488,7 @@ public class TestBlobStoreUtil {
     long expectedChecksum = FileUtils.checksumCRC32(path.toFile());
 
     BlobStoreManager blobStoreManager = mock(BlobStoreManager.class);
-    ArgumentCaptor<PutMetadata> argumentCaptor = ArgumentCaptor.forClass(PutMetadata.class);
+    ArgumentCaptor<Metadata> argumentCaptor = ArgumentCaptor.forClass(Metadata.class);
     when(blobStoreManager.put(any(InputStream.class), argumentCaptor.capture())).thenAnswer(
         (Answer<CompletionStage<String>>) invocation -> {
           InputStream inputStream = invocation.getArgumentAt(0, InputStream.class);
@@ -509,7 +509,7 @@ public class TestBlobStoreUtil {
     }
 
     // Assert
-    PutMetadata metadata = (PutMetadata) argumentCaptor.getValue();
+    Metadata metadata = (Metadata) argumentCaptor.getValue();
     assertEquals(path.toAbsolutePath().toString(), metadata.getPayloadPath());
     assertEquals(path.toFile().length(), Long.valueOf(metadata.getPayloadSize()).longValue());
     assertEquals(expectedChecksum, fileIndex.getChecksum());

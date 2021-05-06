@@ -66,6 +66,7 @@ public class StorageConfig extends MapConfig {
   public static final String CHANGELOG_MIN_COMPACTION_LAG_MS = STORE_PREFIX + "%s.changelog." + MIN_COMPACTION_LAG_MS;
   public static final long DEFAULT_CHANGELOG_MIN_COMPACTION_LAG_MS = TimeUnit.HOURS.toMillis(4);
 
+  public static final String BLOB_STORE_BACKEND_ADMIN_FACTORY = "blob.store.backend.admin.factory";
   public static final String BLOB_STORE_MANAGER_FACTORY = "blob.store.manager.factory";
   public static final String BLOB_STORE_STATE_BACKEND_FACTORY = "org.apache.samza.storage.blobstore.BlobStoreStateBackendFactory";
   public static final String DEFAULT_STATE_BACKEND_FACTORY = "org.apache.samza.storage.KafkaChangelogStateBackendFactory";
@@ -294,6 +295,10 @@ public class StorageConfig extends MapConfig {
   public String getBlobStoreManagerFactory() {
     // TODO BLOCKER dchen validate that if blob store state backend is configured for use this config is also set.
     return get(BLOB_STORE_MANAGER_FACTORY);
+  }
+
+  public String getBlobStoreBackendAdminFactory() {
+    return get(BLOB_STORE_BACKEND_ADMIN_FACTORY);
   }
 
   /**
