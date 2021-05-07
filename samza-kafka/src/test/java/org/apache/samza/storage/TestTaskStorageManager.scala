@@ -23,17 +23,20 @@ import java.io.{File, FileOutputStream, ObjectOutputStream}
 import java.util
 import java.util.Optional
 
+import com.google.common.collect.{ImmutableMap, ImmutableSet}
 import org.apache.samza.Partition
+import org.apache.samza.checkpoint.kafka.KafkaStateCheckpointMarker
+import org.apache.samza.checkpoint.{CheckpointId, CheckpointManager, CheckpointV1}
 import org.apache.samza.config._
 import org.apache.samza.container.{SamzaContainerMetrics, TaskInstanceMetrics, TaskName}
-import org.apache.samza.context.{ContainerContext, ExternalContext, JobContext}
-import org.apache.samza.job.model.{ContainerModel, TaskMode, TaskModel}
+import org.apache.samza.context.{ContainerContext, JobContext}
+import org.apache.samza.job.model.{ContainerModel, JobModel, TaskMode, TaskModel}
 import org.apache.samza.serializers.{Serde, StringSerdeFactory}
 import org.apache.samza.storage.StoreProperties.StorePropertiesBuilder
 import org.apache.samza.system.SystemStreamMetadata.SystemStreamPartitionMetadata
 import org.apache.samza.system._
 import org.apache.samza.task.TaskInstanceCollector
-import org.apache.samza.util.{FileUtil, SystemClock}
+import org.apache.samza.util.{Clock, FileUtil, SystemClock}
 import org.junit.Assert._
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -49,8 +52,6 @@ import org.scalatest.mockito.MockitoSugar
 import scala.collection.JavaConverters._
 import scala.collection.immutable.HashMap
 import scala.collection.mutable
-import com.google.common.collect.{ImmutableMap, ImmutableSet}
-import org.apache.samza.checkpoint.{Checkpoint, CheckpointManager}
 
 /**
   * This test is parameterized on the offsetFileName and is run for both
@@ -59,7 +60,7 @@ import org.apache.samza.checkpoint.{Checkpoint, CheckpointManager}
   * @param offsetFileName the name of the offset file.
   */
 @RunWith(value = classOf[Parameterized])
-class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extends MockitoSugar {
+class TestKafkaNonTransactionalStateTaskBackupManager(offsetFileName: String) extends MockitoSugar {
 
   val store = "store1"
   val loggedStore = "loggedStore1"
@@ -132,44 +133,6 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
     assertTrue(storeFile.exists())
     assertFalse(offsetFile.exists())
     verify(mockSystemConsumer).register(ssp, "0")
-
-    // Test 2: flush should update the offset file
-    taskManager.flush()
-    assertTrue(offsetFile.exists())
-    validateOffsetFileContents(offsetFile, "kafka.testStream-loggedStore1.0", "50")
-
-    // Test 3: Update sspMetadata before shutdown and verify that offset file is not updated
-    when(mockSystemAdmin.getSSPMetadata(ImmutableSet.of(ssp)))
-      .thenReturn(ImmutableMap.of(ssp, new SystemStreamPartitionMetadata("0", "100", "101")))
-    taskManager.stop()
-    verify(mockStorageEngine, times(1)).flush() // only called once during Test 2.
-    assertTrue(storeFile.exists())
-    assertTrue(offsetFile.exists())
-    validateOffsetFileContents(offsetFile, "kafka.testStream-loggedStore1.0", "50")
-
-    // Test 4: Initialize again with an updated sspMetadata; Verify that it restores from the correct offset
-    sspMetadata = new SystemStreamPartitionMetadata("0", "150", "151")
-    metadata = new SystemStreamMetadata(getStreamName(loggedStore), new java.util.HashMap[Partition, SystemStreamPartitionMetadata]() {
-      {
-        put(partition, sspMetadata)
-      }
-    })
-    when(mockStreamMetadataCache.getStreamMetadata(any(), any())).thenReturn(Map(ss -> metadata))
-    when(mockSystemAdmin.getSSPMetadata(ImmutableSet.of(ssp)))
-      .thenReturn(ImmutableMap.of(ssp, sspMetadata))
-    when(mockSystemAdmin.getOffsetsAfter(Map(ssp -> "50").asJava)).thenReturn(Map(ssp -> "51").asJava)
-    Mockito.reset(mockSystemConsumer)
-
-    taskManager = new TaskStorageManagerBuilder()
-      .addStore(loggedStore, mockStorageEngine, mockSystemConsumer)
-      .setStreamMetadataCache(mockStreamMetadataCache)
-      .setSystemAdmin("kafka", mockSystemAdmin)
-      .initializeContainerStorageManager()
-      .build
-
-    assertTrue(storeFile.exists())
-    assertTrue(offsetFile.exists())
-    verify(mockSystemConsumer).register(ssp, "51")
   }
 
   /**
@@ -218,7 +181,9 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
     verify(mockSystemConsumer).register(ssp, "0")
 
     // Test 2: flush should NOT create/update the offset file. Store directory has no files
-    taskManager.flush()
+    val checkpointId = CheckpointId.create()
+    val snapshot = taskManager.snapshot(checkpointId)
+    val stateCheckpointMarkers = taskManager.upload(checkpointId, snapshot)
     assertTrue(storeDirectory.list().isEmpty)
 
     // Test 3: Update sspMetadata before shutdown and verify that offset file is NOT created
@@ -229,7 +194,7 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
     })
     when(mockStreamMetadataCache.getStreamMetadata(any(), any())).thenReturn(Map(ss -> metadata))
     when(mockSystemAdmin.getSSPMetadata(ImmutableSet.of(ssp))).thenReturn(ImmutableMap.of(ssp, sspMetadata))
-    taskManager.stop()
+    taskManager.close()
     assertTrue(storeDirectory.list().isEmpty)
 
     // Test 4: Initialize again with an updated sspMetadata; Verify that it restores from the earliest offset
@@ -369,49 +334,10 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
       .build
 
     //Invoke test method
-    taskStorageManager.stop()
+    taskStorageManager.close()
 
     //Check conditions
     assertFalse("Offset file doesn't exist!", offsetFile.exists())
-  }
-
-  /**
-    * Given that the SSPMetadataCache returns metadata, flush should create the offset files.
-    */
-  @Test
-  def testFlushCreatesOffsetFileForLoggedStore() {
-    val partition = new Partition(0)
-
-    val offsetFilePath = new File(storageManagerUtil.getTaskStoreDir(TaskStorageManagerBuilder.defaultLoggedStoreBaseDir, loggedStore, taskName, TaskMode.Active) + File.separator + offsetFileName)
-    val anotherOffsetPath = new File(
-      storageManagerUtil.getTaskStoreDir(TaskStorageManagerBuilder.defaultLoggedStoreBaseDir, store, taskName, TaskMode.Active) + File.separator + offsetFileName)
-
-    val ssp1 = new SystemStreamPartition("kafka", getStreamName(loggedStore), partition)
-    val ssp2 = new SystemStreamPartition("kafka", getStreamName(store), partition)
-    val sspMetadata = new SystemStreamPartitionMetadata("20", "100", "101")
-
-    val mockSystemAdmin = mock[SystemAdmin]
-    when(mockSystemAdmin.getSSPMetadata(ImmutableSet.of(ssp1))).thenReturn(ImmutableMap.of(ssp1, sspMetadata))
-    when(mockSystemAdmin.getSSPMetadata(ImmutableSet.of(ssp2))).thenReturn(ImmutableMap.of(ssp2, sspMetadata))
-
-    //Build TaskStorageManager
-    val taskStorageManager = new TaskStorageManagerBuilder()
-      .addLoggedStore(loggedStore, true)
-      .addStore(store, false)
-      .setSystemAdmin("kafka", mockSystemAdmin)
-      .setStreamMetadataCache(createMockStreamMetadataCache("20", "100", "101"))
-      .setPartition(partition)
-      .initializeContainerStorageManager()
-      .build
-
-    //Invoke test method
-    taskStorageManager.flush()
-
-    //Check conditions
-    assertTrue("Offset file doesn't exist!", offsetFilePath.exists())
-    validateOffsetFileContents(offsetFilePath, "kafka.testStream-loggedStore1.0", "100")
-
-    assertTrue("Offset file got created for a store that is not persisted to the disk!!", !anotherOffsetPath.exists())
   }
 
   /**
@@ -421,8 +347,6 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
   def testFlushDeletesOffsetFileForLoggedStoreForEmptyPartition() {
     val partition = new Partition(0)
 
-    val offsetFilePath = new File(storageManagerUtil.getTaskStoreDir(TaskStorageManagerBuilder.defaultLoggedStoreBaseDir, loggedStore, taskName, TaskMode.Active) + File.separator + offsetFileName)
-
     val ssp = new SystemStreamPartition("kafka", getStreamName(loggedStore), partition)
     val sspMetadata = new SystemStreamPartitionMetadata("0", "100", "101")
     val nullSspMetadata = new SystemStreamPartitionMetadata(null, null, null)
@@ -431,7 +355,7 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
       .thenReturn(ImmutableMap.of(ssp, sspMetadata))
       .thenReturn(ImmutableMap.of(ssp, nullSspMetadata))
 
-    var metadata = new SystemStreamMetadata(getStreamName(loggedStore), new java.util.HashMap[Partition, SystemStreamPartitionMetadata]() {
+    val metadata = new SystemStreamMetadata(getStreamName(loggedStore), new java.util.HashMap[Partition, SystemStreamPartitionMetadata]() {
       {
         put(partition, sspMetadata)
       }
@@ -450,67 +374,15 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
       .build
 
     //Invoke test method
-    taskStorageManager.flush()
-
-    //Check conditions
-    assertTrue("Offset file doesn't exist!", offsetFilePath.exists())
-    validateOffsetFileContents(offsetFilePath, "kafka.testStream-loggedStore1.0", "100")
+    val checkpointId = CheckpointId.create()
+    var snapshot = taskStorageManager.snapshot(checkpointId)
+    taskStorageManager.upload(checkpointId, snapshot)
 
     //Invoke test method again
-    taskStorageManager.flush()
+    snapshot = taskStorageManager.snapshot(checkpointId)
+    val stateCheckpointMarkers2 = taskStorageManager.upload(checkpointId, snapshot)
 
-    //Check conditions
-    assertFalse("Offset file for null offset exists!", offsetFilePath.exists())
-  }
-
-  @Test
-  def testFlushOverwritesOffsetFileForLoggedStore() {
-    val partition = new Partition(0)
-    val ssp = new SystemStreamPartition("kafka", getStreamName(loggedStore), partition)
-
-    val offsetFilePath = new File(storageManagerUtil.getTaskStoreDir(TaskStorageManagerBuilder.defaultLoggedStoreBaseDir, loggedStore, taskName, TaskMode.Active) + File.separator + offsetFileName)
-    fileUtil.writeWithChecksum(offsetFilePath, "100")
-
-    val sspMetadata = new SystemStreamPartitionMetadata("20", "139", "140")
-    val mockSystemAdmin = mock[SystemAdmin]
-    when(mockSystemAdmin.getSSPMetadata(ImmutableSet.of(ssp))).thenReturn(ImmutableMap.of(ssp, sspMetadata))
-
-
-    var metadata = new SystemStreamMetadata(getStreamName(loggedStore), new java.util.HashMap[Partition, SystemStreamPartitionMetadata]() {
-      {
-        put(partition, sspMetadata)
-      }
-    })
-
-    val mockStreamMetadataCache = mock[StreamMetadataCache]
-    when(mockStreamMetadataCache.getStreamMetadata(any(), any())).thenReturn(Map(new SystemStream("kafka", getStreamName(loggedStore)) -> metadata))
-
-    //Build TaskStorageManager
-    val taskStorageManager = new TaskStorageManagerBuilder()
-      .addLoggedStore(loggedStore, true)
-      .setSystemAdmin("kafka", mockSystemAdmin)
-      .setPartition(partition)
-      .setStreamMetadataCache(mockStreamMetadataCache)
-      .initializeContainerStorageManager()
-      .build
-
-    //Invoke test method
-    taskStorageManager.flush()
-
-    //Check conditions
-    assertTrue("Offset file doesn't exist!", offsetFilePath.exists())
-    validateOffsetFileContents(offsetFilePath, "kafka.testStream-loggedStore1.0", "139")
-
-    // Flush again
-    when(mockSystemAdmin.getSSPMetadata(ImmutableSet.of(ssp)))
-      .thenReturn(ImmutableMap.of(ssp, new SystemStreamPartitionMetadata("20", "193", "194")))
-
-    //Invoke test method
-    taskStorageManager.flush()
-
-    //Check conditions
-    assertTrue("Offset file doesn't exist!", offsetFilePath.exists())
-    validateOffsetFileContents(offsetFilePath, "kafka.testStream-loggedStore1.0", "193")
+    assertNull(KafkaStateCheckpointMarker.deserialize(stateCheckpointMarkers2.get.get(loggedStore)).getChangelogOffset)
   }
 
   /**
@@ -518,7 +390,7 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
     * The legacy offset file only contains the offset as a string, while the new offset file contains a map of
     * ssp to offset in json format.
     * The name of the two offset files are given in {@link StorageManagerUtil.OFFSET_FILE_NAME_NEW} and
-    * {@link StorageManagerUtil.OFFSET_FILE_LEGACY}.
+    * {@link StorageManagerUtil.OFFSET_FILE_NAME_LEGACY}.
     */
   private def validateOffsetFileContents(offsetFile: File, ssp: String, offset: String): Unit = {
 
@@ -550,7 +422,7 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
       .build
 
     //Invoke test method
-    taskStorageManager.stop()
+    taskStorageManager.close()
 
     //Check conditions
     assertTrue("Offset file should not exist!", !offsetFilePath.exists())
@@ -778,7 +650,7 @@ class TestNonTransactionalStateTaskStorageManager(offsetFileName: String) extend
   }
 }
 
-object TestNonTransactionalStateTaskStorageManager {
+object TestKafkaNonTransactionalStateTaskBackupManager {
 
   @Parameters def parameters: util.Collection[Array[String]] = {
     val offsetFileNames = new util.ArrayList[Array[String]]()
@@ -865,7 +737,10 @@ class TaskStorageManagerBuilder extends MockitoSugar {
     var containerModel = new ContainerModel("container", tasks.asJava)
 
     val mockSystemAdmins = Mockito.mock(classOf[SystemAdmins])
-    Mockito.when(mockSystemAdmins.getSystemAdmin(org.mockito.Matchers.eq("kafka"))).thenReturn(systemAdminsMap.get("kafka").get)
+    Mockito.when(mockSystemAdmins.getSystemAdmin(org.mockito.Matchers.eq("kafka")))
+      .thenReturn(systemAdminsMap.get("kafka").get)
+    Mockito.when(mockSystemAdmins.getSystemAdmins)
+      .thenReturn(systemAdminsMap.asJava)
 
     var mockStorageEngineFactory : StorageEngineFactory[AnyRef, AnyRef] = Mockito.mock(classOf[StorageEngineFactory[AnyRef, AnyRef]])
 
@@ -903,15 +778,20 @@ class TaskStorageManagerBuilder extends MockitoSugar {
 
     val mockCheckpointManager = Mockito.mock(classOf[CheckpointManager])
     when(mockCheckpointManager.readLastCheckpoint(any(classOf[TaskName])))
-      .thenReturn(new Checkpoint(new util.HashMap[SystemStreamPartition, String]()))
+      .thenReturn(new CheckpointV1(new util.HashMap[SystemStreamPartition, String]()))
 
-    val mockSSPMetadataCache = Mockito.mock(classOf[SSPMetadataCache])
+    val mockContainerContext = Mockito.mock(classOf[ContainerContext])
+    when(mockContainerContext.getContainerModel).thenReturn(containerModel);
+
+    val mockJobContext = Mockito.mock(classOf[JobContext])
+    val mockJobModel =  Mockito.mock(classOf[JobModel])
+    when(mockJobContext.getJobModel).thenReturn(mockJobModel)
+    when(mockJobModel.getMaxChangeLogStreamPartitions).thenReturn(1)
 
     containerStorageManager = new ContainerStorageManager(
       mockCheckpointManager,
       containerModel,
       streamMetadataCache,
-      mockSSPMetadataCache,
       mockSystemAdmins,
       changeLogSystemStreams.asJava,
       Map[String, util.Set[SystemStream]]().asJava,
@@ -921,13 +801,13 @@ class TaskStorageManagerBuilder extends MockitoSugar {
       config,
       new HashMap[TaskName, TaskInstanceMetrics]().asJava,
       Mockito.mock(classOf[SamzaContainerMetrics]),
-      Mockito.mock(classOf[JobContext]),
-      Mockito.mock(classOf[ContainerContext]),
+      mockJobContext,
+      mockContainerContext,
       Optional.empty(),
+      new mockKafkaChangelogBackendManager(changeLogSystemStreams),
       new HashMap[TaskName, TaskInstanceCollector].asJava,
       loggedStoreBaseDir,
       TaskStorageManagerBuilder.defaultStoreBaseDir,
-      1,
       null,
       new SystemClock)
     this
@@ -935,18 +815,16 @@ class TaskStorageManagerBuilder extends MockitoSugar {
 
 
 
-  def build: NonTransactionalStateTaskStorageManager = {
+  def build: KafkaNonTransactionalStateTaskBackupManager = {
 
     if (containerStorageManager != null) {
       containerStorageManager.start()
     }
 
-    new NonTransactionalStateTaskStorageManager(
+    new KafkaNonTransactionalStateTaskBackupManager(
       taskName = taskName,
-      containerStorageManager = containerStorageManager,
-      storeChangelogs = changeLogSystemStreams,
+      storeChangelogs = changeLogSystemStreams.asJava,
       systemAdmins = buildSystemAdmins(systemAdminsMap),
-      loggedStoreBaseDir = loggedStoreBaseDir,
       partition = partition
     )
   }
@@ -957,5 +835,13 @@ class TaskStorageManagerBuilder extends MockitoSugar {
       when(systemAdmins.getSystemAdmin(system)).thenReturn(systemAdmin)
     }
     systemAdmins
+  }
+
+  private class mockKafkaChangelogBackendManager(storeSystemStream: Map[String, SystemStream])
+    extends KafkaChangelogStateBackendFactory {
+    override def filterStandbySystemStreams(changelogSystemStreams: util.Map[String, SystemStream], containerModel: ContainerModel):
+    util.Map[String, SystemStream] = storeSystemStream.asJava
+
+    override def getStreamCache(admins: SystemAdmins, clock: Clock): StreamMetadataCache = streamMetadataCache
   }
 }
