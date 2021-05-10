@@ -41,6 +41,7 @@ import org.apache.samza.SamzaException;
 import org.apache.samza.checkpoint.Checkpoint;
 import org.apache.samza.checkpoint.CheckpointId;
 import org.apache.samza.config.Config;
+import org.apache.samza.config.JobConfig;
 import org.apache.samza.config.StorageConfig;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.job.model.TaskMode;
@@ -70,6 +71,8 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
       StorageManagerUtil.CHECKPOINT_FILE_NAME);
 
   private final TaskModel taskModel;
+  private final String jobName;
+  private final String jobId;
   private final ExecutorService executor;
   private final Config config;
   private final StorageConfig storageConfig;
@@ -92,6 +95,8 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
       BlobStoreRestoreManagerMetrics metrics, Config config, StorageManagerUtil storageManagerUtil,
       BlobStoreUtil blobStoreUtil, File loggedBaseDir, File nonLoggedBaseDir) {
     this.taskModel = taskModel;
+    this.jobName = new JobConfig(config).getName().get();
+    this.jobId = new JobConfig(config).getJobId();
     this.executor = restoreExecutor; // TODO BLOCKER dchen1 dont block on restore executor
     this.config = config;
     this.storageConfig = new StorageConfig(config);
@@ -111,7 +116,8 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
     long startTime = System.nanoTime();
     LOG.debug("Initializing blob store restore manager for task: {}", taskName);
     // get previous SCMs from checkpoint
-    prevStoreSnapshotIndexes = BlobStoreStateBackendUtil.getStoreSnapshotIndexes(taskName, checkpoint, blobStoreUtil);
+    prevStoreSnapshotIndexes =
+        BlobStoreStateBackendUtil.getStoreSnapshotIndexes(jobName, jobId, taskName, checkpoint, blobStoreUtil);
     metrics.getSnapshotIndexNs.set(System.nanoTime() - startTime);
     LOG.trace("Found previous snapshot index during blob store restore manager init for task: {} to be: {}",
         taskName, prevStoreSnapshotIndexes);
@@ -119,7 +125,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
     metrics.initStoreMetrics(storesToRestore);
 
     // Note: blocks the caller (main) thread.
-    deleteUnusedStoresFromBlobStore(taskName, storageConfig, prevStoreSnapshotIndexes, blobStoreUtil, executor);
+    deleteUnusedStoresFromBlobStore(jobName, jobId, taskName, storageConfig, prevStoreSnapshotIndexes, blobStoreUtil, executor);
     metrics.initNs.set(System.nanoTime() - startTime);
   }
 
@@ -128,8 +134,8 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
    */
   @Override
   public void restore() {
-    restoreStores(taskModel.getTaskName(), storesToRestore, prevStoreSnapshotIndexes, loggedBaseDir, storageConfig,
-        metrics, storageManagerUtil, blobStoreUtil, executor);
+    restoreStores(jobName, jobId, taskModel.getTaskName(), storesToRestore, prevStoreSnapshotIndexes, loggedBaseDir,
+        storageConfig, metrics, storageManagerUtil, blobStoreUtil, executor);
   }
 
   @Override
@@ -144,7 +150,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
    * This method blocks until all the necessary store contents and snapshot index blobs have been marked for deletion.
    */
   @VisibleForTesting
-  static void deleteUnusedStoresFromBlobStore(String taskName, StorageConfig storageConfig,
+  static void deleteUnusedStoresFromBlobStore(String jobName, String jobId, String taskName, StorageConfig storageConfig,
       Map<String, Pair<String, SnapshotIndex>> initialStoreSnapshotIndexes,
       BlobStoreUtil blobStoreUtil, ExecutorService executor) {
 
@@ -159,12 +165,14 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
         LOG.debug("Removing task: {} store: {} from blob store. It is either no longer used, " +
             "or is no longer configured to be backed up or restored with blob store.", taskName, storeName);
         DirIndex dirIndex = scmAndSnapshotIndex.getRight().getDirIndex();
+        Metadata requestMetadata =
+            new Metadata("snapshot-index", "0", jobName, jobId, taskName, storeName);
         CompletionStage<Void> storeDeletionFuture =
-            blobStoreUtil.cleanUpDir(dirIndex) // delete files and sub-dirs previously marked for removal
+            blobStoreUtil.cleanUpDir(dirIndex, requestMetadata) // delete files and sub-dirs previously marked for removal
                 .thenComposeAsync(v ->
-                    blobStoreUtil.deleteDir(dirIndex), executor) // deleted files and dirs still present
+                    blobStoreUtil.deleteDir(dirIndex, requestMetadata), executor) // deleted files and dirs still present
                 .thenComposeAsync(v -> blobStoreUtil.deleteSnapshotIndexBlob(
-                    scmAndSnapshotIndex.getLeft()),
+                    scmAndSnapshotIndex.getLeft(), requestMetadata),
                     executor); // delete the snapshot index blob
         storeDeletionFutures.add(storeDeletionFuture);
       }
@@ -177,7 +185,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
    * Restores all eligible stores in the task.
    */
   @VisibleForTesting
-  static void restoreStores(TaskName taskName, List<String> storesToRestore,
+  static void restoreStores(String jobName, String jobId, TaskName taskName, List<String> storesToRestore,
       Map<String, Pair<String, SnapshotIndex>> prevStoreSnapshotIndexes,
       File loggedBaseDir, StorageConfig storageConfig, BlobStoreRestoreManagerMetrics metrics,
       StorageManagerUtil storageManagerUtil, BlobStoreUtil blobStoreUtil,
@@ -236,8 +244,8 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
         // own during the restore.
         deleteCheckpointDirs(taskName, storeName, loggedBaseDir, storageManagerUtil);
 
-        enqueueRestore(storeName, storeDir, dirIndex, storeRestoreStartTime, restoreFutures,
-            blobStoreUtil, metrics, executor);
+        enqueueRestore(jobName, jobId, taskName.toString(), storeName, storeDir, dirIndex, storeRestoreStartTime,
+            restoreFutures, blobStoreUtil, metrics, executor);
       } else {
         LOG.debug("Renaming store checkpoint directory: {} to store directory: {} since its contents are identical " +
             "to the remote snapshot.", storeCheckpointDir, storeDir);
@@ -297,27 +305,28 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
    * Starts the restore for the store, enqueuing all restore-completion futures into {@param restoreFutures}.
    */
   @VisibleForTesting
-  static void enqueueRestore(String storeName, File storeDir, DirIndex dirIndex,
+  static void enqueueRestore(String jobName, String jobId, String taskName, String storeName, File storeDir, DirIndex dirIndex,
       long storeRestoreStartTime, List<CompletionStage<Void>> restoreFutures,
       BlobStoreUtil blobStoreUtil, BlobStoreRestoreManagerMetrics metrics, ExecutorService executor) {
     metrics.storePreRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
 
+    Metadata requestMetadata = new Metadata(storeDir.getAbsolutePath(), "0", jobName, jobId, taskName, storeName);
     CompletableFuture<Void> restoreFuture =
-        FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex))
-            .thenRunAsync(() -> {
-              metrics.storeRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
+        FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex, requestMetadata)).thenRunAsync(() -> {
+          metrics.storeRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
 
-              long postRestoreStartTime = System.nanoTime();
-              LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
-              if (!blobStoreUtil.areSameDir(FILES_TO_IGNORE, true).test(storeDir, dirIndex)) {
-                metrics.storePostRestoreNs.get(storeName).set(System.nanoTime() - postRestoreStartTime);
-                throw new SamzaException(String.format("Restored store directory: %s contents " +
-                    "are not the same as the remote snapshot.", storeDir.getAbsolutePath()));
-              } else {
-                metrics.storePostRestoreNs.get(storeName).set(System.nanoTime() - postRestoreStartTime);
-                LOG.info("Restore from remote snapshot completed for store: {}", storeDir);
-              }
-            }, executor);
+          long postRestoreStartTime = System.nanoTime();
+          LOG.trace("Comparing restored store directory: {} and remote directory to verify restore.", storeDir);
+          if (!blobStoreUtil.areSameDir(FILES_TO_IGNORE, true).test(storeDir, dirIndex)) {
+            metrics.storePostRestoreNs.get(storeName).set(System.nanoTime() - postRestoreStartTime);
+            throw new SamzaException(
+                String.format("Restored store directory: %s contents " + "are not the same as the remote snapshot.",
+                    storeDir.getAbsolutePath()));
+          } else {
+            metrics.storePostRestoreNs.get(storeName).set(System.nanoTime() - postRestoreStartTime);
+            LOG.info("Restore from remote snapshot completed for store: {}", storeDir);
+          }
+        }, executor);
 
     restoreFutures.add(restoreFuture);
   }

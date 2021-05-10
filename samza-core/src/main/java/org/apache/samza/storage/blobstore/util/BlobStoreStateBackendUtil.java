@@ -20,6 +20,7 @@
 package org.apache.samza.storage.blobstore.util;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.samza.storage.blobstore.Metadata;
 import org.apache.samza.storage.blobstore.exceptions.DeletedException;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
 
@@ -32,6 +33,7 @@ import org.apache.samza.SamzaException;
 import org.apache.samza.checkpoint.Checkpoint;
 import org.apache.samza.checkpoint.CheckpointV2;
 import org.apache.samza.config.StorageConfig;
+import org.apache.samza.storage.blobstore.index.SnapshotMetadata;
 import org.apache.samza.util.FutureUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,16 +45,20 @@ import org.slf4j.LoggerFactory;
 public class BlobStoreStateBackendUtil {
   private static final Logger LOG = LoggerFactory.getLogger(BlobStoreStateBackendUtil.class);
 
+  private static final String PAYLOAD_PATH_SNAPSHOT_INDEX = "snapshot-index";
+
   /**
    * Get the blob id of {@link SnapshotIndex} and {@link SnapshotIndex}es for the provided {@param task}
    * in the provided {@param checkpoint}.
+   * @param jobName job name is used to build request metadata
+   * @param jobId job id is used to build request metadata
    * @param taskName task name to get the store state checkpoint markers and snapshot indexes for
    * @param checkpoint {@link Checkpoint} instance to get the store state checkpoint markers from. Only
    *                   {@link CheckpointV2} and newer are supported for blob stores.
    * @return Map of store name to its blob id of snapshot indices and their corresponding snapshot indices for the task.
    */
   public static Map<String, Pair<String, SnapshotIndex>> getStoreSnapshotIndexes(
-      String taskName, Checkpoint checkpoint, BlobStoreUtil blobStoreUtil) {
+      String jobName, String jobId, String taskName, Checkpoint checkpoint, BlobStoreUtil blobStoreUtil) {
     if (checkpoint == null) {
       LOG.debug("No previous checkpoint found for taskName: {}", taskName);
       return ImmutableMap.of();
@@ -73,8 +79,10 @@ public class BlobStoreStateBackendUtil {
       storeSnapshotIndexBlobIds.forEach((storeName, snapshotIndexBlobId) -> {
         try {
           LOG.debug("Getting snapshot index for taskName: {} store: {} blobId: {}", taskName, storeName, snapshotIndexBlobId);
+          Metadata requestMetadata =
+              new Metadata(PAYLOAD_PATH_SNAPSHOT_INDEX, "0", jobName, jobId, taskName, storeName);
           CompletableFuture<SnapshotIndex> snapshotIndexFuture =
-              blobStoreUtil.getSnapshotIndex(snapshotIndexBlobId).toCompletableFuture();
+              blobStoreUtil.getSnapshotIndex(snapshotIndexBlobId, requestMetadata).toCompletableFuture();
           Pair<CompletableFuture<String>, CompletableFuture<SnapshotIndex>> pairOfFutures =
               Pair.of(CompletableFuture.completedFuture(snapshotIndexBlobId), snapshotIndexFuture);
 

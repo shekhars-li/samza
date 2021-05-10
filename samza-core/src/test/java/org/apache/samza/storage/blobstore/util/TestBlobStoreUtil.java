@@ -86,6 +86,8 @@ public class TestBlobStoreUtil {
   private final String jobId = "jobId";
   private final String taskName = "taskName";
   private final String storeName = "storeName";
+  private final Metadata metadata =
+      new Metadata("payload-path", "0", jobName, jobId, taskName, storeName);
 
   @Test
   // TODO HIGH shesharm test with empty (0 byte) files
@@ -273,7 +275,7 @@ public class TestBlobStoreUtil {
 
     // Set up mocks
     SortedSet<String> allDeleted = new TreeSet<>();
-    when(blobStoreManager.delete(anyString()))
+    when(blobStoreManager.delete(anyString(), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<Void>>) invocation -> {
           String blobId = invocation.getArgumentAt(0, String.class);
           allDeleted.add(blobId);
@@ -281,7 +283,7 @@ public class TestBlobStoreUtil {
         });
 
     // Execute
-    CompletionStage<Void> cleanUpFuture = blobStoreUtil.cleanUpDir(dirIndex);
+    CompletionStage<Void> cleanUpFuture = blobStoreUtil.cleanUpDir(dirIndex, metadata);
     try {
       // should be already complete. if not, future composition in putDir is broken.
       cleanUpFuture.toCompletableFuture().get(0, TimeUnit.MILLISECONDS);
@@ -328,7 +330,7 @@ public class TestBlobStoreUtil {
     SamzaException exception = new SamzaException("Error deleting file");
     CompletableFuture<Void> failedFuture = new CompletableFuture<>();
     failedFuture.completeExceptionally(exception);
-    when(blobStoreManager.delete(anyString()))
+    when(blobStoreManager.delete(anyString(), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<Void>>) invocation -> {
           String blobId = invocation.getArgumentAt(0, String.class);
           if (blobId.equals("c")) {
@@ -339,7 +341,7 @@ public class TestBlobStoreUtil {
         });
 
     // Execute
-    CompletionStage<Void> cleanUpFuture = blobStoreUtil.cleanUpDir(dirIndex);
+    CompletionStage<Void> cleanUpFuture = blobStoreUtil.cleanUpDir(dirIndex, metadata);
     try {
       // should be already complete. if not, future composition in putDir is broken.
       cleanUpFuture.toCompletableFuture().get(0, TimeUnit.MILLISECONDS);
@@ -388,7 +390,7 @@ public class TestBlobStoreUtil {
     SamzaException exception = new SamzaException("Error deleting file");
     CompletableFuture<Void> failedFuture = new CompletableFuture<>();
     failedFuture.completeExceptionally(exception);
-    when(blobStoreManager.delete(anyString()))
+    when(blobStoreManager.delete(anyString(), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<Void>>) invocation -> {
           String blobId = invocation.getArgumentAt(0, String.class);
           if (blobId.equals("3")) { // blob ID == file name (leaf node) in blob store test util
@@ -399,7 +401,7 @@ public class TestBlobStoreUtil {
         });
 
     // Execute
-    CompletionStage<Void> cleanUpFuture = blobStoreUtil.cleanUpDir(dirIndex);
+    CompletionStage<Void> cleanUpFuture = blobStoreUtil.cleanUpDir(dirIndex, metadata);
     try {
       // should be already complete. if not, future composition in putDir is broken.
       cleanUpFuture.toCompletableFuture().get(0, TimeUnit.MILLISECONDS);
@@ -459,7 +461,7 @@ public class TestBlobStoreUtil {
     when(mockSnapshotIndex.getDirIndex()).thenReturn(dirIndex);
 
     SortedSet<String> allTTLRemoved = new TreeSet<>();
-    when(blobStoreManager.removeTTL(anyString()))
+    when(blobStoreManager.removeTTL(anyString(), any(Metadata.class)))
         .thenAnswer((Answer<CompletableFuture<String>>) invocation -> {
           String blobId = invocation.getArgumentAt(0, String.class);
           allTTLRemoved.add(blobId);
@@ -467,7 +469,7 @@ public class TestBlobStoreUtil {
         });
 
     // Execute
-    blobStoreUtil.removeTTL("snapshotIndexBlobId", mockSnapshotIndex);
+    blobStoreUtil.removeTTL("snapshotIndexBlobId", mockSnapshotIndex, metadata);
 
     // Assert
     SortedSet<String> expectedBlobIds = new TreeSet<>();
@@ -597,7 +599,7 @@ public class TestBlobStoreUtil {
     when(mockDirIndex.getFilesPresent()).thenReturn(ImmutableList.of(mockFileIndex));
 
     BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
-    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class)))
+    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> {
           String blobId = invocationOnMock.getArgumentAt(0, String.class);
           OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
@@ -610,7 +612,7 @@ public class TestBlobStoreUtil {
         });
 
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
-    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
+    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex, metadata)).join();
 
     assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
   }
@@ -649,7 +651,7 @@ public class TestBlobStoreUtil {
     when(mockDirIndex.getFilesPresent()).thenReturn(ImmutableList.of(mockFileIndex));
 
     BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
-    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class)))
+    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> { // first try, retriable error
           String blobId = invocationOnMock.getArgumentAt(0, String.class);
           OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
@@ -667,7 +669,7 @@ public class TestBlobStoreUtil {
         });
 
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
-    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
+    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex, metadata)).join();
 
     assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false).test(restoreDirBasePath.toFile(), mockDirIndex));
   }
@@ -706,7 +708,7 @@ public class TestBlobStoreUtil {
     when(mockDirIndex.getFilesPresent()).thenReturn(ImmutableList.of(mockFileIndex));
 
     BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
-    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class)))
+    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class), any(Metadata.class)))
         .thenReturn(FutureUtil.failedFuture(new IllegalArgumentException())) // non retriable error
         .thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> {
           String blobId = invocationOnMock.getArgumentAt(0, String.class);
@@ -720,7 +722,7 @@ public class TestBlobStoreUtil {
 
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
     try {
-      FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex)).join();
+      FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), mockDirIndex, metadata)).join();
       fail("Should have failed on non-retriable errors during file restore");
     } catch (CompletionException e) {
       assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -735,7 +737,7 @@ public class TestBlobStoreUtil {
     String localSnapshotFiles = "[a, b, z/1, y/1, p/m/1, q/n/1]";
     Path localSnapshot = BlobStoreTestUtil.createLocalDir(localSnapshotFiles);
     BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
-    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class)))
+    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> {
           String blobId = invocationOnMock.getArgumentAt(0, String.class);
           OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
@@ -761,7 +763,7 @@ public class TestBlobStoreUtil {
     DirIndex dirIndex = BlobStoreTestUtil.createDirIndex(prevSnapshotFiles);
 
     BlobStoreManager mockBlobStoreManager = mock(BlobStoreManager.class);
-    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class)))
+    when(mockBlobStoreManager.get(anyString(), any(OutputStream.class), any(Metadata.class)))
         .thenAnswer((Answer<CompletionStage<Void>>) invocationOnMock -> {
           String blobId = invocationOnMock.getArgumentAt(0, String.class);
           OutputStream outputStream = invocationOnMock.getArgumentAt(1, OutputStream.class);
@@ -772,7 +774,7 @@ public class TestBlobStoreUtil {
 
     Path restoreDirBasePath = Files.createTempDirectory(BlobStoreTestUtil.TEMP_DIR_PREFIX);
     BlobStoreUtil blobStoreUtil = new BlobStoreUtil(mockBlobStoreManager, EXECUTOR, null, null);
-    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), dirIndex)).join();
+    FutureUtil.allOf(blobStoreUtil.restoreDir(restoreDirBasePath.toFile(), dirIndex, metadata)).join();
 
     assertTrue(blobStoreUtil.areSameDir(Collections.emptySet(), false)
         .test(restoreDirBasePath.toFile(), dirIndex));

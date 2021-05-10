@@ -136,7 +136,7 @@ public class TestBlobStoreBackupManager {
 
     // Mock - return snapshot index for blob id from test blob store map
     ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-    when(blobStoreUtil.getSnapshotIndex(captor.capture()))
+    when(blobStoreUtil.getSnapshotIndex(captor.capture(), any(Metadata.class)))
         .then((Answer<CompletableFuture<SnapshotIndex>>) invocation -> {
           String blobId = invocation.getArgumentAt(0, String.class);
           return CompletableFuture.completedFuture(testBlobStore.get(blobId));
@@ -164,7 +164,7 @@ public class TestBlobStoreBackupManager {
     blobStoreBackupManager.init(null);
     // verify delete snapshot index blob called from init 0 times because prevSnapshotMap returned from init is empty
     // in case of null checkpoint.
-    verify(blobStoreUtil, times(0)).deleteSnapshotIndexBlob(anyString());
+    verify(blobStoreUtil, times(0)).deleteSnapshotIndexBlob(anyString(), any(Metadata.class));
 
     // init called with Checkpoint V1 -> unsupported
     Checkpoint checkpoint = new CheckpointV1(new HashMap<>());
@@ -389,7 +389,7 @@ public class TestBlobStoreBackupManager {
 
     // mock
     ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-    when(blobStoreUtil.removeTTL(captor.capture(), any(SnapshotIndex.class)))
+    when(blobStoreUtil.removeTTL(captor.capture(), any(SnapshotIndex.class), any(Metadata.class)))
         .then((Answer<CompletionStage<Void>>) invocation -> {
           String blobId = invocation.getArgumentAt(0, String.class);
           expectedRemoveTTLsResult.add(blobId);
@@ -397,8 +397,8 @@ public class TestBlobStoreBackupManager {
         });
 
     // stub out non-tested methods
-    when(blobStoreUtil.cleanUpDir(any(DirIndex.class))).thenReturn(CompletableFuture.completedFuture(null));
-    when(blobStoreUtil.deleteSnapshotIndexBlob(any(String.class))).thenReturn(CompletableFuture.completedFuture(null));
+    when(blobStoreUtil.cleanUpDir(any(DirIndex.class), any(Metadata.class))).thenReturn(CompletableFuture.completedFuture(null));
+    when(blobStoreUtil.deleteSnapshotIndexBlob(any(String.class), any(Metadata.class))).thenReturn(CompletableFuture.completedFuture(null));
 
     // execute
     blobStoreBackupManager.cleanUp(checkpointId, testStoreNameAndSCMMap);
@@ -417,7 +417,7 @@ public class TestBlobStoreBackupManager {
 
     // mock
     ArgumentCaptor<DirIndex> captor = ArgumentCaptor.forClass(DirIndex.class);
-    when(blobStoreUtil.cleanUpDir(captor.capture()))
+    when(blobStoreUtil.cleanUpDir(captor.capture(), any(Metadata.class)))
         .then((Answer<CompletionStage<Void>>) invocation -> {
           DirIndex dirIndex = invocation.getArgumentAt(0, DirIndex.class);
           expectedCleanupDirs.add(dirIndex);
@@ -425,9 +425,9 @@ public class TestBlobStoreBackupManager {
         });
 
     // stub out non-tested methods
-    when(blobStoreUtil.removeTTL(anyString(), any(SnapshotIndex.class)))
+    when(blobStoreUtil.removeTTL(anyString(), any(SnapshotIndex.class), any(Metadata.class)))
         .thenReturn(CompletableFuture.completedFuture(null));
-    when(blobStoreUtil.deleteSnapshotIndexBlob(any(String.class)))
+    when(blobStoreUtil.deleteSnapshotIndexBlob(any(String.class), any(Metadata.class)))
         .thenReturn(CompletableFuture.completedFuture(null));
 
     // execute
@@ -450,7 +450,7 @@ public class TestBlobStoreBackupManager {
 
     // mock
     ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
-    when(blobStoreUtil.deleteSnapshotIndexBlob(captor.capture()))
+    when(blobStoreUtil.deleteSnapshotIndexBlob(captor.capture(), any(Metadata.class)))
         .then((Answer<CompletionStage<Void>>) invocation -> {
           String prevIndexBlobId = invocation.getArgumentAt(0, String.class);
           actualOldSnapshotsRemoved.add(prevIndexBlobId);
@@ -458,9 +458,9 @@ public class TestBlobStoreBackupManager {
         });
 
     // stub out non-tested methods
-    when(blobStoreUtil.removeTTL(anyString(), any(SnapshotIndex.class)))
+    when(blobStoreUtil.removeTTL(anyString(), any(SnapshotIndex.class), any(Metadata.class)))
         .thenReturn(CompletableFuture.completedFuture(null));
-    when(blobStoreUtil.cleanUpDir(any(DirIndex.class)))
+    when(blobStoreUtil.cleanUpDir(any(DirIndex.class), any(Metadata.class)))
         .thenReturn(CompletableFuture.completedFuture(null));
 
     // execute

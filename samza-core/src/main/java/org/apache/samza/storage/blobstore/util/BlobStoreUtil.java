@@ -173,12 +173,12 @@ public class BlobStoreUtil {
    * @param blobId blob ID of the {@link SnapshotIndex} to get
    * @return a Future containing the {@link SnapshotIndex}
    */
-  public CompletableFuture<SnapshotIndex> getSnapshotIndex(String blobId) {
+  public CompletableFuture<SnapshotIndex> getSnapshotIndex(String blobId, Metadata metadata) {
     Preconditions.checkState(StringUtils.isNotBlank(blobId));
     String opName = "getSnapshotIndex: " + blobId;
     return FutureUtil.executeAsyncWithRetries(opName, () -> {
       ByteArrayOutputStream indexBlobStream = new ByteArrayOutputStream(); // no need to close ByteArrayOutputStream
-      return blobStoreManager.get(blobId, indexBlobStream).toCompletableFuture()
+      return blobStoreManager.get(blobId, indexBlobStream, metadata).toCompletableFuture()
           .thenApplyAsync(f -> snapshotIndexSerde.fromBytes(indexBlobStream.toByteArray()), executor);
     }, isCauseNonRetriable(), executor);
   }
@@ -190,9 +190,10 @@ public class BlobStoreUtil {
    * blob IDs have been persisted as part of the checkpoint. This is to prevent data loss if a failure happens
    * part way through the commit. We issue delete these file/subdirs in cleanUp() phase of commit lifecycle.
    * @param dirIndex the dir in the remote snapshot to clean up.
+   * @param metadata Metadata related to the request
    * @return a future that completes when all the files and subdirs marked for deletion are cleaned up.
    */
-  public CompletionStage<Void> cleanUpDir(DirIndex dirIndex) {
+  public CompletionStage<Void> cleanUpDir(DirIndex dirIndex, Metadata metadata) {
     String dirName = dirIndex.getDirName();
     if (DirIndex.ROOT_DIR_NAME.equals(dirName)) {
       LOG.debug("Cleaning up root dir in blob store.");
@@ -203,17 +204,20 @@ public class BlobStoreUtil {
     List<CompletionStage<Void>> cleanUpFuture = new ArrayList<>();
     List<FileIndex> files = dirIndex.getFilesRemoved();
     for (FileIndex file: files) {
-      cleanUpFuture.add(deleteFile(file));
+      Metadata requestMetadata =
+          new Metadata(file.getFileName(), String.valueOf(file.getFileMetadata().getSize()), metadata.getJobName(),
+              metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
+      cleanUpFuture.add(deleteFile(file, requestMetadata));
     }
 
     for (DirIndex subDirToDelete : dirIndex.getSubDirsRemoved()) {
       // recursively delete ALL contents of the subDirToDelete.
-      cleanUpFuture.add(deleteDir(subDirToDelete));
+      cleanUpFuture.add(deleteDir(subDirToDelete, metadata));
     }
 
     for (DirIndex subDirToRetain : dirIndex.getSubDirsPresent()) {
       // recursively clean up the subDir, only deleting files and subdirs marked for deletion.
-      cleanUpFuture.add(cleanUpDir(subDirToRetain));
+      cleanUpFuture.add(cleanUpDir(subDirToRetain, metadata));
     }
 
     return CompletableFuture.allOf(cleanUpFuture.toArray(new CompletableFuture[0]));
@@ -222,39 +226,40 @@ public class BlobStoreUtil {
   /**
    * WARNING: This method deletes the **SnapshotIndex blob** from the snapshot. This should only be called to clean
    * up an older snapshot **AFTER** all the files and sub-dirs to be deleted from this snapshot are already deleted
-   * using {@link #cleanUpDir(DirIndex)}
+   * using {@link #cleanUpDir(DirIndex, Metadata)}
    *
    * @param snapshotIndexBlobId blob ID of SnapshotIndex blob to delete
    * @return a future that completes when the index blob is deleted from remote store.
    */
-  public CompletionStage<Void> deleteSnapshotIndexBlob(String snapshotIndexBlobId) {
+  public CompletionStage<Void> deleteSnapshotIndexBlob(String snapshotIndexBlobId, Metadata metadata) {
     Preconditions.checkState(StringUtils.isNotBlank(snapshotIndexBlobId));
     LOG.debug("Deleting SnapshotIndex blob {} from blob store", snapshotIndexBlobId);
     String opName = "deleteSnapshotIndexBlob: " + snapshotIndexBlobId;
     return FutureUtil.executeAsyncWithRetries(opName, () ->
-        blobStoreManager.delete(snapshotIndexBlobId).toCompletableFuture(), isCauseNonRetriable(), executor);
+        blobStoreManager.delete(snapshotIndexBlobId, metadata).toCompletableFuture(), isCauseNonRetriable(), executor);
   }
 
   /**
    * Marks all the blobs associated with an {@link SnapshotIndex} to never expire.
    * @param snapshotIndex {@link SnapshotIndex} of the remote snapshot
+   * @param metadata {@link Metadata} related to the request
    * @return A future that completes when all the files and subdirs associated with this remote snapshot are marked to
    * never expire.
    */
-  public CompletionStage<Void> removeTTL(String indexBlobId, SnapshotIndex snapshotIndex) {
+  public CompletionStage<Void> removeTTL(String indexBlobId, SnapshotIndex snapshotIndex, Metadata metadata) {
     SnapshotMetadata snapshotMetadata = snapshotIndex.getSnapshotMetadata();
     LOG.debug("Marking contents of SnapshotIndex: {} to never expire", snapshotMetadata.toString());
 
     String opName = "removeTTL for SnapshotIndex for checkpointId: " + snapshotMetadata.getCheckpointId();
     Supplier<CompletionStage<Void>> removeDirIndexTTLAction =
-      () -> removeTTL(snapshotIndex.getDirIndex()).toCompletableFuture();
+      () -> removeTTL(snapshotIndex.getDirIndex(), metadata).toCompletableFuture();
     CompletableFuture<Void> dirIndexTTLRemovalFuture = FutureUtil.executeAsyncWithRetries(opName,
         removeDirIndexTTLAction, isCauseNonRetriable(), executor);
 
     return dirIndexTTLRemovalFuture.thenComposeAsync(aVoid -> {
       String op2Name = "removeTTL for indexBlobId: " + indexBlobId;
       Supplier<CompletionStage<Void>> removeIndexBlobTTLAction = () ->
-          blobStoreManager.removeTTL(indexBlobId).toCompletableFuture();
+          blobStoreManager.removeTTL(indexBlobId, metadata).toCompletableFuture();
       return FutureUtil.executeAsyncWithRetries(op2Name, removeIndexBlobTTLAction, isCauseNonRetriable(), executor);
     }, executor);
   }
@@ -342,7 +347,7 @@ public class BlobStoreUtil {
    * @return A list of future for all the async downloads
    */
   @VisibleForTesting
-  public List<CompletableFuture<Void>> restoreDir(File baseDir, DirIndex dirIndex) {
+  public List<CompletableFuture<Void>> restoreDir(File baseDir, DirIndex dirIndex, Metadata metadata) {
     LOG.debug("Restoring contents of directory: {} from remote snapshot.", baseDir);
 
     List<CompletableFuture<Void>> downloadFutures = new ArrayList<>();
@@ -359,6 +364,9 @@ public class BlobStoreUtil {
     // restore all files in the directory
     for (FileIndex fileIndex : dirIndex.getFilesPresent()) {
       File fileToRestore = Paths.get(baseDir.getAbsolutePath(), fileIndex.getFileName()).toFile();
+      Metadata requestMetadata =
+          new Metadata(fileToRestore.getAbsolutePath(), String.valueOf(fileToRestore.length()),
+              metadata.getJobName(), metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
       List<FileBlob> fileBlobs = fileIndex.getBlobs();
 
       String opName = "restoreFile: " + fileToRestore.getAbsolutePath();
@@ -390,7 +398,7 @@ public class BlobStoreUtil {
                 .thenComposeAsync(v -> {
                   LOG.debug("Starting restore for file: {} with blob id: {} at offset: {}",
                       fileToRestore, fileBlob.getBlobId(), fileBlob.getOffset());
-                  return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream);
+                  return blobStoreManager.get(fileBlob.getBlobId(), finalOutputStream, requestMetadata);
                 }, executor);
           }
 
@@ -441,7 +449,7 @@ public class BlobStoreUtil {
     List<DirIndex> subDirs = dirIndex.getSubDirsPresent();
     for (DirIndex subDir : subDirs) {
       File subDirFile = Paths.get(baseDir.getAbsolutePath(), subDir.getDirName()).toFile();
-      downloadFutures.addAll(restoreDir(subDirFile, subDir));
+      downloadFutures.addAll(restoreDir(subDirFile, subDir, metadata));
     }
 
     return downloadFutures;
@@ -450,20 +458,24 @@ public class BlobStoreUtil {
   /**
    * WARNING: Recursively delete **ALL** the associated files and subdirs within the provided {@link DirIndex}.
    * @param dirIndex {@link DirIndex} whose entire contents are to be deleted.
+   * @param metadata {@link Metadata} related to the request
    * @return a future that completes when ALL the files and subdirs associated with the dirIndex have been
    * marked for deleted in the remote blob store.
    */
-  public CompletionStage<Void> deleteDir(DirIndex dirIndex) {
+  public CompletionStage<Void> deleteDir(DirIndex dirIndex, Metadata metadata) {
     LOG.debug("Completely deleting dir: {} in blob store", dirIndex.getDirName());
     List<CompletionStage<Void>> deleteFutures = new ArrayList<>();
     // Delete all files present in subDir
     for (FileIndex file: dirIndex.getFilesPresent()) {
-      deleteFutures.add(deleteFile(file));
+      Metadata requestMetadata =
+          new Metadata(file.getFileName(), String.valueOf(file.getFileMetadata().getSize()),
+              metadata.getJobName(), metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
+      deleteFutures.add(deleteFile(file, requestMetadata));
     }
 
     // Delete all subDirs present recursively
     for (DirIndex subDir: dirIndex.getSubDirsPresent()) {
-      deleteFutures.add(deleteDir(subDir));
+      deleteFutures.add(deleteDir(subDir, metadata));
     }
 
     return CompletableFuture.allOf(deleteFutures.toArray(new CompletableFuture[0]));
@@ -472,16 +484,17 @@ public class BlobStoreUtil {
   /**
    * Delete a {@link FileIndex} from the remote store by deleting all {@link FileBlob}s associated with it.
    * @param fileIndex FileIndex of the file to delete from the remote store.
+   * @param metadata
    * @return a future that completes when the FileIndex has been marked for deletion in the remote blob store.
    */
-  private CompletionStage<Void> deleteFile(FileIndex fileIndex) {
+  private CompletionStage<Void> deleteFile(FileIndex fileIndex, Metadata metadata) {
     List<CompletionStage<Void>> deleteFutures = new ArrayList<>();
     List<FileBlob> fileBlobs = fileIndex.getBlobs();
     for (FileBlob fileBlob : fileBlobs) {
       LOG.debug("Deleting file: {} blobId: {} from blob store.", fileIndex.getFileName(), fileBlob.getBlobId());
       String opName = "deleteFile: " + fileIndex.getFileName() + " blobId: " + fileBlob.getBlobId();
       Supplier<CompletionStage<Void>> fileDeletionAction = () ->
-          blobStoreManager.delete(fileBlob.getBlobId()).toCompletableFuture();
+          blobStoreManager.delete(fileBlob.getBlobId(), metadata).toCompletableFuture();
       CompletableFuture<Void> fileDeletionFuture =
           FutureUtil.executeAsyncWithRetries(opName, fileDeletionAction, isCauseNonRetriable(), executor);
       deleteFutures.add(fileDeletionFuture);
@@ -493,10 +506,11 @@ public class BlobStoreUtil {
   /**
    * Recursively mark all the blobs associated with the {@link DirIndex} to never expire (remove TTL).
    * @param dirIndex the {@link DirIndex} whose contents' TTL needs to be removed
+   * @param metadata {@link Metadata} related to the request
    * @return A future that completes when all the blobs associated with this dirIndex are marked to
    * never expire.
    */
-  private CompletableFuture<Void> removeTTL(DirIndex dirIndex) {
+  private CompletableFuture<Void> removeTTL(DirIndex dirIndex, Metadata metadata) {
     String dirName = dirIndex.getDirName();
     if (DirIndex.ROOT_DIR_NAME.equals(dirName)) {
       LOG.debug("Removing TTL for files and dirs present in DirIndex for root dir.");
@@ -506,15 +520,18 @@ public class BlobStoreUtil {
 
     List<CompletableFuture<Void>> updateTTLsFuture = new ArrayList<>();
     for (DirIndex subDir: dirIndex.getSubDirsPresent()) {
-      updateTTLsFuture.add(removeTTL(subDir));
+      updateTTLsFuture.add(removeTTL(subDir, metadata));
     }
 
     for (FileIndex file: dirIndex.getFilesPresent()) {
+      Metadata requestMetadata =
+          new Metadata(file.getFileName(), String.valueOf(file.getFileMetadata().getSize()),
+              metadata.getJobName(), metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
       List<FileBlob> fileBlobs = file.getBlobs();
       for (FileBlob fileBlob : fileBlobs) {
         String opname = "removeTTL for fileBlob: " + file.getFileName() + " with blobId: {}" + fileBlob.getBlobId();
         Supplier<CompletionStage<Void>> ttlRemovalAction = () ->
-            blobStoreManager.removeTTL(fileBlob.getBlobId()).toCompletableFuture();
+            blobStoreManager.removeTTL(fileBlob.getBlobId(), requestMetadata).toCompletableFuture();
         CompletableFuture<Void> ttlRemovalFuture =
             FutureUtil.executeAsyncWithRetries(opname, ttlRemovalAction, isCauseNonRetriable(), executor);
         updateTTLsFuture.add(ttlRemovalFuture);

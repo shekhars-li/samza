@@ -44,23 +44,26 @@ public interface BlobStoreManager {
    * Non-blocking GET call to remote blob store
    * @param id Blob ID of the blob to get
    * @param outputStream OutputStream to write the downloaded blob
+   * @param metadata User supplied {@link Metadata} of the request
    * @return A future that completes when all the chunks are downloaded and written successfully to the OutputStream
    */
-  CompletionStage<Void> get(String id, OutputStream outputStream);
+  CompletionStage<Void> get(String id, OutputStream outputStream, Metadata metadata);
 
   /**
    * Non-blocking call to mark a blob for deletion in the remote blob store
    * @param id Blob ID of the blob to delete
+   * @param metadata User supplied {@link Metadata} of the request
    * @return A future that completes when the blob is successfully deleted from the blob store.
    */
-  CompletionStage<Void> delete(String id);
+  CompletionStage<Void> delete(String id, Metadata metadata);
 
   /**
    * Non-blocking call to remove the Time-To-Live (TTL) for a blob and make it permanent.
    * @param blobId Blob ID of blob to remove TTL for.
+   * @param metadata User supplied {@link Metadata} of the request
    * @return a future that completes when the TTL for the blob is removed.
    */
-  CompletionStage<Void> removeTTL(String blobId);
+  CompletionStage<Void> removeTTL(String blobId, Metadata metadata);
 
   /**
    * Cleanly close resources like blob store client
