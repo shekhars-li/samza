@@ -19,6 +19,7 @@
 package org.apache.samza.storage.kv;
 
 import java.io.File;
+import java.util.List;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.samza.SamzaException;
@@ -44,7 +45,7 @@ import org.apache.samza.util.ScalaJavaUtil;
  * This is meant to be extended by the specific key value store factory implementations which will in turn override the
  * getKVStore method to return a raw key-value store.
  *
- * BaseKeyValueStorageEngineFactory assumes non null keySerde and msgSerde 
+ * BaseKeyValueStorageEngineFactory assumes non null keySerde and msgSerde
  */
 public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageEngineFactory<K, V> {
   private static final String INMEMORY_KV_STORAGE_ENGINE_FACTORY =
@@ -63,7 +64,6 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
    * @param storeName Name of the store
    * @param storeDir The directory of the store
    * @param registry MetricsRegistry to which to publish store specific metrics.
-   * @param changeLogSystemStreamPartition Samza stream partition from which to receive the changelog.
    * @param jobContext Information about the job in which the task is executing.
    * @param containerContext Information about the container in which the task is executing.
    * @return A raw KeyValueStore instance
@@ -72,7 +72,6 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
       TaskModel taskModel,
       File storeDir,
       MetricsRegistry registry,
-      SystemStreamPartition changeLogSystemStreamPartition,
       JobContext jobContext,
       ContainerContext containerContext,
       StoreMode storeMode);
@@ -113,6 +112,10 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
     if (!StringUtils.equalsAny(storeFactory.get(), INMEMORY_KV_STORAGE_ENGINE_FACTORY, DAVINCI_KV_STORAGE_ENGINE_FACTORY)) {
       storePropertiesBuilder.setPersistedToDisk(true);
     }
+    // The store is durable iff it is backed by the task backup manager
+    List<String> storeBackupManager = storageConfig.getStoreBackupManagerClassName(storeName);
+    storePropertiesBuilder.setIsDurable(!storeBackupManager.isEmpty());
+
     int batchSize = storageConfigSubset.getInt(WRITE_BATCH_SIZE, DEFAULT_WRITE_BATCH_SIZE);
     int cacheSize = storageConfigSubset.getInt(OBJECT_CACHE_SIZE, Math.max(batchSize, DEFAULT_OBJECT_CACHE_SIZE));
     if (cacheSize > 0 && cacheSize < batchSize) {
@@ -130,7 +133,7 @@ public abstract class BaseKeyValueStorageEngineFactory<K, V> implements StorageE
     }
 
     KeyValueStore<byte[], byte[]> rawStore =
-        getKVStore(storeName, taskModel, storeDir, registry, changelogSSP, jobContext, containerContext, storeMode);
+        getKVStore(storeName, taskModel, storeDir, registry, jobContext, containerContext, storeMode);
     KeyValueStore<byte[], byte[]> maybeLoggedStore = buildMaybeLoggedStore(changelogSSP,
         storeName, registry, storePropertiesBuilder, rawStore, changelogCollector);
     // this also applies serialization and caching layers
