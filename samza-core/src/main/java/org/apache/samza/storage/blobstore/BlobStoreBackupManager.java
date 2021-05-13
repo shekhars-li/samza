@@ -272,7 +272,7 @@ public class BlobStoreBackupManager implements TaskBackupManager {
     // SCM, in case of blob store backup and restore, is just the blob id of SnapshotIndex representing the remote snapshot
     storeSCMs.forEach((storeName, snapshotIndexBlobId) -> {
       Metadata requestMetadata =
-          new Metadata("snapshot-index", "0", jobName, jobId, taskName, storeName);
+          new Metadata(Metadata.PAYLOAD_PATH_SNAPSHOT_INDEX, Optional.empty(), jobName, jobId, taskName, storeName);
       CompletionStage<SnapshotIndex> snapshotIndexFuture =
           blobStoreUtil.getSnapshotIndex(snapshotIndexBlobId, requestMetadata);
 

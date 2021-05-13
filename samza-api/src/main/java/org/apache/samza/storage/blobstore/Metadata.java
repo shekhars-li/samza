@@ -19,22 +19,26 @@
 
 package org.apache.samza.storage.blobstore;
 
+import java.util.Optional;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 
 public class Metadata {
+  public static final String PAYLOAD_PATH_SNAPSHOT_INDEX = "snapshot-index";
+
   private final String payloadPath;
-  private final String payloadSize;
+  private final long payloadSize;
   private final String jobName;
   private final String jobId;
   private final String taskName;
   private final String storeName;
 
-  public Metadata(String payloadPath, String payloadSize,
+  public Metadata(String payloadPath, Optional<Long> payloadSize,
       String jobName, String jobId, String taskName, String storeName) {
     this.payloadPath = payloadPath;
-    this.payloadSize = payloadSize;
+    // Payload size may not be known in advance for requests like getSnapshotIndex, where only blob ID is known. Set -1.
+    this.payloadSize = payloadSize.orElse(-1L);
     this.jobName = jobName;
     this.jobId = jobId;
     this.taskName = taskName;
@@ -45,7 +49,7 @@ public class Metadata {
     return payloadPath;
   }
 
-  public String getPayloadSize() {
+  public long getPayloadSize() {
     return payloadSize;
   }
 

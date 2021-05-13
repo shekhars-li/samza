@@ -20,6 +20,7 @@
 package org.apache.samza.storage.blobstore.util;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.Optional;
 import org.apache.samza.storage.blobstore.Metadata;
 import org.apache.samza.storage.blobstore.exceptions.DeletedException;
 import org.apache.samza.storage.blobstore.index.SnapshotIndex;
@@ -44,8 +45,6 @@ import org.slf4j.LoggerFactory;
  */
 public class BlobStoreStateBackendUtil {
   private static final Logger LOG = LoggerFactory.getLogger(BlobStoreStateBackendUtil.class);
-
-  private static final String PAYLOAD_PATH_SNAPSHOT_INDEX = "snapshot-index";
 
   /**
    * Get the blob id of {@link SnapshotIndex} and {@link SnapshotIndex}es for the provided {@param task}
@@ -80,7 +79,7 @@ public class BlobStoreStateBackendUtil {
         try {
           LOG.debug("Getting snapshot index for taskName: {} store: {} blobId: {}", taskName, storeName, snapshotIndexBlobId);
           Metadata requestMetadata =
-              new Metadata(PAYLOAD_PATH_SNAPSHOT_INDEX, "0", jobName, jobId, taskName, storeName);
+              new Metadata(Metadata.PAYLOAD_PATH_SNAPSHOT_INDEX, Optional.empty(), jobName, jobId, taskName, storeName);
           CompletableFuture<SnapshotIndex> snapshotIndexFuture =
               blobStoreUtil.getSnapshotIndex(snapshotIndexBlobId, requestMetadata).toCompletableFuture();
           Pair<CompletableFuture<String>, CompletableFuture<SnapshotIndex>> pairOfFutures =

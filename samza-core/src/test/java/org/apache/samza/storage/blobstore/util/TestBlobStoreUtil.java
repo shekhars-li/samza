@@ -36,6 +36,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -87,7 +88,7 @@ public class TestBlobStoreUtil {
   private final String taskName = "taskName";
   private final String storeName = "storeName";
   private final Metadata metadata =
-      new Metadata("payload-path", "0", jobName, jobId, taskName, storeName);
+      new Metadata("payload-path", Optional.empty(), jobName, jobId, taskName, storeName);
 
   @Test
   // TODO HIGH shesharm test with empty (0 byte) files

@@ -21,6 +21,7 @@ package org.apache.samza.storage.blobstore.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.util.Optional;
 import org.apache.samza.storage.blobstore.BlobStoreManager;
 import org.apache.samza.storage.blobstore.metrics.BlobStoreBackupManagerMetrics;
 import org.apache.samza.storage.blobstore.Metadata;
@@ -76,8 +77,6 @@ import org.slf4j.LoggerFactory;
  */
 public class BlobStoreUtil {
   private static final Logger LOG = LoggerFactory.getLogger(BlobStoreUtil.class);
-  private static final String SST_FILE_EXTENSION = ".sst";
-  private static final String PAYLOAD_PATH_SNAPSHOT_INDEX = "snapshot-index";
 
   private final SnapshotIndexSerde snapshotIndexSerde = new SnapshotIndexSerde();
   private final BlobStoreManager blobStoreManager;
@@ -161,7 +160,7 @@ public class BlobStoreUtil {
     return FutureUtil.executeAsyncWithRetries(opName, () -> {
       InputStream inputStream = new ByteArrayInputStream(bytes); // no need to close ByteArrayInputStream
       SnapshotMetadata snapshotMetadata = snapshotIndex.getSnapshotMetadata();
-      Metadata metadata = new Metadata(PAYLOAD_PATH_SNAPSHOT_INDEX, String.valueOf(bytes.length),
+      Metadata metadata = new Metadata(Metadata.PAYLOAD_PATH_SNAPSHOT_INDEX, Optional.of((long) bytes.length),
           snapshotMetadata.getJobName(), snapshotMetadata.getJobId(), snapshotMetadata.getTaskName(),
           snapshotMetadata.getStoreName());
       return blobStoreManager.put(inputStream, metadata).toCompletableFuture();
@@ -205,7 +204,7 @@ public class BlobStoreUtil {
     List<FileIndex> files = dirIndex.getFilesRemoved();
     for (FileIndex file: files) {
       Metadata requestMetadata =
-          new Metadata(file.getFileName(), String.valueOf(file.getFileMetadata().getSize()), metadata.getJobName(),
+          new Metadata(file.getFileName(), Optional.of(file.getFileMetadata().getSize()), metadata.getJobName(),
               metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
       cleanUpFuture.add(deleteFile(file, requestMetadata));
     }
@@ -292,7 +291,7 @@ public class BlobStoreUtil {
         }
 
         Metadata metadata =
-            new Metadata(file.getAbsolutePath(), String.valueOf(fileMetadata.getSize()), snapshotMetadata.getJobName(),
+            new Metadata(file.getAbsolutePath(), Optional.of(fileMetadata.getSize()), snapshotMetadata.getJobName(),
                 snapshotMetadata.getJobId(), snapshotMetadata.getTaskName(), snapshotMetadata.getStoreName());
 
         fileBlobFuture = blobStoreManager.put(inputStream, metadata)
@@ -365,7 +364,7 @@ public class BlobStoreUtil {
     for (FileIndex fileIndex : dirIndex.getFilesPresent()) {
       File fileToRestore = Paths.get(baseDir.getAbsolutePath(), fileIndex.getFileName()).toFile();
       Metadata requestMetadata =
-          new Metadata(fileToRestore.getAbsolutePath(), String.valueOf(fileToRestore.length()),
+          new Metadata(fileToRestore.getAbsolutePath(), Optional.of(fileToRestore.length()),
               metadata.getJobName(), metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
       List<FileBlob> fileBlobs = fileIndex.getBlobs();
 
@@ -468,7 +467,7 @@ public class BlobStoreUtil {
     // Delete all files present in subDir
     for (FileIndex file: dirIndex.getFilesPresent()) {
       Metadata requestMetadata =
-          new Metadata(file.getFileName(), String.valueOf(file.getFileMetadata().getSize()),
+          new Metadata(file.getFileName(), Optional.of(file.getFileMetadata().getSize()),
               metadata.getJobName(), metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
       deleteFutures.add(deleteFile(file, requestMetadata));
     }
@@ -525,7 +524,7 @@ public class BlobStoreUtil {
 
     for (FileIndex file: dirIndex.getFilesPresent()) {
       Metadata requestMetadata =
-          new Metadata(file.getFileName(), String.valueOf(file.getFileMetadata().getSize()),
+          new Metadata(file.getFileName(), Optional.of(file.getFileMetadata().getSize()),
               metadata.getJobName(), metadata.getJobId(), metadata.getTaskName(), metadata.getStoreName());
       List<FileBlob> fileBlobs = file.getBlobs();
       for (FileBlob fileBlob : fileBlobs) {

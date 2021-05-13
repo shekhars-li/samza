@@ -33,7 +33,7 @@ import org.apache.samza.job.model.JobModel;
 import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.storage.KafkaChangelogRestoreParams;
-import org.apache.samza.storage.StateBackendAdminFactory;
+import org.apache.samza.storage.BlobStoreAdminFactory;
 import org.apache.samza.storage.StateBackendFactory;
 import org.apache.samza.storage.StateBackendAdmin;
 import org.apache.samza.storage.StorageManagerUtil;
@@ -96,7 +96,7 @@ public class BlobStoreStateBackendFactory implements StateBackendFactory {
   public StateBackendAdmin getStateBackendAdmin(JobModel jobModel, Config config) {
     StorageConfig storageConfig = new StorageConfig(config);
     String stateBackendAdminFactory = storageConfig.getBlobStoreBackendAdminFactory();
-    StateBackendAdminFactory factory = ReflectionUtil.getObj(stateBackendAdminFactory, StateBackendAdminFactory.class);
+    BlobStoreAdminFactory factory = ReflectionUtil.getObj(stateBackendAdminFactory, BlobStoreAdminFactory.class);
     return factory.getStateBackendAdmin(config, jobModel);
   }
 }

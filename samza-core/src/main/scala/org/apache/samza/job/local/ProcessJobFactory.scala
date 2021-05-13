@@ -94,10 +94,11 @@ class ProcessJobFactory extends StreamJobFactory with Logging {
     new StorageConfig(config).getStateBackendBackupFactories.foreach(stateStorageBackendBackupFactory => {
       val stateBackendFactory : StateBackendFactory =
         ReflectionUtil.getObj(stateStorageBackendBackupFactory, classOf[StateBackendFactory])
+      val stateBackendAdmin = stateBackendFactory.getStateBackendAdmin(jobModel, config)
       // Create resources required for state backend admin
-      stateBackendFactory.getStateBackendAdmin(jobModel, config).createResources()
+      stateBackendAdmin.createResources()
       // Validate resources required for state backend admin
-      stateBackendFactory.getStateBackendAdmin(jobModel, config).validateResources()
+      stateBackendAdmin.validateResources()
     })
 
     if (new JobConfig(config).getStartpointEnabled()) {

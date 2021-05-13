@@ -87,13 +87,13 @@ public class DirIndex {
   }
 
   private static void updateStats(DirIndex dirIndex, Stats stats) {
-    stats.filesAdded += dirIndex.getFilesPresent().size();
+    stats.filesPresent += dirIndex.getFilesPresent().size();
     stats.filesRemoved += dirIndex.getFilesRemoved().size();
 
-    stats.subDirsAdded += dirIndex.getFilesPresent().size();
+    stats.subDirsPresent += dirIndex.getSubDirsPresent().size();
     stats.subDirsRemoved += dirIndex.getSubDirsRemoved().size();
 
-    stats.bytesAdded += (dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
+    stats.bytesPresent += (dirIndex.getFilesPresent().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
     stats.bytesRemoved += (dirIndex.getFilesRemoved().stream().mapToLong(fi -> fi.getFileMetadata().getSize()).sum());
 
     for (DirIndex subDirPresent : dirIndex.getSubDirsPresent()) {
@@ -147,23 +147,23 @@ public class DirIndex {
   }
 
   public static class Stats {
-    public int filesAdded;
+    public int filesPresent;
     public int filesRemoved;
 
-    public int subDirsAdded;
+    public int subDirsPresent;
     public int subDirsRemoved;
 
-    public long bytesAdded;
+    public long bytesPresent;
     public long bytesRemoved;
 
     @Override
     public String toString() {
       return "Stats{" +
-          "filesAdded=" + filesAdded +
+          "filesAdded=" + filesPresent +
           ", filesRemoved=" + filesRemoved +
-          ", subDirsAdded=" + subDirsAdded
+          ", subDirsAdded=" + subDirsPresent
           + ", subDirsRemoved=" + subDirsRemoved +
-          ", bytesAdded=" + bytesAdded +
+          ", bytesAdded=" + bytesPresent +
           ", bytesRemoved=" + bytesRemoved
           + '}';
     }

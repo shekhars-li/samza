@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -55,6 +56,7 @@ import org.apache.samza.storage.blobstore.util.BlobStoreStateBackendUtil;
 import org.apache.samza.storage.blobstore.util.BlobStoreUtil;
 import org.apache.samza.util.FileUtil;
 import org.apache.samza.util.FutureUtil;
+import org.checkerframework.checker.nullness.Opt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -166,7 +168,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
             "or is no longer configured to be backed up or restored with blob store.", taskName, storeName);
         DirIndex dirIndex = scmAndSnapshotIndex.getRight().getDirIndex();
         Metadata requestMetadata =
-            new Metadata("snapshot-index", "0", jobName, jobId, taskName, storeName);
+            new Metadata(Metadata.PAYLOAD_PATH_SNAPSHOT_INDEX, Optional.empty(), jobName, jobId, taskName, storeName);
         CompletionStage<Void> storeDeletionFuture =
             blobStoreUtil.cleanUpDir(dirIndex, requestMetadata) // delete files and sub-dirs previously marked for removal
                 .thenComposeAsync(v ->
@@ -310,7 +312,7 @@ public class BlobStoreRestoreManager implements TaskRestoreManager {
       BlobStoreUtil blobStoreUtil, BlobStoreRestoreManagerMetrics metrics, ExecutorService executor) {
     metrics.storePreRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);
 
-    Metadata requestMetadata = new Metadata(storeDir.getAbsolutePath(), "0", jobName, jobId, taskName, storeName);
+    Metadata requestMetadata = new Metadata(storeDir.getAbsolutePath(), Optional.empty(), jobName, jobId, taskName, storeName);
     CompletableFuture<Void> restoreFuture =
         FutureUtil.allOf(blobStoreUtil.restoreDir(storeDir, dirIndex, requestMetadata)).thenRunAsync(() -> {
           metrics.storeRestoreNs.get(storeName).set(System.nanoTime() - storeRestoreStartTime);

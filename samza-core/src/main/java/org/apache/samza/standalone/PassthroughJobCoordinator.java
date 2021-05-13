@@ -33,6 +33,7 @@ import org.apache.samza.runtime.LocationId;
 import org.apache.samza.runtime.LocationIdProvider;
 import org.apache.samza.runtime.LocationIdProviderFactory;
 import org.apache.samza.metrics.MetricsRegistry;
+import org.apache.samza.storage.StateBackendAdmin;
 import org.apache.samza.storage.StateBackendFactory;
 import org.apache.samza.system.StreamMetadataCache;
 import org.apache.samza.system.SystemAdmins;
@@ -94,10 +95,11 @@ public class PassthroughJobCoordinator implements JobCoordinator {
       new StorageConfig(config).getStateBackendBackupFactories().forEach(stateStorageBackendBackupFactory -> {
         StateBackendFactory stateBackendFactory =
             ReflectionUtil.getObj(stateStorageBackendBackupFactory, StateBackendFactory.class);
+        StateBackendAdmin stateBackendAdmin = stateBackendFactory.getStateBackendAdmin(getJobModel(), config);
         // Create resources required for state backend admin
-        stateBackendFactory.getStateBackendAdmin(getJobModel(), config).createResources();
+        stateBackendAdmin.createResources();
         // Validate resources required for state backend admin
-        stateBackendFactory.getStateBackendAdmin(getJobModel(), config).validateResources();
+        stateBackendAdmin.validateResources();
       });
 
     } catch (Exception e) {
