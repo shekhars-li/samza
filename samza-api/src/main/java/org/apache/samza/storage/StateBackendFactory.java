@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import org.apache.samza.config.Config;
 import org.apache.samza.context.ContainerContext;
 import org.apache.samza.context.JobContext;
+import org.apache.samza.job.model.JobModel;
 import org.apache.samza.job.model.TaskModel;
 import org.apache.samza.metrics.MetricsRegistry;
 import org.apache.samza.util.Clock;
