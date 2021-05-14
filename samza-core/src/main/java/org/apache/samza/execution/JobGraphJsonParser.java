@@ -8,7 +8,7 @@ import org.apache.samza.config.Config;
 import org.apache.samza.lineage.LineageException;
 import org.apache.samza.operators.spec.OperatorSpec;
 import org.apache.samza.system.StreamSpec;
-import org.codehaus.jackson.map.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 /**
