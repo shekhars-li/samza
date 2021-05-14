@@ -281,7 +281,7 @@ public class SamzaObjectMapper {
     public CheckpointId deserialize(JsonParser jsonParser, DeserializationContext context) throws IOException {
       ObjectCodec oc = jsonParser.getCodec();
       JsonNode node = oc.readTree(jsonParser);
-      return CheckpointId.deserialize(node.getTextValue());
+      return CheckpointId.deserialize(node.textValue());
     }
   }
 

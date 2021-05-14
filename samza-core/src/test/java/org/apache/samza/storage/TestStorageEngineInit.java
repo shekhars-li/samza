@@ -7,8 +7,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.samza.Partition;
-import org.apache.samza.checkpoint.Checkpoint;
 import org.apache.samza.checkpoint.CheckpointManager;
+import org.apache.samza.checkpoint.CheckpointV1;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.MapConfig;
 import org.apache.samza.container.SamzaContainerMetrics;
@@ -159,7 +159,7 @@ public class TestStorageEngineInit {
     // Create a mocked mockStreamMetadataCache
 
     CheckpointManager checkpointManager = mock(CheckpointManager.class);
-    when(checkpointManager.readLastCheckpoint(any(TaskName.class))).thenReturn(new Checkpoint(new HashMap<>()));
+    when(checkpointManager.readLastCheckpoint(any(TaskName.class))).thenReturn(new CheckpointV1(new HashMap<>()));
 
     SSPMetadataCache mockSSPMetadataCache = mock(SSPMetadataCache.class);
     when(mockSSPMetadataCache.getMetadata(any(SystemStreamPartition.class)))
@@ -168,12 +168,16 @@ public class TestStorageEngineInit {
     // Reset the  expected number of sysConsumer create, start and stop calls, and store.restore() calls
     this.storeInitCallCount = 0;
 
+    StateBackendFactory backendFactory = mock(StateBackendFactory.class);
+    TaskRestoreManager restoreManager = mock(TaskRestoreManager.class);
+    when(backendFactory.getRestoreManager(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        .thenReturn(restoreManager);
+
     // Create the container storage manager
     this.containerStorageManager = new ContainerStorageManager(
         checkpointManager,
         new ContainerModel("samza-container-test", tasks),
         mock(StreamMetadataCache.class),
-        mockSSPMetadataCache,
         mockSystemAdmins,
         changelogSystemStreams,
         new HashMap<>(),
@@ -186,10 +190,10 @@ public class TestStorageEngineInit {
         mock(JobContext.class),
         mock(ContainerContext.class),
         Optional.of(mock(ExternalContext.class)),
+        backendFactory,
         mock(Map.class),
         DEFAULT_LOGGED_STORE_BASE_DIR,
         DEFAULT_STORE_BASE_DIR,
-        2,
         null,
         new SystemClock());
   }
